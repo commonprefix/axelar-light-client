@@ -1,11 +1,18 @@
-use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_schema::cw_serde;
+use serde::{Deserialize, Serialize};
 
-#[cw_serde]
-pub struct InstantiateMsg {}
+use crate::types::Bootstrap;
+
+#[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
+pub struct InstantiateMsg {
+    pub bootstrap: Bootstrap,
+}
 
 #[cw_serde]
 pub enum ExecuteMsg {}
 
 #[cw_serde]
-#[derive(QueryResponses)]
-pub enum QueryMsg {}
+pub enum QueryMsg {
+    Greet {},
+    Bootstrap {},
+}
