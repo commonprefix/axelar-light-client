@@ -523,6 +523,7 @@ dependencies = [
  "hex",
  "schemars",
  "serde",
+ "serde_json",
  "ssz_rs",
  "thiserror",
 ]
