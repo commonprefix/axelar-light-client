@@ -28,7 +28,7 @@ pub struct Bootstrap {
 
 #[derive(serde::Deserialize, serde::Serialize, PartialEq, Debug, Clone, Default)]
 pub struct SyncCommittee {
-    pub pubkeys: Vector<BLSPubKey, 1>,
+    pub pubkeys: Vector<BLSPubKey, 512>,
     pub aggregate_pubkey: BLSPubKey,
 }
 

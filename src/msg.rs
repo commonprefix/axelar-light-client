@@ -1,6 +1,5 @@
 use cosmwasm_schema::cw_serde;
 use serde::{Deserialize, Serialize};
-use ssz_rs::SimpleSerialize;
 
 use crate::types::Bootstrap;
 

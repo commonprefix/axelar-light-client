@@ -1,6 +1,6 @@
-use cosmwasm_schema::write_api;
+// use cosmwasm_schema::write_api;
 
-use light_client::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+// use light_client::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 fn main() {
     // write_api! {

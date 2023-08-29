@@ -4,7 +4,7 @@ use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::bootstrap;
+use crate::state::BOOTSTRAP;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -13,7 +13,7 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    bootstrap.save(deps.storage, &msg.bootstrap)?;
+    BOOTSTRAP.save(deps.storage, &msg.bootstrap)?;
     Ok(Response::new())
 }
 
@@ -47,7 +47,7 @@ mod query {
     }
 
     pub fn get_bootstrap(deps: Deps) -> StdResult<Bootstrap> {
-        bootstrap.load(deps.storage)
+        BOOTSTRAP.load(deps.storage)
     }
 }
 
@@ -55,10 +55,7 @@ mod query {
 mod tests {
     use std::fs::File;
 
-    use crate::{
-        contract::{execute, instantiate, query},
-        types::{BeaconHeader, Header},
-    };
+    use crate::contract::{execute, instantiate, query};
     use cosmwasm_std::Addr;
     use cw_multi_test::{App, ContractWrapper, Executor};
 
@@ -73,7 +70,6 @@ mod tests {
         fn get_mock_bootstrap() -> Bootstrap {
             let file = File::open("testdata/bootstrap.json").unwrap();
             let bootstrap: Bootstrap = serde_json::from_reader(file).unwrap();
-            println!("{:?}", bootstrap);
 
             return bootstrap;
         }
