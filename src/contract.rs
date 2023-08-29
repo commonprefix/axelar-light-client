@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
@@ -29,33 +29,36 @@ pub fn execute(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    unimplemented!();
-    // use QueryMsg::*;
+    use QueryMsg::*;
 
-    // match msg {
-    //     Greet {} => to_binary(&query::greet()?),
-    //     Bootstrap {} => to_binary(&query::get_bootstrap(_deps)?),
-    // }
+    match msg {
+        Greet {} => to_binary(&query::greet()?),
+        Bootstrap {} => to_binary(&query::get_bootstrap(_deps)?),
+    }
 }
-// mod query {
-//     use crate::types::Bootstrap;
 
-//     use super::*;
+mod query {
+    use crate::types::Bootstrap;
 
-//     pub fn greet() -> StdResult<String> {
-//         Ok("Hello, world!".to_string())
-//     }
+    use super::*;
 
-//     pub fn get_bootstrap(deps: Deps) -> StdResult<Bootstrap> {
-//         bootstrap.load(deps.storage)
-//     }
-// }
+    pub fn greet() -> StdResult<String> {
+        Ok("Hello, world!".to_string())
+    }
+
+    pub fn get_bootstrap(deps: Deps) -> StdResult<Bootstrap> {
+        bootstrap.load(deps.storage)
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use std::fs::File;
 
-    use crate::contract::{execute, instantiate, query};
+    use crate::{
+        contract::{execute, instantiate, query},
+        types::{BeaconHeader, Header},
+    };
     use cosmwasm_std::Addr;
     use cw_multi_test::{App, ContractWrapper, Executor};
 
@@ -70,6 +73,8 @@ mod tests {
         fn get_mock_bootstrap() -> Bootstrap {
             let file = File::open("testdata/bootstrap.json").unwrap();
             let bootstrap: Bootstrap = serde_json::from_reader(file).unwrap();
+            println!("{:?}", bootstrap);
+
             return bootstrap;
         }
 

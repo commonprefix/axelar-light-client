@@ -40,7 +40,7 @@ mod primitives {
      * ByteVector: a fixed-length vector of bytes.
      */
 
-    #[derive(serde::Serialize, Debug, Clone, Default, PartialEq, Eq)]
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
     pub struct ByteVector<const N: usize> {
         inner: Vector<u8, N>,
     }
@@ -112,6 +112,16 @@ mod primitives {
         }
     }
 
+    impl<const N: usize> serde::Serialize for ByteVector<N> {
+        fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            let s = format!("0x{}", hex::encode(&self.inner));
+            serializer.serialize_str(&s)
+        }
+    }
+
     impl<const N: usize> ssz_rs::SimpleSerialize for ByteVector<N> {}
 
     impl<'de, const N: usize> serde::Deserialize<'de> for ByteVector<N> {
@@ -131,7 +141,7 @@ mod primitives {
      * U64: a 64-bit unsigned integer.
      */
 
-    #[derive(serde::Serialize, Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
+    #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
     pub struct U64 {
         inner: u64,
     }
@@ -173,6 +183,15 @@ mod primitives {
     impl ssz_rs::Serialize for U64 {
         fn serialize(&self, buffer: &mut Vec<u8>) -> std::result::Result<usize, SerializeError> {
             self.inner.serialize(buffer)
+        }
+    }
+
+    impl serde::Serialize for U64 {
+        fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            serializer.serialize_str(&self.inner.to_string())
         }
     }
 
