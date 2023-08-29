@@ -4,7 +4,7 @@ use ssz_rs::SimpleSerialize;
 
 use crate::types::Bootstrap;
 
-#[derive(Deserialize, PartialEq, Debug, Clone)]
+#[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
 pub struct InstantiateMsg {
     pub bootstrap: Bootstrap,
 }

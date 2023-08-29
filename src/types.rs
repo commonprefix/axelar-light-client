@@ -1,13 +1,12 @@
-use std::ops::Deref;
-
 use primitives::{ByteVector, U64};
+use serde;
 use ssz_rs::prelude::*;
 
 pub type Bytes32 = ByteVector<32>;
 pub type BLSPubKey = ByteVector<48>;
 pub type SignatureBytes = ByteVector<48>;
 
-#[derive(serde::Deserialize, SimpleSerialize, PartialEq, Debug, Clone, Default)]
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct Header {
     pub slot: U64,
     pub proposer_index: U64,
@@ -16,20 +15,20 @@ pub struct Header {
     pub body_root: Bytes32,
 }
 
-#[derive(serde::Deserialize, SimpleSerialize, PartialEq, Debug, Clone, Default)]
+#[derive(serde::Deserialize, serde::Serialize, PartialEq, Debug, Clone, Default)]
 pub struct BeaconHeader {
     pub beacon: Header,
 }
 
-#[derive(serde::Deserialize, SimpleSerialize, PartialEq, Debug, Clone, Default)]
+#[derive(serde::Deserialize, serde::Serialize, PartialEq, Debug, Clone, Default)]
 pub struct Bootstrap {
     pub header: BeaconHeader,
     pub current_sync_committee: SyncCommittee,
 }
 
-#[derive(serde::Deserialize, SimpleSerialize, PartialEq, Debug, Clone, Default)]
+#[derive(serde::Deserialize, serde::Serialize, PartialEq, Debug, Clone, Default)]
 pub struct SyncCommittee {
-    pub pubkeys: Vector<BLSPubKey, 512>,
+    pub pubkeys: Vector<BLSPubKey, 1>,
     pub aggregate_pubkey: BLSPubKey,
 }
 
@@ -41,7 +40,7 @@ mod primitives {
      * ByteVector: a fixed-length vector of bytes.
      */
 
-    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    #[derive(serde::Serialize, Debug, Clone, Default, PartialEq, Eq)]
     pub struct ByteVector<const N: usize> {
         inner: Vector<u8, N>,
     }
@@ -132,7 +131,7 @@ mod primitives {
      * U64: a 64-bit unsigned integer.
      */
 
-    #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
+    #[derive(serde::Serialize, Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
     pub struct U64 {
         inner: u64,
     }
