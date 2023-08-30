@@ -1,12 +1,11 @@
 use primitives::{ByteVector, U64};
 use serde;
-use ssz_rs::prelude::*;
 
 pub type Bytes32 = ByteVector<32>;
 pub type BLSPubKey = ByteVector<48>;
 pub type SignatureBytes = ByteVector<48>;
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
 pub struct Header {
     pub slot: U64,
     pub proposer_index: U64,
@@ -15,101 +14,47 @@ pub struct Header {
     pub body_root: Bytes32,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, PartialEq, Debug, Clone, Default)]
+#[derive(serde::Deserialize, serde::Serialize, PartialEq, Debug, Clone)]
 pub struct BeaconHeader {
     pub beacon: Header,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, PartialEq, Debug, Clone, Default)]
+#[derive(serde::Deserialize, serde::Serialize, PartialEq, Debug, Clone)]
 pub struct Bootstrap {
     pub header: BeaconHeader,
     pub current_sync_committee: SyncCommittee,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, PartialEq, Debug, Clone, Default)]
+#[derive(serde::Deserialize, serde::Serialize, PartialEq, Debug, Clone)]
 pub struct SyncCommittee {
-    pub pubkeys: Vector<BLSPubKey, 512>,
+    // Size of 512. Would use an array but would need to
+    // Manually implement serialize, deserialize for it.
+    pub pubkeys: Vec<BLSPubKey>,
     pub aggregate_pubkey: BLSPubKey,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Debug, Default, Clone, PartialEq)]
+pub struct ChainConfig {
+    pub chain_id: u64,
+    pub slot: u64,
+    pub genesis_time: u64,
+}
+
+/**
+ *
+ * Primitives
+ *
+ */
+
 mod primitives {
-    use ssz_rs::prelude::*;
-    use std::ops::Deref;
 
     /**
      * ByteVector: a fixed-length vector of bytes.
      */
 
-    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ByteVector<const N: usize> {
-        inner: Vector<u8, N>,
-    }
-
-    impl<const N: usize> ByteVector<N> {
-        pub fn as_slice(&self) -> &[u8] {
-            self.inner.as_slice()
-        }
-    }
-
-    impl<const N: usize> Deref for ByteVector<N> {
-        type Target = [u8];
-
-        fn deref(&self) -> &Self::Target {
-            self.inner.as_slice()
-        }
-    }
-
-    impl<const N: usize> TryFrom<Vec<u8>> for ByteVector<N> {
-        type Error = eyre::Report;
-
-        fn try_from(value: Vec<u8>) -> std::result::Result<Self, Self::Error> {
-            Ok(Self {
-                inner: Vector::try_from(value).map_err(|(_, err)| err)?,
-            })
-        }
-    }
-
-    impl<const N: usize> TryFrom<&[u8]> for ByteVector<N> {
-        type Error = eyre::Report;
-
-        fn try_from(value: &[u8]) -> std::result::Result<Self, Self::Error> {
-            Ok(Self {
-                inner: Vector::try_from(value.to_vec()).map_err(|(_, err)| err)?,
-            })
-        }
-    }
-
-    impl<const N: usize> ssz_rs::Merkleized for ByteVector<N> {
-        fn hash_tree_root(&mut self) -> std::result::Result<Node, MerkleizationError> {
-            self.inner.hash_tree_root()
-        }
-    }
-
-    impl<const N: usize> ssz_rs::Sized for ByteVector<N> {
-        fn size_hint() -> usize {
-            0
-        }
-
-        fn is_variable_size() -> bool {
-            false
-        }
-    }
-
-    impl<const N: usize> ssz_rs::Serialize for ByteVector<N> {
-        fn serialize(&self, buffer: &mut Vec<u8>) -> std::result::Result<usize, SerializeError> {
-            self.inner.serialize(buffer)
-        }
-    }
-
-    impl<const N: usize> ssz_rs::Deserialize for ByteVector<N> {
-        fn deserialize(encoding: &[u8]) -> std::result::Result<Self, DeserializeError>
-        where
-            Self: std::marker::Sized,
-        {
-            Ok(Self {
-                inner: Vector::deserialize(encoding)?,
-            })
-        }
+        inner: [u8; N],
     }
 
     impl<const N: usize> serde::Serialize for ByteVector<N> {
@@ -121,8 +66,6 @@ mod primitives {
             serializer.serialize_str(&s)
         }
     }
-
-    impl<const N: usize> ssz_rs::SimpleSerialize for ByteVector<N> {}
 
     impl<'de, const N: usize> serde::Deserialize<'de> for ByteVector<N> {
         fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
@@ -164,28 +107,6 @@ mod primitives {
         }
     }
 
-    impl ssz_rs::Merkleized for U64 {
-        fn hash_tree_root(&mut self) -> std::result::Result<Node, MerkleizationError> {
-            self.inner.hash_tree_root()
-        }
-    }
-
-    impl ssz_rs::Sized for U64 {
-        fn size_hint() -> usize {
-            0
-        }
-
-        fn is_variable_size() -> bool {
-            false
-        }
-    }
-
-    impl ssz_rs::Serialize for U64 {
-        fn serialize(&self, buffer: &mut Vec<u8>) -> std::result::Result<usize, SerializeError> {
-            self.inner.serialize(buffer)
-        }
-    }
-
     impl serde::Serialize for U64 {
         fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
         where
@@ -194,19 +115,6 @@ mod primitives {
             serializer.serialize_str(&self.inner.to_string())
         }
     }
-
-    impl ssz_rs::Deserialize for U64 {
-        fn deserialize(encoding: &[u8]) -> std::result::Result<Self, DeserializeError>
-        where
-            Self: std::marker::Sized,
-        {
-            Ok(Self {
-                inner: u64::deserialize(encoding)?,
-            })
-        }
-    }
-
-    impl ssz_rs::SimpleSerialize for U64 {}
 
     impl<'de> serde::Deserialize<'de> for U64 {
         fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
