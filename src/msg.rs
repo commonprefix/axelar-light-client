@@ -16,8 +16,7 @@ pub enum ExecuteMsg {
 #[cw_serde]
 pub enum QueryMsg {
     Greet {},
-    GenesisTime {},
-    GenesisPeriod {},
-    GenesisCommittee {},
+    Bootstrap {},
     Update { period: u64 },
+    LightClientState {},
 }

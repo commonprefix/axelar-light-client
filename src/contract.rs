@@ -3,9 +3,8 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
 use crate::error::ContractError;
-use crate::helpers::calc_sync_period;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::*;
+use crate::{state::*, verifier};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -14,11 +13,11 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let genesis_period = calc_sync_period(msg.bootstrap.slot.as_u64());
+    let state = verifier::bootstrap(msg.bootstrap.clone())?;
+    LIGHT_CLIENT_STATE.save(deps.storage, &state)?;
 
-    GENESIS_PERIOD.save(deps.storage, &genesis_period)?;
-    GENESIS_TIME.save(deps.storage, &msg.bootstrap.genesis_time)?;
-    GENESIS_COMMITTEE.save(deps.storage, &msg.bootstrap.committee)?;
+    CONFIG.save(deps.storage, &msg.config)?;
+    BOOTSTRAP.save(deps.storage, &msg.bootstrap)?;
 
     Ok(Response::new())
 }
@@ -43,13 +42,12 @@ mod execute {
     use super::*;
 
     pub fn update(deps: DepsMut, period: u64, update: Update) -> Result<Response, ContractError> {
-        let resp = UPDATES.may_load(deps.storage, 767)?;
+        let resp = UPDATES.may_load(deps.storage, period)?;
         if resp.is_some() {
             return Err(ContractError::UpdateAlreadyExists {});
         }
 
         UPDATES.save(deps.storage, period, &update)?;
-
         Ok(Response::new())
     }
 }
@@ -60,27 +58,18 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
     match msg {
         Greet {} => to_binary(&query::greet()?),
-        GenesisTime {} => to_binary(&query::genesis_time(deps)?),
-        GenesisPeriod {} => to_binary(&query::genesis_period(deps)?),
-        GenesisCommittee {} => to_binary(&GENESIS_COMMITTEE.load(deps.storage)?),
+        Bootstrap {} => to_binary(&BOOTSTRAP.load(deps.storage)?),
         Update { period } => to_binary(&query::update(deps, period)?),
+        LightClientState {} => to_binary(&LIGHT_CLIENT_STATE.load(deps.storage)?),
     }
 }
 
 mod query {
     use super::*;
-    use crate::types::{primitives::U64, Update};
+    use crate::types::Update;
 
     pub fn greet() -> StdResult<String> {
         Ok("Hello, world!".to_string())
-    }
-
-    pub fn genesis_time(deps: Deps) -> StdResult<U64> {
-        GENESIS_TIME.load(deps.storage)
-    }
-
-    pub fn genesis_period(deps: Deps) -> StdResult<u64> {
-        GENESIS_PERIOD.load(deps.storage)
     }
 
     pub fn update(deps: Deps, period: u64) -> StdResult<Update> {
@@ -99,7 +88,8 @@ mod tests {
     use crate::{
         contract::{execute, instantiate, query},
         msg::ExecuteMsg,
-        types::{primitives::U64, SyncCommittee, Update},
+        types::{ChainConfig, LightClientState, Update},
+        verifier,
     };
     use cosmwasm_std::{Addr, StdError};
     use cw_multi_test::{App, ContractWrapper, Executor};
@@ -125,10 +115,15 @@ mod tests {
         return update;
     }
 
+    fn get_config() -> ChainConfig {
+        return ChainConfig {
+            chain_id: 1,
+            genesis_time: 1606824023,
+        };
+    }
+
     #[test]
     fn test_initialize() {
-        // Open and parse JSON
-
         let mut app = App::default();
 
         let code = ContractWrapper::new(execute, instantiate, query);
@@ -142,6 +137,7 @@ mod tests {
                 Addr::unchecked("owner"),
                 &InstantiateMsg {
                     bootstrap: bootstrap.clone(),
+                    config: get_config(),
                 },
                 &[],
                 "Contract",
@@ -149,23 +145,20 @@ mod tests {
             )
             .unwrap();
 
-        let resp: u64 = app
+        let resp: Bootstrap = app
             .wrap()
-            .query_wasm_smart(&addr, &QueryMsg::GenesisPeriod {})
+            .query_wasm_smart(addr.clone(), &QueryMsg::Bootstrap {})
             .unwrap();
-        assert_eq!(resp, 766);
 
-        let resp: U64 = app
-            .wrap()
-            .query_wasm_smart(&addr, &QueryMsg::GenesisTime {})
-            .unwrap();
-        assert_eq!(resp, bootstrap.genesis_time);
+        assert_eq!(resp, bootstrap);
 
-        let resp: SyncCommittee = app
+        let resp: LightClientState = app
             .wrap()
-            .query_wasm_smart(&addr, &QueryMsg::GenesisCommittee {})
+            .query_wasm_smart(addr.clone(), &QueryMsg::LightClientState {})
             .unwrap();
-        assert_eq!(resp.pubkeys.len(), 512);
+
+        let state = verifier::bootstrap(bootstrap).unwrap();
+        assert_eq!(resp, state)
     }
 
     #[test]
@@ -185,6 +178,7 @@ mod tests {
                 Addr::unchecked("owner"),
                 &InstantiateMsg {
                     bootstrap: bootstrap,
+                    config: get_config(),
                 },
                 &[],
                 "Contract",
