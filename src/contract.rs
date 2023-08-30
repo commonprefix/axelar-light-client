@@ -25,12 +25,33 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    _msg: ExecuteMsg,
+    msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    Ok(Response::new())
+    use ExecuteMsg::*;
+
+    match msg {
+        Update { period, update } => execute::update(deps, period, update),
+    }
+}
+
+mod execute {
+    use crate::types::Update;
+
+    use super::*;
+
+    pub fn update(deps: DepsMut, period: u64, update: Update) -> Result<Response, ContractError> {
+        let resp = UPDATES.may_load(deps.storage, 767)?;
+        if resp.is_some() {
+            return Err(ContractError::UpdateAlreadyExists {});
+        }
+
+        UPDATES.save(deps.storage, period, &update)?;
+
+        Ok(Response::new())
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -42,12 +63,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         GenesisTime {} => to_binary(&query::genesis_time(deps)?),
         GenesisPeriod {} => to_binary(&query::genesis_period(deps)?),
         GenesisCommittee {} => to_binary(&GENESIS_COMMITTEE.load(deps.storage)?),
+        Update { period } => to_binary(&query::update(deps, period)?),
     }
 }
 
 mod query {
     use super::*;
-    use crate::types::primitives::U64;
+    use crate::types::{primitives::U64, Update};
 
     pub fn greet() -> StdResult<String> {
         Ok("Hello, world!".to_string())
@@ -61,6 +83,10 @@ mod query {
         GENESIS_PERIOD.load(deps.storage)
     }
 
+    pub fn update(deps: Deps, period: u64) -> StdResult<Update> {
+        UPDATES.load(deps.storage, period)
+    }
+
     // pub fn genesis_committee(deps: Deps) {
     //     return GENESIS_COMMITTEE.load(deps.storage)
     // }
@@ -72,9 +98,10 @@ mod tests {
 
     use crate::{
         contract::{execute, instantiate, query},
-        types::{primitives::U64, SyncCommittee},
+        msg::ExecuteMsg,
+        types::{primitives::U64, SyncCommittee, Update},
     };
-    use cosmwasm_std::Addr;
+    use cosmwasm_std::{Addr, StdError};
     use cw_multi_test::{App, ContractWrapper, Executor};
 
     use crate::{
@@ -82,22 +109,32 @@ mod tests {
         types::Bootstrap,
     };
 
-    #[test]
-    fn greet_query() {
-        // Open and parse JSON
-        fn get_mock_bootstrap() -> Bootstrap {
-            let file = File::open("testdata/bootstrap.json").unwrap();
-            let bootstrap: Bootstrap = serde_json::from_reader(file).unwrap();
+    fn get_bootstrap() -> Bootstrap {
+        let file = File::open("testdata/bootstrap.json").unwrap();
+        let bootstrap: Bootstrap = serde_json::from_reader(file).unwrap();
 
-            return bootstrap;
-        }
+        return bootstrap;
+    }
+
+    // Currently have in testdata: 767.json
+    fn get_update(period: u64) -> Update {
+        let path = format!("testdata/{}.json", period);
+        let file = File::open(path).unwrap();
+        let update: Update = serde_json::from_reader(file).unwrap();
+
+        return update;
+    }
+
+    #[test]
+    fn test_initialize() {
+        // Open and parse JSON
 
         let mut app = App::default();
 
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
-        let bootstrap = get_mock_bootstrap();
+        let bootstrap = get_bootstrap();
 
         let addr = app
             .instantiate_contract(
@@ -116,7 +153,7 @@ mod tests {
             .wrap()
             .query_wasm_smart(&addr, &QueryMsg::GenesisPeriod {})
             .unwrap();
-        assert_eq!(resp, 466);
+        assert_eq!(resp, 766);
 
         let resp: U64 = app
             .wrap()
@@ -129,5 +166,72 @@ mod tests {
             .query_wasm_smart(&addr, &QueryMsg::GenesisCommittee {})
             .unwrap();
         assert_eq!(resp.pubkeys.len(), 512);
+    }
+
+    #[test]
+    fn test_update() {
+        // Open and parse JSON
+
+        let mut app = App::default();
+
+        let code = ContractWrapper::new(execute, instantiate, query);
+        let code_id = app.store_code(Box::new(code));
+
+        let bootstrap = get_bootstrap();
+
+        let addr = app
+            .instantiate_contract(
+                code_id,
+                Addr::unchecked("owner"),
+                &InstantiateMsg {
+                    bootstrap: bootstrap,
+                },
+                &[],
+                "Contract",
+                None,
+            )
+            .unwrap();
+
+        let update = get_update(767);
+
+        //Call update
+        let resp = app.execute_contract(
+            Addr::unchecked("owner"),
+            addr.to_owned(),
+            &ExecuteMsg::Update {
+                period: 767,
+                update: update.clone(),
+            },
+            &[],
+        );
+
+        assert!(resp.is_ok());
+
+        let resp: Update = app
+            .wrap()
+            .query_wasm_smart(addr.to_owned(), &QueryMsg::Update { period: 767 })
+            .unwrap();
+
+        assert_eq!(resp, update);
+
+        // Call update with wrong period
+        let resp = app.execute_contract(
+            Addr::unchecked("owner"),
+            addr.to_owned(),
+            &ExecuteMsg::Update {
+                period: 767,
+                update: update.clone(),
+            },
+            &[],
+        );
+
+        assert!(resp.is_err());
+
+        // Query update with wrong period
+        let resp: Result<Update, StdError> = app
+            .wrap()
+            .query_wasm_smart(addr.to_owned(), &QueryMsg::Update { period: 768 });
+
+        assert!(resp.is_err());
     }
 }

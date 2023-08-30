@@ -1,15 +1,17 @@
 use cosmwasm_schema::cw_serde;
 use serde::{Deserialize, Serialize};
 
-use crate::types::Bootstrap;
+use crate::types::{Bootstrap, Update};
 
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
 pub struct InstantiateMsg {
     pub bootstrap: Bootstrap,
 }
 
-#[cw_serde]
-pub enum ExecuteMsg {}
+#[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
+pub enum ExecuteMsg {
+    Update { period: u64, update: Update },
+}
 
 #[cw_serde]
 pub enum QueryMsg {
@@ -17,4 +19,5 @@ pub enum QueryMsg {
     GenesisTime {},
     GenesisPeriod {},
     GenesisCommittee {},
+    Update { period: u64 },
 }

@@ -1,11 +1,12 @@
 use primitives::{ByteVector, U64};
-use serde;
+use serde::{Deserialize, Serialize};
+use ssz_rs::Bitvector;
 
 pub type Bytes32 = ByteVector<32>;
 pub type BLSPubKey = ByteVector<48>;
-pub type SignatureBytes = ByteVector<48>;
+pub type SignatureBytes = ByteVector<96>;
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Header {
     pub slot: U64,
     pub proposer_index: U64,
@@ -14,12 +15,12 @@ pub struct Header {
     pub body_root: Bytes32,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, PartialEq, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct BeaconHeader {
     pub beacon: Header,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, PartialEq, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Bootstrap {
     pub genesis_time: U64,
     pub genesis_validator_root: Bytes32,
@@ -27,7 +28,7 @@ pub struct Bootstrap {
     pub committee: SyncCommittee,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, PartialEq, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct SyncCommittee {
     // Size of 512. Would use an array but would need to
     // Manually implement serialize, deserialize for it.
@@ -35,7 +36,24 @@ pub struct SyncCommittee {
     pub aggregate_pubkey: BLSPubKey,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Default, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct Update {
+    pub attested_header: BeaconHeader,
+    pub next_sync_committee: SyncCommittee,
+    pub next_sync_committee_branch: Vec<Bytes32>,
+    pub finalized_header: BeaconHeader,
+    pub finality_branch: Vec<Bytes32>,
+    pub sync_aggregate: SyncAggregate,
+    pub signature_slot: U64,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct SyncAggregate {
+    pub sync_committee_bits: Bitvector<512>,
+    pub sync_committee_signature: SignatureBytes,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct ChainConfig {
     pub chain_id: u64,
     pub slot: u64,
@@ -49,6 +67,7 @@ pub struct ChainConfig {
  */
 
 pub(crate) mod primitives {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     /**
      * ByteVector: a fixed-length vector of bytes.
@@ -59,22 +78,22 @@ pub(crate) mod primitives {
         inner: [u8; N],
     }
 
-    impl<const N: usize> serde::Serialize for ByteVector<N> {
+    impl<const N: usize> Serialize for ByteVector<N> {
         fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
         where
-            S: serde::Serializer,
+            S: Serializer,
         {
             let s = format!("0x{}", hex::encode(&self.inner));
             serializer.serialize_str(&s)
         }
     }
 
-    impl<'de, const N: usize> serde::Deserialize<'de> for ByteVector<N> {
+    impl<'de, const N: usize> Deserialize<'de> for ByteVector<N> {
         fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
         where
-            D: serde::Deserializer<'de>,
+            D: Deserializer<'de>,
         {
-            let bytes: String = serde::Deserialize::deserialize(deserializer)?;
+            let bytes: String = Deserialize::deserialize(deserializer)?;
             let bytes = hex::decode(bytes.strip_prefix("0x").unwrap()).unwrap();
             Ok(Self {
                 inner: bytes.to_vec().try_into().unwrap(),
@@ -109,21 +128,21 @@ pub(crate) mod primitives {
         }
     }
 
-    impl serde::Serialize for U64 {
+    impl Serialize for U64 {
         fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
         where
-            S: serde::Serializer,
+            S: Serializer,
         {
             serializer.serialize_str(&self.inner.to_string())
         }
     }
 
-    impl<'de> serde::Deserialize<'de> for U64 {
+    impl<'de> Deserialize<'de> for U64 {
         fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
         where
-            D: serde::Deserializer<'de>,
+            D: Deserializer<'de>,
         {
-            let val: String = serde::Deserialize::deserialize(deserializer)?;
+            let val: String = Deserialize::deserialize(deserializer)?;
             Ok(Self {
                 inner: val.parse().unwrap(),
             })
