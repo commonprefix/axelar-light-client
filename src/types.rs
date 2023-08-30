@@ -4,6 +4,7 @@ use serde;
 pub type Bytes32 = ByteVector<32>;
 pub type BLSPubKey = ByteVector<48>;
 pub type SignatureBytes = ByteVector<48>;
+pub type SyncCommittee = Vec<BLSPubKey>;
 
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
 pub struct Header {
@@ -21,17 +22,19 @@ pub struct BeaconHeader {
 
 #[derive(serde::Deserialize, serde::Serialize, PartialEq, Debug, Clone)]
 pub struct Bootstrap {
-    pub header: BeaconHeader,
-    pub current_sync_committee: SyncCommittee,
+    pub genesis_time: U64,
+    pub genesis_validator_root: Bytes32,
+    pub slot: U64,
+    pub committee: Vec<BLSPubKey>,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, PartialEq, Debug, Clone)]
-pub struct SyncCommittee {
-    // Size of 512. Would use an array but would need to
-    // Manually implement serialize, deserialize for it.
-    pub pubkeys: Vec<BLSPubKey>,
-    pub aggregate_pubkey: BLSPubKey,
-}
+// #[derive(serde::Deserialize, serde::Serialize, PartialEq, Debug, Clone)]
+// pub struct SyncCommittee {
+//     // Size of 512. Would use an array but would need to
+//     // Manually implement serialize, deserialize for it.
+//     pub pubkeys: Vec<BLSPubKey>,
+//     pub aggregate_pubkey: BLSPubKey,
+// }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct ChainConfig {
@@ -46,7 +49,7 @@ pub struct ChainConfig {
  *
  */
 
-mod primitives {
+pub(crate) mod primitives {
 
     /**
      * ByteVector: a fixed-length vector of bytes.
