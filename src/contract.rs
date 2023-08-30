@@ -72,7 +72,7 @@ mod tests {
 
     use crate::{
         contract::{execute, instantiate, query},
-        types::primitives::U64,
+        types::{primitives::U64, SyncCommittee},
     };
     use cosmwasm_std::Addr;
     use cw_multi_test::{App, ContractWrapper, Executor};
@@ -124,10 +124,10 @@ mod tests {
             .unwrap();
         assert_eq!(resp, bootstrap.genesis_time);
 
-        let resp: Vec<String> = app
+        let resp: SyncCommittee = app
             .wrap()
             .query_wasm_smart(&addr, &QueryMsg::GenesisCommittee {})
             .unwrap();
-        assert_eq!(resp.len(), 512);
+        assert_eq!(resp.pubkeys.len(), 512);
     }
 }
