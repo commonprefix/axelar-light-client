@@ -1,11 +1,12 @@
 use cosmwasm_schema::cw_serde;
 use serde::{Deserialize, Serialize};
 
-use crate::types::{Bootstrap, Update};
+use crate::types::{Bootstrap, ChainConfig, Update};
 
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
 pub struct InstantiateMsg {
     pub bootstrap: Bootstrap,
+    pub config: ChainConfig,
 }
 
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
