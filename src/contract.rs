@@ -14,6 +14,10 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     let state = verifier::bootstrap(msg.bootstrap.clone())?;
+    println!(
+        "Last slot after bootstrap {:?}",
+        state.finalized_header.slot
+    );
     LIGHT_CLIENT_STATE.save(deps.storage, &state)?;
 
     CONFIG.save(deps.storage, &msg.config)?;
@@ -47,11 +51,22 @@ mod execute {
         //     return Err(ContractError::UpdateAlreadyExists {});
         // }
 
+        // TODO: Fix this cloned state everywhere
+
         let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
+        let state_cloned = state.clone();
         let config = CONFIG.load(deps.storage)?;
 
-        verifier::verify_generic_update(state, config, &update).unwrap();
+        println!("Old State: {:?}", state.finalized_header.slot);
+        println!(
+            "Slot of new update {:?}",
+            update.finalized_header.beacon.slot,
+        );
+        verifier::verify_update(state, config, &update).unwrap();
+        let new_state = verifier::apply_update(state_cloned, &update);
+        println!("New State: {:?}", new_state.finalized_header.slot);
 
+        LIGHT_CLIENT_STATE.save(deps.storage, &new_state)?;
         UPDATES.save(deps.storage, period, &update)?;
         Ok(Response::new())
     }
@@ -112,7 +127,7 @@ mod tests {
         return bootstrap;
     }
 
-    // Currently have in testdata: 767.json
+    // Currently have in testdata: 767, 862, 863
     fn get_update(period: u64) -> Update {
         let path = format!("testdata/{}.json", period);
         let file = File::open(path).unwrap();
@@ -203,7 +218,7 @@ mod tests {
             Addr::unchecked("owner"),
             addr.to_owned(),
             &ExecuteMsg::Update {
-                period: 767,
+                period: 862,
                 update: update.clone(),
             },
             &[],
@@ -211,11 +226,26 @@ mod tests {
 
         assert!(resp.is_ok());
 
-        // Query update with wrong period
-        let resp: Result<Update, StdError> = app
-            .wrap()
-            .query_wasm_smart(addr.to_owned(), &QueryMsg::Update { period: 862 });
+        let update = get_update(863);
 
-        assert!(resp.is_err());
+        //Call update
+        let resp = app.execute_contract(
+            Addr::unchecked("owner"),
+            addr.to_owned(),
+            &ExecuteMsg::Update {
+                period: 863,
+                update: update.clone(),
+            },
+            &[],
+        );
+
+        assert!(resp.is_ok());
+
+        // // Query update with wrong period
+        // let resp: Result<Update, StdError> = app
+        //     .wrap()
+        //     .query_wasm_smart(addr.to_owned(), &QueryMsg::Update { period: 862 });
+
+        // assert!(resp.is_err());
     }
 }

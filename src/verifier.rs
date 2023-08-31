@@ -1,8 +1,12 @@
+use cosmwasm_std::{Env, Timestamp};
 use eyre::Result;
 
 use milagro_bls::{AggregateSignature, PublicKey};
 use ssz_rs::prelude::*;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    cmp,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use crate::{
     error::ConsensusError,
@@ -30,7 +34,6 @@ pub fn bootstrap(mut bootstrap: Bootstrap) -> Result<LightClientState, Consensus
         finalized_header: bootstrap.header.beacon.clone(),
         current_sync_committee: bootstrap.current_sync_committee,
         next_sync_committee: None,
-        optimistic_header: bootstrap.header.beacon.clone(),
         previous_max_active_participants: 0,
         current_max_active_participants: 0,
     };
@@ -38,11 +41,7 @@ pub fn bootstrap(mut bootstrap: Bootstrap) -> Result<LightClientState, Consensus
     return Ok(state);
 }
 
-pub fn verify_generic_update(
-    state: LightClientState,
-    config: ChainConfig,
-    update: &Update,
-) -> Result<()> {
+pub fn verify_update(state: LightClientState, config: ChainConfig, update: &Update) -> Result<()> {
     // Check if there's any participation in the sync committee at all.
     let bits = get_bits(&update.sync_aggregate.sync_committee_bits);
     if bits == 0 {
@@ -140,6 +139,64 @@ pub fn verify_generic_update(
     }
 
     Ok(())
+}
+
+pub fn apply_update(state: LightClientState, update: &Update) -> LightClientState {
+    let mut new_state = state.clone();
+
+    let committee_bits = get_bits(&update.sync_aggregate.sync_committee_bits);
+
+    new_state.current_max_active_participants =
+        u64::max(state.current_max_active_participants, committee_bits);
+
+    let update_finalized_slot = update.finalized_header.beacon.slot.as_u64();
+    let update_attested_period = calc_sync_period(update.attested_header.beacon.slot.into());
+    let update_finalized_period = calc_sync_period(update_finalized_slot);
+
+    let update_has_finalized_next_committee = update_finalized_period == update_attested_period;
+
+    let should_apply_update = {
+        let has_majority = committee_bits * 3 >= 512 * 2;
+        let update_is_newer = update_finalized_slot > state.finalized_header.slot.as_u64();
+        let good_update = update_is_newer || update_has_finalized_next_committee;
+
+        has_majority && good_update
+    };
+
+    if should_apply_update {
+        let store_period = calc_sync_period(state.finalized_header.slot.into());
+
+        if state.next_sync_committee.is_none() {
+            new_state.next_sync_committee = Some(update.next_sync_committee.clone());
+        } else if update_finalized_period == store_period + 1 {
+            println!("sync committee updated");
+            new_state.current_sync_committee = state.next_sync_committee.clone().unwrap();
+            new_state.next_sync_committee = Some(update.next_sync_committee.clone());
+            new_state.previous_max_active_participants = state.current_max_active_participants;
+            new_state.current_max_active_participants = 0;
+        }
+
+        if update_finalized_slot > state.finalized_header.slot.as_u64() {
+            new_state.finalized_header = update.finalized_header.beacon.clone();
+            log_finality_update(update);
+        }
+    }
+
+    return new_state;
+}
+
+fn log_finality_update(update: &Update) {
+    println!(
+        "finalized slot             slot={}",
+        update.finalized_header.beacon.slot.as_u64(),
+    );
+}
+
+fn safety_threshold(state: LightClientState) -> u64 {
+    cmp::max(
+        state.current_max_active_participants,
+        state.previous_max_active_participants,
+    ) / 2
 }
 
 fn is_current_committee_proof_valid(

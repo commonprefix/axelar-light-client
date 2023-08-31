@@ -13,7 +13,6 @@ pub struct LightClientState {
     pub finalized_header: Header,
     pub current_sync_committee: SyncCommittee,
     pub next_sync_committee: Option<SyncCommittee>,
-    pub optimistic_header: Header,
     pub previous_max_active_participants: u64,
     pub current_max_active_participants: u64,
 }
