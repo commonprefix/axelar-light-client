@@ -1,3 +1,5 @@
+use std::vec;
+
 use primitives::{ByteVector, U64};
 use serde;
 use ssz_rs::prelude::*;
@@ -16,7 +18,9 @@ pub struct LightClientState {
     pub current_max_active_participants: u64,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
+#[derive(
+    serde::Serialize, serde::Deserialize, SimpleSerialize, PartialEq, Debug, Clone, Default,
+)]
 pub struct Header {
     pub slot: U64,
     pub proposer_index: U64,
@@ -68,6 +72,7 @@ pub struct SyncAggregate {
 pub struct ChainConfig {
     pub chain_id: u64,
     pub genesis_time: u64,
+    pub genesis_root: Vec<u8>,
 }
 
 /**
@@ -87,12 +92,32 @@ pub(crate) mod primitives {
 
     #[derive(Debug, Clone, PartialEq, Eq, Default)]
     pub struct ByteVector<const N: usize> {
-        inner: Vector<u8, N>,
+        inner: ssz_rs::Vector<u8, N>,
     }
 
     impl<const N: usize> ByteVector<N> {
         pub fn as_slice(&self) -> &[u8] {
             self.inner.as_slice()
+        }
+    }
+
+    impl<const N: usize> TryFrom<Vec<u8>> for ByteVector<N> {
+        type Error = eyre::Report;
+
+        fn try_from(value: Vec<u8>) -> std::result::Result<Self, Self::Error> {
+            Ok(Self {
+                inner: Vector::try_from(value).map_err(|(_, err)| err)?,
+            })
+        }
+    }
+
+    impl<const N: usize> TryFrom<&[u8]> for ByteVector<N> {
+        type Error = eyre::Report;
+
+        fn try_from(value: &[u8]) -> std::result::Result<Self, Self::Error> {
+            Ok(Self {
+                inner: Vector::try_from(value.to_vec()).map_err(|(_, err)| err)?,
+            })
         }
     }
 

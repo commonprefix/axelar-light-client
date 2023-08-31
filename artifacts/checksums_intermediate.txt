@@ -1,0 +1,1 @@
+2020640759d718556ffab244e63663aaa5b9ec4b77d6d26c505d7247aeaca6b7  ./target/wasm32-unknown-unknown/release/light_client.wasm

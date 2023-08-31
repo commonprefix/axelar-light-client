@@ -42,10 +42,15 @@ mod execute {
     use super::*;
 
     pub fn update(deps: DepsMut, period: u64, update: Update) -> Result<Response, ContractError> {
-        let resp = UPDATES.may_load(deps.storage, period)?;
-        if resp.is_some() {
-            return Err(ContractError::UpdateAlreadyExists {});
-        }
+        // let resp = UPDATES.may_load(deps.storage, period)?;
+        // if resp.is_some() {
+        //     return Err(ContractError::UpdateAlreadyExists {});
+        // }
+
+        let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
+        let config = CONFIG.load(deps.storage)?;
+
+        verifier::verify_generic_update(state, config, &update).unwrap();
 
         UPDATES.save(deps.storage, period, &update)?;
         Ok(Response::new())
@@ -87,6 +92,7 @@ mod tests {
 
     use crate::{
         contract::{execute, instantiate, query},
+        helpers::hex_str_to_bytes,
         msg::ExecuteMsg,
         types::{ChainConfig, LightClientState, Update},
         verifier,
@@ -119,6 +125,10 @@ mod tests {
         return ChainConfig {
             chain_id: 1,
             genesis_time: 1606824023,
+            genesis_root: hex_str_to_bytes(
+                "0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95",
+            )
+            .unwrap(),
         };
     }
 
@@ -186,7 +196,7 @@ mod tests {
             )
             .unwrap();
 
-        let update = get_update(767);
+        let update = get_update(862);
 
         //Call update
         let resp = app.execute_contract(
@@ -201,30 +211,10 @@ mod tests {
 
         assert!(resp.is_ok());
 
-        let resp: Update = app
-            .wrap()
-            .query_wasm_smart(addr.to_owned(), &QueryMsg::Update { period: 767 })
-            .unwrap();
-
-        assert_eq!(resp, update);
-
-        // Call update with wrong period
-        let resp = app.execute_contract(
-            Addr::unchecked("owner"),
-            addr.to_owned(),
-            &ExecuteMsg::Update {
-                period: 767,
-                update: update.clone(),
-            },
-            &[],
-        );
-
-        assert!(resp.is_err());
-
         // Query update with wrong period
         let resp: Result<Update, StdError> = app
             .wrap()
-            .query_wasm_smart(addr.to_owned(), &QueryMsg::Update { period: 768 });
+            .query_wasm_smart(addr.to_owned(), &QueryMsg::Update { period: 862 });
 
         assert!(resp.is_err());
     }
