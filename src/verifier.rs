@@ -1,6 +1,6 @@
-use bls_signatures::{PublicKey, Serialize, Signature};
 use eyre::Result;
 
+use milagro_bls::{AggregateSignature, PublicKey};
 use ssz_rs::prelude::*;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -238,7 +238,7 @@ fn get_participating_keys(
     bitfield.iter().enumerate().for_each(|(i, bit)| {
         if bit == true {
             let pk = &committee.pubkeys[i];
-            let pk = PublicKey::from_bytes(pk).unwrap();
+            let pk = PublicKey::from_bytes_unchecked(pk).unwrap();
             pks.push(pk);
         }
     });
@@ -254,10 +254,11 @@ fn verify_sync_committee_signture(
     signature_slot: u64,
 ) -> bool {
     let res: Result<bool> = (move || {
+        let pks: Vec<&PublicKey> = pks.iter().collect();
         let header_root = Bytes32::try_from(attested_header.clone().hash_tree_root()?.as_ref())?;
         let signing_root = compute_committee_sign_root(config, header_root, signature_slot)?;
 
-        Ok(is_aggregate_valid(signature, signing_root.as_ref(), pks))
+        Ok(is_aggregate_valid(signature, signing_root.as_ref(), &pks))
     })();
 
     if let Ok(is_valid) = res {
@@ -267,13 +268,12 @@ fn verify_sync_committee_signture(
     }
 }
 
-pub fn is_aggregate_valid(sig_bytes: &SignatureBytes, msg: &[u8], pks: &[PublicKey]) -> bool {
-    let tou8array = &sig_bytes[..];
-    let sig = Signature::from_bytes(tou8array).unwrap();
-
-    let is_valid = bls_signatures::verify_messages(&sig, &[msg], pks);
-    println!("is_valid: {}", is_valid);
-    is_valid
+pub fn is_aggregate_valid(sig_bytes: &SignatureBytes, msg: &[u8], pks: &[&PublicKey]) -> bool {
+    let sig_res = AggregateSignature::from_bytes(sig_bytes);
+    match sig_res {
+        Ok(sig) => sig.fast_aggregate_verify(msg, pks),
+        Err(_) => false,
+    }
 }
 
 fn compute_committee_sign_root(config: ChainConfig, header: Bytes32, slot: u64) -> Result<Node> {
