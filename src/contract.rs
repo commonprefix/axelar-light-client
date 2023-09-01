@@ -93,10 +93,6 @@ mod query {
     pub fn update(deps: Deps, period: u64) -> StdResult<Update> {
         UPDATES.load(deps.storage, period)
     }
-
-    // pub fn genesis_committee(deps: Deps) {
-    //     return GENESIS_COMMITTEE.load(deps.storage)
-    // }
 }
 
 #[cfg(test)]
