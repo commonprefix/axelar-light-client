@@ -1,7 +1,7 @@
 {
   "header": {
     "beacon": {
-      "slot": "7069376",
+      "slot": "7061552",
       "proposer_index": "146208",
       "parent_root": "0xd2a277b444fd1ee8756e274d769e549f295db7b3ff56ff0a0b2e8480ae106219",
       "state_root": "0x915a406a2acb8a068017fd3b9b5158f53647a8aaa2d2bb398fa370ecfa24ddae",

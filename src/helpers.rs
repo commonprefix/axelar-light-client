@@ -1,7 +1,7 @@
 use eyre::Result;
 use ssz_rs::prelude::*;
 
-use crate::types::{Bytes32, ChainConfig, Header};
+use crate::lightclient::types::{Bytes32, Header};
 
 pub fn is_proof_valid<L: Merkleized>(
     attested_header: &Header,
@@ -35,10 +35,6 @@ pub fn branch_to_nodes(branch: Vec<Bytes32>) -> Result<Vec<Node>> {
 
 pub fn bytes32_to_node(bytes: &Bytes32) -> Result<Node> {
     Ok(Node::try_from(bytes.as_slice())?)
-}
-
-fn slot_timestamp(config: ChainConfig, slot: u64) -> u64 {
-    slot * 12 + config.genesis_time
 }
 
 pub fn hex_str_to_bytes(s: &str) -> Result<Vec<u8>> {

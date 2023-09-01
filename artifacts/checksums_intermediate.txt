@@ -1,1 +1,1 @@
-2020640759d718556ffab244e63663aaa5b9ec4b77d6d26c505d7247aeaca6b7  ./target/wasm32-unknown-unknown/release/light_client.wasm
+be37a5795dea73b28305eddaf42f318acfc8d4ee1c52c782e5d6ec67c286394f  ./target/wasm32-unknown-unknown/release/light_client.wasm

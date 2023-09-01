@@ -4,7 +4,7 @@ use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::{state::*, verifier};
+use crate::{lightclient::LightClient, state::*};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -13,15 +13,18 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let state = verifier::bootstrap(msg.bootstrap.clone())?;
+    let mut lc = LightClient::new(&msg.config, None);
+    // Load state from bootstrap
+    lc.bootstrap(msg.bootstrap.clone()).unwrap();
+
+    BOOTSTRAP.save(deps.storage, &msg.bootstrap)?;
+    LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
+    CONFIG.save(deps.storage, &msg.config)?;
+
     println!(
         "Last slot after bootstrap {:?}",
-        state.finalized_header.slot
+        lc.state.finalized_header.slot
     );
-    LIGHT_CLIENT_STATE.save(deps.storage, &state)?;
-
-    CONFIG.save(deps.storage, &msg.config)?;
-    BOOTSTRAP.save(deps.storage, &msg.bootstrap)?;
 
     Ok(Response::new())
 }
@@ -41,32 +44,20 @@ pub fn execute(
 }
 
 mod execute {
-    use crate::types::Update;
+    use crate::lightclient::types::Update;
 
     use super::*;
 
     pub fn update(deps: DepsMut, period: u64, update: Update) -> Result<Response, ContractError> {
-        // let resp = UPDATES.may_load(deps.storage, period)?;
-        // if resp.is_some() {
-        //     return Err(ContractError::UpdateAlreadyExists {});
-        // }
-
         // TODO: Fix this cloned state everywhere
-
         let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
-        let state_cloned = state.clone();
         let config = CONFIG.load(deps.storage)?;
+        let mut lc = LightClient::new(&config, Some(state));
 
-        println!("Old State: {:?}", state.finalized_header.slot);
-        println!(
-            "Slot of new update {:?}",
-            update.finalized_header.beacon.slot,
-        );
-        verifier::verify_update(state, config, &update).unwrap();
-        let new_state = verifier::apply_update(state_cloned, &update);
-        println!("New State: {:?}", new_state.finalized_header.slot);
+        lc.verify_update(&update);
+        lc.apply_update(&update);
 
-        LIGHT_CLIENT_STATE.save(deps.storage, &new_state)?;
+        LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
         UPDATES.save(deps.storage, period, &update)?;
         Ok(Response::new())
     }
@@ -86,7 +77,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 mod query {
     use super::*;
-    use crate::types::Update;
+    use crate::lightclient::types::Update;
 
     pub fn greet() -> StdResult<String> {
         Ok("Hello, world!".to_string())
@@ -108,17 +99,14 @@ mod tests {
     use crate::{
         contract::{execute, instantiate, query},
         helpers::hex_str_to_bytes,
+        lightclient::types::{Bootstrap, ChainConfig, LightClientState, Update},
+        lightclient::LightClient,
         msg::ExecuteMsg,
-        types::{ChainConfig, LightClientState, Update},
-        verifier,
     };
-    use cosmwasm_std::{Addr, StdError};
+    use cosmwasm_std::Addr;
     use cw_multi_test::{App, ContractWrapper, Executor};
 
-    use crate::{
-        msg::{InstantiateMsg, QueryMsg},
-        types::Bootstrap,
-    };
+    use crate::msg::{InstantiateMsg, QueryMsg};
 
     fn get_bootstrap() -> Bootstrap {
         let file = File::open("testdata/bootstrap.json").unwrap();
@@ -182,8 +170,9 @@ mod tests {
             .query_wasm_smart(addr.clone(), &QueryMsg::LightClientState {})
             .unwrap();
 
-        let state = verifier::bootstrap(bootstrap).unwrap();
-        assert_eq!(resp, state)
+        let mut lc = LightClient::new(&get_config(), None);
+        lc.bootstrap(bootstrap).unwrap();
+        assert_eq!(resp, lc.state)
     }
 
     #[test]

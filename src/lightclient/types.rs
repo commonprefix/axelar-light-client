@@ -8,7 +8,7 @@ pub type Bytes32 = ByteVector<32>;
 pub type BLSPubKey = ByteVector<48>;
 pub type SignatureBytes = ByteVector<96>;
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct LightClientState {
     pub finalized_header: Header,
     pub current_sync_committee: SyncCommittee,
@@ -28,12 +28,12 @@ pub struct Header {
     pub body_root: Bytes32,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct BeaconHeader {
     pub beacon: Header,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct Bootstrap {
     pub header: BeaconHeader,
     pub current_sync_committee: SyncCommittee,
@@ -74,10 +74,23 @@ pub struct ChainConfig {
     pub genesis_root: Vec<u8>,
 }
 
+#[derive(SimpleSerialize, Default, Debug)]
+pub struct ForkData {
+    pub current_version: Vector<u8, 4>,
+    pub genesis_validator_root: Bytes32,
+}
+
+#[derive(SimpleSerialize, Default, Debug)]
+pub struct SigningData {
+    pub object_root: Bytes32,
+    pub domain: Bytes32,
+}
+
 /**
  *
- * Primitives
- *
+ * Primitives used to wrap ssz-rs types to make them serde compatible.
+ * - ByteVector: a fixed-length vector of bytes.
+ * - U64: a 64-bit unsigned integer.
  */
 
 pub(crate) mod primitives {
