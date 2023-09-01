@@ -54,8 +54,15 @@ mod execute {
         let config = CONFIG.load(deps.storage)?;
         let mut lc = LightClient::new(&config, Some(state));
 
-        lc.verify_update(&update);
-        lc.apply_update(&update);
+        let res = lc.verify_update(&update);
+        if res.is_err() {
+            return Err(ContractError::from(res.err().unwrap()));
+        }
+
+        let res = lc.apply_update(&update);
+        if res.is_err() {
+            return Err(ContractError::from(res.err().unwrap()));
+        }
 
         LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
         UPDATES.save(deps.storage, period, &update)?;
@@ -229,12 +236,5 @@ mod tests {
         );
 
         assert!(resp.is_ok());
-
-        // // Query update with wrong period
-        // let resp: Result<Update, StdError> = app
-        //     .wrap()
-        //     .query_wasm_smart(addr.to_owned(), &QueryMsg::Update { period: 862 });
-
-        // assert!(resp.is_err());
     }
 }

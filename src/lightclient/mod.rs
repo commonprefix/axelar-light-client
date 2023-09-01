@@ -25,9 +25,8 @@ impl LightClient {
         };
     }
 
-    pub fn bootstrap(&mut self, mut bootstrap: Bootstrap) -> Result<LightClientState> {
+    pub fn bootstrap(&mut self, mut bootstrap: Bootstrap) -> Result<(), ConsensusError> {
         // TODO: Check that bootstrap is recent enough, after the Sync Committee fork
-
         let committee_valid = self.is_current_committee_proof_valid(
             &bootstrap.header.beacon,
             &mut bootstrap.current_sync_committee,
@@ -46,10 +45,10 @@ impl LightClient {
             current_max_active_participants: 0,
         };
 
-        return Ok(self.state.clone());
+        return Ok(());
     }
 
-    pub fn verify_update(&self, update: &Update) -> Result<()> {
+    pub fn verify_update(&self, update: &Update) -> Result<(), ConsensusError> {
         // Check if there's any participation in the sync committee at all.
         let bits = self.get_bits(&update.sync_aggregate.sync_committee_bits);
         if bits == 0 {
@@ -135,7 +134,7 @@ impl LightClient {
         };
 
         let pks = self
-            .get_participating_keys(&sync_committee, &update.sync_aggregate.sync_committee_bits)?;
+            .get_participating_keys(&sync_committee, &update.sync_aggregate.sync_committee_bits);
 
         let is_valid_sig = self.verify_sync_committee_signture(
             &self.config,
@@ -152,7 +151,7 @@ impl LightClient {
         Ok(())
     }
 
-    pub fn apply_update(&mut self, update: &Update) -> Result<()> {
+    pub fn apply_update(&mut self, update: &Update) -> Result<(), ConsensusError> {
         println!("Old State: {:?}", self.state.finalized_header.slot);
         println!(
             "Slot of old update {:?}",
@@ -295,7 +294,7 @@ impl LightClient {
         &self,
         committee: &SyncCommittee,
         bitfield: &Bitvector<512>,
-    ) -> Result<Vec<PublicKey>> {
+    ) -> Vec<PublicKey> {
         let mut pks: Vec<PublicKey> = Vec::new();
         bitfield.iter().enumerate().for_each(|(i, bit)| {
             if bit == true {
@@ -305,7 +304,7 @@ impl LightClient {
             }
         });
 
-        Ok(pks)
+        pks
     }
 
     fn verify_sync_committee_signture(
