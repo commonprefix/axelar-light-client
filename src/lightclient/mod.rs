@@ -8,7 +8,7 @@ use ssz_rs::prelude::*;
 use std::time::{SystemTime, UNIX_EPOCH};
 use types::*;
 
-// pub mod tests;
+pub mod tests;
 pub mod types;
 
 pub struct LightClient {
@@ -75,12 +75,6 @@ impl LightClient {
         let store_period = self.calc_sync_period(self.state.finalized_header.slot.into());
         let update_sig_period = self.calc_sync_period(update.signature_slot.as_u64());
 
-        println!("store_period: {}", store_period);
-        println!("update_sig_period: {}", update_sig_period);
-        println!(
-            "next_sync_committee: {}",
-            self.state.next_sync_committee.is_some(),
-        );
         let valid_period = if self.state.next_sync_committee.is_some() {
             update_sig_period == store_period || update_sig_period == store_period + 1
         } else {
@@ -152,12 +146,6 @@ impl LightClient {
     }
 
     pub fn apply_update(&mut self, update: &Update) -> Result<(), ConsensusError> {
-        println!("Old State: {:?}", self.state.finalized_header.slot);
-        println!(
-            "Slot of old update {:?}",
-            update.finalized_header.beacon.slot,
-        );
-
         let committee_bits = self.get_bits(&update.sync_aggregate.sync_committee_bits);
 
         self.state.current_max_active_participants =
@@ -174,13 +162,8 @@ impl LightClient {
             let has_majority = committee_bits * 3 >= 512 * 2;
             let update_is_newer = update_finalized_slot > self.state.finalized_header.slot.as_u64();
             let good_update = update_is_newer || update_has_finalized_next_committee;
-            println!("has_majority: {}", has_majority);
-            println!("update_is_newer: {}", update_is_newer);
-            println!("good_update: {}", good_update);
-
             has_majority && good_update
         };
-        println!("should_apply_update: {}", should_apply_update);
 
         if should_apply_update {
             let store_period = self.calc_sync_period(self.state.finalized_header.slot.into());
@@ -188,7 +171,6 @@ impl LightClient {
             if self.state.next_sync_committee.is_none() {
                 self.state.next_sync_committee = Some(update.next_sync_committee.clone());
             } else if update_finalized_period == store_period + 1 {
-                println!("sync committee updated");
                 self.state.current_sync_committee = self.state.next_sync_committee.clone().unwrap();
                 self.state.next_sync_committee = Some(update.next_sync_committee.clone());
                 self.state.previous_max_active_participants =
@@ -201,12 +183,6 @@ impl LightClient {
                 self.log_finality_update(update);
             }
         }
-
-        println!("New State: {:?}", self.state.finalized_header.slot);
-        println!(
-            "Slot of new update {:?}",
-            update.finalized_header.beacon.slot,
-        );
 
         Ok(())
     }

@@ -12,11 +12,8 @@ pub enum ContractError {
     #[error("Update for this period already exists")]
     UpdateAlreadyExists {},
 
-    #[error("Invalid period")]
-    InvalidPeriod {},
-
-    #[error("Not enough signatures")]
-    NotEnoughSignatures {},
+    #[error("Consensus error: {:?}", error)]
+    ConsensusError { error: ConsensusError },
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
 }
@@ -39,14 +36,6 @@ pub enum ConsensusError {
     InvalidCurrentSyncCommitteeProof,
     #[error("invalid sync committee signature")]
     InvalidSignature,
-    #[error("invalid header hash found: {0}, expected: {1}")]
-    InvalidHeaderHash(String, String),
-    #[error("payload not found for slot: {0}")]
-    PayloadNotFound(u64),
-    #[error("checkpoint is too old")]
-    CheckpointTooOld,
-    #[error("consensus rpc is for the incorrect network")]
-    IncorrectRpcNetwork,
 }
 
 // Wrap consensus error to contract error

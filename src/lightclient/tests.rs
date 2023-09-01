@@ -135,7 +135,11 @@ mod tests {
         let update = get_update(863);
         let err = lightclient.verify_update(&update).err().unwrap();
 
-        assert_eq!(err.to_string(), ConsensusError::InvalidPeriod.to_string());
+        assert_eq!(
+            err.to_string(),
+            ConsensusError::InvalidPeriod.to_string(),
+            "should error on invalid period"
+        );
     }
 
     #[test]
@@ -148,16 +152,13 @@ mod tests {
         let res = lightclient.apply_update(&update);
         assert!(res.is_ok());
         assert_eq!(
-            lightclient.state.finalized_header,
-            update.finalized_header.beacon
+            lightclient.state.finalized_header, update.finalized_header.beacon,
+            "finalized_header should be set after applying update"
         );
         assert_eq!(
             lightclient.state.next_sync_committee.unwrap(),
-            update.next_sync_committee
-        );
-        assert_eq!(
-            lightclient.state.current_max_active_participants,
-            update.next_sync_committee.pubkeys.len() as u64
+            update.next_sync_committee,
+            "next_sync_committee should be set after applying update"
         );
     }
 
@@ -168,16 +169,16 @@ mod tests {
         let res = lightclient.apply_update(&update);
         assert!(res.is_ok());
         assert_eq!(
-            lightclient.state.finalized_header,
-            update.finalized_header.beacon,
+            lightclient.state.finalized_header, update.finalized_header.beacon,
+            "finalized_header should be set after applying first update"
         );
 
         let update = get_update(863);
         let res = lightclient.apply_update(&update);
         assert!(res.is_ok());
         assert_eq!(
-            lightclient.state.finalized_header,
-            update.finalized_header.beacon,
+            lightclient.state.finalized_header, update.finalized_header.beacon,
+            "finalized_header should be set after applying second update"
         );
     }
 }

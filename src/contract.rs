@@ -21,11 +21,6 @@ pub fn instantiate(
     LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
     CONFIG.save(deps.storage, &msg.config)?;
 
-    println!(
-        "Last slot after bootstrap {:?}",
-        lc.state.finalized_header.slot
-    );
-
     Ok(Response::new())
 }
 
@@ -102,7 +97,7 @@ mod tests {
     use crate::{
         contract::{execute, instantiate, query},
         helpers::hex_str_to_bytes,
-        lightclient::types::{Bootstrap, ChainConfig, LightClientState, Update},
+        lightclient::types::{Bootstrap, ChainConfig, LightClientState, SignatureBytes, Update},
         lightclient::LightClient,
         msg::ExecuteMsg,
     };
@@ -138,50 +133,7 @@ mod tests {
         };
     }
 
-    #[test]
-    fn test_initialize() {
-        let mut app = App::default();
-
-        let code = ContractWrapper::new(execute, instantiate, query);
-        let code_id = app.store_code(Box::new(code));
-
-        let bootstrap = get_bootstrap();
-
-        let addr = app
-            .instantiate_contract(
-                code_id,
-                Addr::unchecked("owner"),
-                &InstantiateMsg {
-                    bootstrap: bootstrap.clone(),
-                    config: get_config(),
-                },
-                &[],
-                "Contract",
-                None,
-            )
-            .unwrap();
-
-        let resp: Bootstrap = app
-            .wrap()
-            .query_wasm_smart(addr.clone(), &QueryMsg::Bootstrap {})
-            .unwrap();
-
-        assert_eq!(resp, bootstrap);
-
-        let resp: LightClientState = app
-            .wrap()
-            .query_wasm_smart(addr.clone(), &QueryMsg::LightClientState {})
-            .unwrap();
-
-        let mut lc = LightClient::new(&get_config(), None);
-        lc.bootstrap(bootstrap).unwrap();
-        assert_eq!(resp, lc.state)
-    }
-
-    #[test]
-    fn test_update() {
-        // Open and parse JSON
-
+    fn deploy() -> (App, Addr) {
         let mut app = App::default();
 
         let code = ContractWrapper::new(execute, instantiate, query);
@@ -203,9 +155,36 @@ mod tests {
             )
             .unwrap();
 
-        let update = get_update(862);
+        return (app, addr);
+    }
 
-        //Call update
+    #[test]
+    fn test_initialize() {
+        let (app, addr) = deploy();
+        let bootstrap = get_bootstrap();
+
+        let resp: Bootstrap = app
+            .wrap()
+            .query_wasm_smart(addr.clone(), &QueryMsg::Bootstrap {})
+            .unwrap();
+
+        assert_eq!(resp, bootstrap);
+
+        let resp: LightClientState = app
+            .wrap()
+            .query_wasm_smart(addr.clone(), &QueryMsg::LightClientState {})
+            .unwrap();
+
+        let mut lc = LightClient::new(&get_config(), None);
+        lc.bootstrap(bootstrap).unwrap();
+        assert_eq!(resp, lc.state)
+    }
+
+    #[test]
+    fn test_update() {
+        let (mut app, addr) = deploy();
+
+        let update = get_update(862);
         let resp = app.execute_contract(
             Addr::unchecked("owner"),
             addr.to_owned(),
@@ -219,8 +198,6 @@ mod tests {
         assert!(resp.is_ok());
 
         let update = get_update(863);
-
-        //Call update
         let resp = app.execute_contract(
             Addr::unchecked("owner"),
             addr.to_owned(),
@@ -232,5 +209,25 @@ mod tests {
         );
 
         assert!(resp.is_ok());
+    }
+
+    #[test]
+    fn test_invalid_update() {
+        let (mut app, addr) = deploy();
+        let mut update = get_update(862);
+        update.sync_aggregate.sync_committee_signature = SignatureBytes::default();
+
+        //Call update
+        let resp = app.execute_contract(
+            Addr::unchecked("owner"),
+            addr.to_owned(),
+            &ExecuteMsg::Update {
+                period: 862,
+                update: update.clone(),
+            },
+            &[],
+        );
+
+        assert!(resp.is_err());
     }
 }
