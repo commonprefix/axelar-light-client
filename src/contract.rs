@@ -14,7 +14,6 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     let mut lc = LightClient::new(&msg.config, None);
-    // Load state from bootstrap
     lc.bootstrap(msg.bootstrap.clone()).unwrap();
 
     BOOTSTRAP.save(deps.storage, &msg.bootstrap)?;
@@ -59,8 +58,10 @@ mod execute {
             return Err(ContractError::from(res.err().unwrap()));
         }
 
-        LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
+        // TODO: Decide whether we'll store updates as well
         UPDATES.save(deps.storage, period, &update)?;
+        LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
+
         Ok(Response::new())
     }
 }
