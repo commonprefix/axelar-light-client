@@ -1,15 +1,14 @@
-use crate::{
-    error::ConsensusError,
-    helpers::{hex_str_to_bytes, is_proof_valid},
-};
+pub mod error;
+pub mod tests;
+pub mod types;
+
+use crate::helpers::{hex_str_to_bytes, is_proof_valid};
+use error::ConsensusError;
 use eyre::Result;
 use milagro_bls::{AggregateSignature, PublicKey};
 use ssz_rs::prelude::*;
 use std::time::{SystemTime, UNIX_EPOCH};
 use types::*;
-
-pub mod tests;
-pub mod types;
 
 pub struct LightClient {
     pub state: LightClientState,

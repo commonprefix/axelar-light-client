@@ -1,5 +1,8 @@
 use cosmwasm_std::StdError;
+use lightclient::error::ConsensusError;
 use thiserror::Error;
+
+use crate::lightclient;
 
 #[derive(Error, Debug)]
 pub enum ContractError {
@@ -16,26 +19,6 @@ pub enum ContractError {
     ConsensusError { error: ConsensusError },
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
-}
-
-#[derive(Error, Debug)]
-pub enum ConsensusError {
-    #[error("insufficient participation")]
-    InsufficientParticipation,
-    #[error("invalid timestamp")]
-    InvalidTimestamp,
-    #[error("invalid sync committee period")]
-    InvalidPeriod,
-    #[error("update not relevant")]
-    NotRelevant,
-    #[error("invalid finality proof")]
-    InvalidFinalityProof,
-    #[error("invalid next sync committee proof")]
-    InvalidNextSyncCommitteeProof,
-    #[error("invalid current sync committee proof")]
-    InvalidCurrentSyncCommitteeProof,
-    #[error("invalid sync committee signature")]
-    InvalidSignature,
 }
 
 // Wrap consensus error to contract error
