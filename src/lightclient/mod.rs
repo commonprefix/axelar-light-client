@@ -11,6 +11,8 @@ use ssz_rs::prelude::*;
 use std::time::{SystemTime, UNIX_EPOCH};
 use types::*;
 
+use self::helpers::calc_sync_period;
+
 pub struct LightClient {
     pub state: LightClientState,
     pub config: ChainConfig,
@@ -72,8 +74,8 @@ impl LightClient {
         // Validate the sync committee periods: If there's a next sync committee in
         // the state, the update's signature period should match the current period
         // or the next one.  Otherwise, it should only match the current period.
-        let store_period = self.calc_sync_period(self.state.finalized_header.slot.into());
-        let update_sig_period = self.calc_sync_period(update.signature_slot.as_u64());
+        let store_period = calc_sync_period(self.state.finalized_header.slot.into());
+        let update_sig_period = calc_sync_period(update.signature_slot.as_u64());
 
         let valid_period = if self.state.next_sync_committee.is_some() {
             update_sig_period == store_period || update_sig_period == store_period + 1
@@ -87,8 +89,7 @@ impl LightClient {
 
         // Calculate the period for the attested header and check its relevance.
         // Ensure the attested header isn't already finalized unless the update introduces a new sync committee.
-        let update_attested_period =
-            self.calc_sync_period(update.attested_header.beacon.slot.into());
+        let update_attested_period = calc_sync_period(update.attested_header.beacon.slot.into());
         let update_has_next_committee =
             self.state.next_sync_committee.is_none() && update_attested_period == store_period;
 
@@ -152,9 +153,8 @@ impl LightClient {
             u64::max(self.state.current_max_active_participants, committee_bits);
 
         let update_finalized_slot = update.finalized_header.beacon.slot.as_u64();
-        let update_attested_period =
-            self.calc_sync_period(update.attested_header.beacon.slot.into());
-        let update_finalized_period = self.calc_sync_period(update_finalized_slot);
+        let update_attested_period = calc_sync_period(update.attested_header.beacon.slot.into());
+        let update_finalized_period = calc_sync_period(update_finalized_slot);
 
         let update_has_finalized_next_committee = update_finalized_period == update_attested_period;
 
@@ -166,7 +166,7 @@ impl LightClient {
         };
 
         if should_apply_update {
-            let store_period = self.calc_sync_period(self.state.finalized_header.slot.into());
+            let store_period = calc_sync_period(self.state.finalized_header.slot.into());
 
             if self.state.next_sync_committee.is_none() {
                 self.state.next_sync_committee = Some(update.next_sync_committee.clone());
@@ -200,11 +200,6 @@ impl LightClient {
             5,
             22,
         )
-    }
-
-    pub fn calc_sync_period(&self, slot: u64) -> u64 {
-        let epoch = slot / 32; // 32 slots per epoch
-        epoch / 256 // 256 epochs per sync committee
     }
 
     pub fn get_bits(&self, bitfield: &Bitvector<512>) -> u64 {
@@ -334,6 +329,7 @@ impl LightClient {
         let domain = self.compute_domain(domain_type, fork_version, genesis_root)?;
         self.compute_signing_root(header, domain)
     }
+
     pub fn compute_signing_root(&self, object_root: Bytes32, domain: Bytes32) -> Result<Node> {
         let mut data = SigningData {
             object_root,
@@ -375,7 +371,7 @@ impl LightClient {
     }
 
     pub fn log_state(&self) {
-        let period = &self.calc_sync_period(self.state.finalized_header.slot.into());
+        let period = calc_sync_period(self.state.finalized_header.slot.into());
         let body_root = &self.state.finalized_header.body_root.as_ref();
         println!(
             "client: slot: {:?} period: {:?}, finalized_block_hash: {:?}",
