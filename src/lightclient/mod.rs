@@ -245,6 +245,10 @@ impl LightClient {
         )
     }
 
+    /**
+     * Returns the fork version for a given slot.
+     * TODO: Don't hardcode this
+     */
     fn get_fork_version(&self, slot: u64) -> Vec<u8> {
         if slot < 74240 {
             // genesis
