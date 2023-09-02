@@ -3,8 +3,8 @@ mod tests {
     use std::fs::File;
 
     use crate::{
-        helpers::hex_str_to_bytes,
         lightclient::error::ConsensusError,
+        lightclient::helpers::hex_str_to_bytes,
         lightclient::types::{BLSPubKey, Bootstrap, ChainConfig, Header, SignatureBytes, Update},
         lightclient::{self, LightClient},
     };

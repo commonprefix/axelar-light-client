@@ -96,7 +96,7 @@ mod tests {
 
     use crate::{
         contract::{execute, instantiate, query},
-        helpers::hex_str_to_bytes,
+        lightclient::helpers::hex_str_to_bytes,
         lightclient::types::{Bootstrap, ChainConfig, LightClientState, SignatureBytes, Update},
         lightclient::LightClient,
         msg::ExecuteMsg,
