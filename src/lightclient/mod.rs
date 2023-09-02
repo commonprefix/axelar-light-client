@@ -8,7 +8,6 @@ use eyre::Result;
 use helpers::{hex_str_to_bytes, is_proof_valid};
 use milagro_bls::{AggregateSignature, PublicKey};
 use ssz_rs::prelude::*;
-use std::time::{SystemTime, UNIX_EPOCH};
 use types::*;
 
 use self::helpers::calc_sync_period;
@@ -58,13 +57,14 @@ impl LightClient {
         }
 
         // Check for valid timestamp conditions:
+        // TODO: Fix (1)
         // 1. The expected current slot given the genesis time should be equal or greater than the update's signature slot.
         // 2. The slot of the update's signature should be greater than the slot of the attested header.
         // 3. The attested header's slot should be equal or greater than the finalized header's slot.
         let update_finalized_slot = update.finalized_header.beacon.clone().slot;
-        let valid_time = self.expected_current_slot(self.config.genesis_time)
-            >= update.signature_slot.as_u64()
-            && update.signature_slot > update.attested_header.beacon.slot
+        let valid_time = /* self.expected_current_slot(self.config.genesis_time)
+            >= update.signature_slot.as_u64() && */
+            update.signature_slot > update.attested_header.beacon.slot
             && update.attested_header.beacon.slot >= update_finalized_slot;
 
         if !valid_time {
@@ -213,12 +213,13 @@ impl LightClient {
         count
     }
 
-    fn expected_current_slot(&self, genesis_time: u64) -> u64 {
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-        let since_genesis = now - std::time::Duration::from_secs(genesis_time);
+    // TODO: Pass this from env
+    // fn expected_current_slot(&self, genesis_time: u64) -> u64 {
+    //     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    //     let since_genesis = now - std::time::Duration::from_secs(genesis_time);
 
-        since_genesis.as_secs() / 12
-    }
+    //     since_genesis.as_secs() / 12
+    // }
 
     fn is_finality_proof_valid(
         &self,
