@@ -60,7 +60,6 @@ impl LightClient {
         }
 
         // Check for valid timestamp conditions:
-        // TODO: Fix (1)
         // 1. The expected current slot given the genesis time should be equal or greater than the update's signature slot.
         // 2. The slot of the update's signature should be greater than the slot of the attested header.
         // 3. The attested header's slot should be equal or greater than the finalized header's slot.
