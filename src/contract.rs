@@ -164,14 +164,14 @@ mod tests {
 
         let resp: Bootstrap = app
             .wrap()
-            .query_wasm_smart(addr.clone(), &QueryMsg::Bootstrap {})
+            .query_wasm_smart(&addr, &QueryMsg::Bootstrap {})
             .unwrap();
 
         assert_eq!(resp, bootstrap);
 
         let resp: LightClientState = app
             .wrap()
-            .query_wasm_smart(addr.clone(), &QueryMsg::LightClientState {})
+            .query_wasm_smart(&addr, &QueryMsg::LightClientState {})
             .unwrap();
 
         let mut lc = LightClient::new(&get_config(), None);
