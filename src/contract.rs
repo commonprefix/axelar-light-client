@@ -140,14 +140,12 @@ mod tests {
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
-        let bootstrap = get_bootstrap();
-
         let addr = app
             .instantiate_contract(
                 code_id,
                 Addr::unchecked("owner"),
                 &InstantiateMsg {
-                    bootstrap: bootstrap,
+                    bootstrap: get_bootstrap(),
                     config: get_config(),
                 },
                 &[],
