@@ -65,8 +65,7 @@ impl LightClient {
         // 2. The slot of the update's signature should be greater than the slot of the attested header.
         // 3. The attested header's slot should be equal or greater than the finalized header's slot.
         let update_finalized_slot = update.finalized_header.beacon.clone().slot;
-        let valid_time = self.expected_current_slot(self.config.genesis_time)
-            >= update.signature_slot.as_u64()
+        let valid_time = self.expected_current_slot() >= update.signature_slot.as_u64()
             && update.signature_slot > update.attested_header.beacon.slot
             && update.attested_header.beacon.slot >= update_finalized_slot;
 
@@ -216,8 +215,8 @@ impl LightClient {
         count
     }
 
-    fn expected_current_slot(&self, genesis_time: u64) -> u64 {
-        let since_genesis = self.env.block.time.seconds() - genesis_time;
+    fn expected_current_slot(&self) -> u64 {
+        let since_genesis = self.env.block.time.seconds() - self.config.genesis_time;
 
         since_genesis / 12
     }
