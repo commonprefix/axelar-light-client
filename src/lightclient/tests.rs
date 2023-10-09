@@ -1,6 +1,10 @@
 #[cfg(test)]
 mod tests {
     use std::fs::File;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use cosmwasm_std::testing::mock_env;
+    use cosmwasm_std::Timestamp;
 
     use crate::{
         lightclient::error::ConsensusError,
@@ -28,7 +32,15 @@ mod tests {
     fn init_lightclient() -> LightClient {
         let bootstrap = get_bootstrap();
         let config = get_config();
-        let mut client = LightClient::new(&config, None);
+        let mut env = mock_env();
+        env.block.time = Timestamp::from_seconds(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        );
+
+        let mut client = LightClient::new(&config, None, &env);
         let res = client.bootstrap(bootstrap);
         if let Err(e) = res {
             panic!("Error bootstrapping: {}", e);

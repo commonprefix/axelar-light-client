@@ -9,11 +9,11 @@ use crate::{lightclient::LightClient, state::*};
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let mut lc = LightClient::new(&msg.config, None);
+    let mut lc = LightClient::new(&msg.config, None, &env);
     lc.bootstrap(msg.bootstrap.clone()).unwrap();
 
     BOOTSTRAP.save(deps.storage, &msg.bootstrap)?;
@@ -26,14 +26,14 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     use ExecuteMsg::*;
 
     match msg {
-        Update { period, update } => execute::update(deps, period, update),
+        Update { period, update } => execute::update(deps, &env, period, update),
     }
 }
 
@@ -42,11 +42,16 @@ mod execute {
 
     use super::*;
 
-    pub fn update(deps: DepsMut, period: u64, update: Update) -> Result<Response, ContractError> {
+    pub fn update(
+        deps: DepsMut,
+        env: &Env,
+        period: u64,
+        update: Update,
+    ) -> Result<Response, ContractError> {
         // TODO: Fix this cloned state everywhere
         let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
         let config = CONFIG.load(deps.storage)?;
-        let mut lc = LightClient::new(&config, Some(state));
+        let mut lc = LightClient::new(&config, Some(state), &env);
 
         let res = lc.verify_update(&update);
         if res.is_err() {
@@ -93,7 +98,10 @@ mod query {
 
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
+    use std::{
+        fs::File,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     use crate::{
         contract::{execute, instantiate, query},
@@ -102,7 +110,7 @@ mod tests {
         lightclient::LightClient,
         msg::ExecuteMsg,
     };
-    use cosmwasm_std::Addr;
+    use cosmwasm_std::{testing::mock_env, Addr, Timestamp};
     use cw_multi_test::{App, ContractWrapper, Executor};
 
     use crate::msg::{InstantiateMsg, QueryMsg};
@@ -140,6 +148,15 @@ mod tests {
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
+        app.update_block(|block| {
+            block.time = Timestamp::from_seconds(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
+            );
+        });
+
         let addr = app
             .instantiate_contract(
                 code_id,
@@ -160,6 +177,7 @@ mod tests {
     #[test]
     fn test_initialize() {
         let (app, addr) = deploy();
+        let env = mock_env();
         let bootstrap = get_bootstrap();
 
         let resp: Bootstrap = app
@@ -174,7 +192,7 @@ mod tests {
             .query_wasm_smart(&addr, &QueryMsg::LightClientState {})
             .unwrap();
 
-        let mut lc = LightClient::new(&get_config(), None);
+        let mut lc = LightClient::new(&get_config(), None, &env);
         lc.bootstrap(bootstrap).unwrap();
         assert_eq!(resp, lc.state)
     }
