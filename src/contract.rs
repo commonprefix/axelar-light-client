@@ -13,13 +13,12 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let mut lc = LightClient::new(&msg.config, &msg.forks, None, &env);
+    let mut lc = LightClient::new(&msg.config, None, &env);
     lc.bootstrap(msg.bootstrap.clone()).unwrap();
 
     BOOTSTRAP.save(deps.storage, &msg.bootstrap)?;
     LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
     CONFIG.save(deps.storage, &msg.config)?;
-    FORKS.save(deps.storage, &msg.forks)?;
 
     Ok(Response::new())
 }
@@ -37,6 +36,7 @@ pub fn execute(
         LightClientUpdate { period, update } => {
             execute::light_client_update(deps, &env, period, update)
         }
+        // TODO: only admin should do that
         UpdateForks { forks } => execute::update_forks(deps, forks),
     }
 }
@@ -54,8 +54,7 @@ mod execute {
     ) -> Result<Response, ContractError> {
         let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
         let config = CONFIG.load(deps.storage)?;
-        let forks = FORKS.load(deps.storage)?;
-        let mut lc = LightClient::new(&config, &forks, Some(state), &env);
+        let mut lc = LightClient::new(&config, Some(state), &env);
 
         let res = lc.verify_update(&update);
         if res.is_err() {
@@ -74,7 +73,10 @@ mod execute {
     }
 
     pub fn update_forks(deps: DepsMut, forks: Forks) -> Result<Response, ContractError> {
-        FORKS.save(deps.storage, &forks)?;
+        CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
+            config.forks = forks;
+            Ok(config)
+        })?;
         Ok(Response::new())
     }
 }
@@ -88,7 +90,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         Bootstrap {} => to_binary(&BOOTSTRAP.load(deps.storage)?),
         Update { period } => to_binary(&query::update(deps, period)?),
         LightClientState {} => to_binary(&LIGHT_CLIENT_STATE.load(deps.storage)?),
-        Forks {} => to_binary(&FORKS.load(deps.storage)?),
+        Config {} => to_binary(&CONFIG.load(deps.storage)?),
     }
 }
 
@@ -114,7 +116,7 @@ mod tests {
         lightclient::LightClient,
         lightclient::{
             helpers::hex_str_to_bytes,
-            types::{Bootstrap, Fork, LightClientState, SignatureBytes},
+            types::{Bootstrap, ChainConfig, Fork, LightClientState, SignatureBytes},
         },
         lightclient::{helpers::test_helpers::*, types::Forks},
         msg::ExecuteMsg,
@@ -146,7 +148,6 @@ mod tests {
                 &InstantiateMsg {
                     bootstrap: get_bootstrap(),
                     config: get_config(),
-                    forks: get_forks(),
                 },
                 &[],
                 "Contract",
@@ -175,7 +176,7 @@ mod tests {
             .query_wasm_smart(&addr, &QueryMsg::LightClientState {})
             .unwrap();
 
-        let mut lc = LightClient::new(&get_config(), &get_forks(), None, &env);
+        let mut lc = LightClient::new(&get_config(), None, &env);
         lc.bootstrap(bootstrap).unwrap();
         assert_eq!(resp, lc.state)
     }
@@ -234,12 +235,12 @@ mod tests {
     #[test]
     fn test_forks_query() {
         let (app, addr) = deploy();
-        let resp: Forks = app
+        let resp: ChainConfig = app
             .wrap()
-            .query_wasm_smart(addr, &QueryMsg::Forks {})
+            .query_wasm_smart(addr, &QueryMsg::Config {})
             .unwrap();
 
-        assert_eq!(resp, get_forks());
+        assert_eq!(resp.forks, get_forks());
     }
 
     #[test]
@@ -274,11 +275,11 @@ mod tests {
         )
         .unwrap();
 
-        let resp: Forks = app
+        let resp: ChainConfig = app
             .wrap()
-            .query_wasm_smart(addr, &QueryMsg::Forks {})
+            .query_wasm_smart(addr, &QueryMsg::Config {})
             .unwrap();
 
-        assert_eq!(resp, new_forks);
+        assert_eq!(resp.forks, new_forks);
     }
 }

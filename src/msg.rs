@@ -7,7 +7,6 @@ use crate::lightclient::types::{Bootstrap, ChainConfig, Forks, Update};
 pub struct InstantiateMsg {
     pub bootstrap: Bootstrap,
     pub config: ChainConfig,
-    pub forks: Forks,
 }
 
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
@@ -22,5 +21,5 @@ pub enum QueryMsg {
     Bootstrap {},
     Update { period: u64 },
     LightClientState {},
-    Forks {},
+    Config {},
 }

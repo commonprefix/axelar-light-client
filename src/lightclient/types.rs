@@ -72,6 +72,7 @@ pub struct ChainConfig {
     pub chain_id: u64,
     pub genesis_time: u64,
     pub genesis_root: Vec<u8>,
+    pub forks: Forks,
 }
 
 #[derive(SimpleSerialize, Default, Debug)]
