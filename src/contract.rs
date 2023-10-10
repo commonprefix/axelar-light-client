@@ -179,7 +179,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update() {
+    fn test_light_client_update() {
         let (mut app, addr) = deploy();
 
         let update = get_update(862);
