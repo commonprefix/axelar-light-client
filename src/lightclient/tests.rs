@@ -9,7 +9,9 @@ mod tests {
     use crate::{
         lightclient::error::ConsensusError,
         lightclient::helpers::hex_str_to_bytes,
-        lightclient::types::{BLSPubKey, Bootstrap, ChainConfig, Header, SignatureBytes, Update},
+        lightclient::types::{
+            BLSPubKey, Bootstrap, ChainConfig, Fork, Forks, Header, SignatureBytes, Update,
+        },
         lightclient::{self, LightClient},
     };
 
@@ -32,6 +34,7 @@ mod tests {
     fn init_lightclient() -> LightClient {
         let bootstrap = get_bootstrap();
         let config = get_config();
+        let forks = get_forks();
         let mut env = mock_env();
         env.block.time = Timestamp::from_seconds(
             SystemTime::now()
@@ -40,7 +43,7 @@ mod tests {
                 .as_secs(),
         );
 
-        let mut client = LightClient::new(&config, None, &env);
+        let mut client = LightClient::new(&config, &forks, None, &env);
         let res = client.bootstrap(bootstrap);
         if let Err(e) = res {
             panic!("Error bootstrapping: {}", e);
@@ -57,6 +60,27 @@ mod tests {
                 "0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95",
             )
             .unwrap(),
+        };
+    }
+
+    fn get_forks() -> Forks {
+        return Forks {
+            genesis: Fork {
+                epoch: 0,
+                fork_version: hex_str_to_bytes("0x00000000").unwrap(),
+            },
+            altair: Fork {
+                epoch: 74240,
+                fork_version: hex_str_to_bytes("0x01000000").unwrap(),
+            },
+            bellatrix: Fork {
+                epoch: 144896,
+                fork_version: hex_str_to_bytes("0x02000000").unwrap(),
+            },
+            capella: Fork {
+                epoch: 194048,
+                fork_version: hex_str_to_bytes("0x03000000").unwrap(),
+            },
         };
     }
 

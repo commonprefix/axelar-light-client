@@ -6,7 +6,7 @@ pub mod types;
 use cosmwasm_std::Env;
 use error::ConsensusError;
 use eyre::Result;
-use helpers::{hex_str_to_bytes, is_proof_valid};
+use helpers::is_proof_valid;
 use milagro_bls::{AggregateSignature, PublicKey};
 use ssz_rs::prelude::*;
 use types::*;
@@ -253,23 +253,19 @@ impl LightClient {
 
     /**
      * Returns the fork version for a given slot.
-     * TODO: Don't hardcode this
      */
     fn get_fork_version(&self, slot: u64) -> Vec<u8> {
-        if slot < 74240 {
-            // genesis
-            return hex_str_to_bytes("0x00000000").unwrap();
+        let epoch = slot / 32;
+
+        if epoch >= self.forks.capella.epoch {
+            self.forks.capella.fork_version.clone()
+        } else if epoch >= self.forks.bellatrix.epoch {
+            self.forks.bellatrix.fork_version.clone()
+        } else if epoch >= self.forks.altair.epoch {
+            self.forks.altair.fork_version.clone()
+        } else {
+            self.forks.genesis.fork_version.clone()
         }
-        if slot < 144896 {
-            // altair
-            return hex_str_to_bytes("0x01000000").unwrap();
-        }
-        if slot < 194048 {
-            // bellatrix
-            return hex_str_to_bytes("0x02000000").unwrap();
-        }
-        // capella
-        return hex_str_to_bytes("0x03000000").unwrap();
     }
 
     fn get_participating_keys(
