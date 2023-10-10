@@ -13,6 +13,7 @@ pub struct InstantiateMsg {
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
 pub enum ExecuteMsg {
     LightClientUpdate { period: u64, update: Update },
+    UpdateForks { forks: Forks },
 }
 
 #[cw_serde]

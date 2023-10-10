@@ -37,11 +37,12 @@ pub fn execute(
         LightClientUpdate { period, update } => {
             execute::light_client_update(deps, &env, period, update)
         }
+        UpdateForks { forks } => execute::update_forks(deps, forks),
     }
 }
 
 mod execute {
-    use crate::lightclient::types::Update;
+    use crate::lightclient::types::{Forks, Update};
 
     use super::*;
 
@@ -71,6 +72,12 @@ mod execute {
         UPDATES.save(deps.storage, period, &update)?;
         LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
 
+        Ok(Response::new())
+    }
+
+    // TODO: Write tests
+    pub fn update_forks(deps: DepsMut, forks: Forks) -> Result<Response, ContractError> {
+        FORKS.save(deps.storage, &forks)?;
         Ok(Response::new())
     }
 }
