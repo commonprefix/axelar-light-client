@@ -17,7 +17,6 @@ pub fn instantiate(
     let mut lc = LightClient::new(&msg.config, &msg.forks, None, &env);
     lc.bootstrap(msg.bootstrap.clone()).unwrap();
 
-    BOOTSTRAP.save(deps.storage, &msg.bootstrap)?;
     LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
     CONFIG.save(deps.storage, &msg.config)?;
     FORKS.save(deps.storage, &msg.forks)?;
@@ -71,7 +70,6 @@ mod execute {
             return Err(ContractError::from(res.err().unwrap()));
         }
 
-        UPDATES.save(deps.storage, period, &update)?;
         SYNC_COMMITTEES.save(deps.storage, period + 1, &update.next_sync_committee)?;
         LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
 
@@ -90,8 +88,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
     match msg {
         Greet {} => to_binary(&query::greet()?),
-        Bootstrap {} => to_binary(&BOOTSTRAP.load(deps.storage)?),
-        Update { period } => to_binary(&query::update(deps, period)?),
         LightClientState {} => to_binary(&LIGHT_CLIENT_STATE.load(deps.storage)?),
         Forks {} => to_binary(&FORKS.load(deps.storage)?),
         SyncCommittee { period } => {
@@ -118,7 +114,6 @@ mod tests {
         lightclient::LightClient,
         lightclient::{
             helpers::hex_str_to_bytes,
-            types::{Bootstrap, Fork, LightClientState, SignatureBytes},
             types::{Fork, LightClientState, SignatureBytes},
         },
         lightclient::{helpers::test_helpers::*, types::Forks},
