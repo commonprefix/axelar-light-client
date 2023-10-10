@@ -49,7 +49,7 @@ impl LightClient {
         }
 
         self.state = LightClientState {
-            finalized_header: bootstrap.header.beacon.clone(),
+            finalized_header: bootstrap.header.beacon,
             current_sync_committee: bootstrap.current_sync_committee,
             next_sync_committee: None,
             previous_max_active_participants: 0,
@@ -70,7 +70,7 @@ impl LightClient {
         // 1. The expected current slot given the genesis time should be equal or greater than the update's signature slot.
         // 2. The slot of the update's signature should be greater than the slot of the attested header.
         // 3. The attested header's slot should be equal or greater than the finalized header's slot.
-        let update_finalized_slot = update.finalized_header.beacon.clone().slot;
+        let update_finalized_slot = update.finalized_header.beacon.slot;
         let valid_time = self.expected_current_slot() >= update.signature_slot.as_u64()
             && update.signature_slot > update.attested_header.beacon.slot
             && update.attested_header.beacon.slot >= update_finalized_slot;
@@ -110,7 +110,7 @@ impl LightClient {
         let is_valid = self.is_finality_proof_valid(
             &update.attested_header.beacon,
             &mut update.finalized_header.beacon.clone(),
-            &update.finality_branch.clone(),
+            &update.finality_branch,
         );
 
         if !is_valid {
@@ -121,7 +121,7 @@ impl LightClient {
         let is_valid = self.is_next_committee_proof_valid(
             &update.attested_header.beacon,
             &mut update.next_sync_committee.clone(),
-            &update.next_sync_committee_branch.clone(),
+            &update.next_sync_committee_branch,
         );
 
         if !is_valid {

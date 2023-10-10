@@ -52,7 +52,6 @@ mod execute {
         period: u64,
         update: Update,
     ) -> Result<Response, ContractError> {
-        // TODO: Fix this cloned state everywhere
         let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
         let config = CONFIG.load(deps.storage)?;
         let forks = FORKS.load(deps.storage)?;
