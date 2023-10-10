@@ -1,5 +1,6 @@
 use std::vec;
 
+use crate::lightclient::helpers::{bytes_deserialize, bytes_serialize};
 use primitives::{ByteVector, U64};
 use serde;
 use ssz_rs::prelude::*;
@@ -78,6 +79,24 @@ pub struct ChainConfig {
 pub struct ForkData {
     pub current_version: Vector<u8, 4>,
     pub genesis_validator_root: Bytes32,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Default, Clone)]
+pub struct Fork {
+    pub epoch: u64,
+    #[serde(
+        deserialize_with = "bytes_deserialize",
+        serialize_with = "bytes_serialize"
+    )]
+    pub fork_version: Vec<u8>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Default, Clone)]
+pub struct Forks {
+    pub genesis: Fork,
+    pub altair: Fork,
+    pub bellatrix: Fork,
+    pub capella: Fork,
 }
 
 #[derive(SimpleSerialize, Default, Debug)]
