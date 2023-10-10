@@ -34,7 +34,9 @@ pub fn execute(
     use ExecuteMsg::*;
 
     match msg {
-        Update { period, update } => execute::update(deps, &env, period, update),
+        LightClientUpdate { period, update } => {
+            execute::light_client_update(deps, &env, period, update)
+        }
     }
 }
 
@@ -43,7 +45,7 @@ mod execute {
 
     use super::*;
 
-    pub fn update(
+    pub fn light_client_update(
         deps: DepsMut,
         env: &Env,
         period: u64,
@@ -232,7 +234,7 @@ mod tests {
         let resp = app.execute_contract(
             Addr::unchecked("owner"),
             addr.to_owned(),
-            &ExecuteMsg::Update {
+            &ExecuteMsg::LightClientUpdate {
                 period: 862,
                 update: update.clone(),
             },
@@ -245,7 +247,7 @@ mod tests {
         let resp = app.execute_contract(
             Addr::unchecked("owner"),
             addr.to_owned(),
-            &ExecuteMsg::Update {
+            &ExecuteMsg::LightClientUpdate {
                 period: 863,
                 update: update.clone(),
             },
@@ -265,7 +267,7 @@ mod tests {
         let resp = app.execute_contract(
             Addr::unchecked("owner"),
             addr.to_owned(),
-            &ExecuteMsg::Update {
+            &ExecuteMsg::LightClientUpdate {
                 period: 862,
                 update: update.clone(),
             },
