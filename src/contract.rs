@@ -73,7 +73,6 @@ mod execute {
         Ok(Response::new())
     }
 
-    // TODO: Write tests
     pub fn update_forks(deps: DepsMut, forks: Forks) -> Result<Response, ContractError> {
         FORKS.save(deps.storage, &forks)?;
         Ok(Response::new())
@@ -112,9 +111,12 @@ mod tests {
 
     use crate::{
         contract::{execute, instantiate, query},
-        lightclient::helpers::test_helpers::*,
-        lightclient::types::{Bootstrap, LightClientState, SignatureBytes},
         lightclient::LightClient,
+        lightclient::{
+            helpers::hex_str_to_bytes,
+            types::{Bootstrap, Fork, LightClientState, SignatureBytes},
+        },
+        lightclient::{helpers::test_helpers::*, types::Forks},
         msg::ExecuteMsg,
     };
     use cosmwasm_std::{testing::mock_env, Addr, Timestamp};
@@ -227,5 +229,56 @@ mod tests {
         );
 
         assert!(resp.is_err());
+    }
+
+    #[test]
+    fn test_forks_query() {
+        let (app, addr) = deploy();
+        let resp: Forks = app
+            .wrap()
+            .query_wasm_smart(addr, &QueryMsg::Forks {})
+            .unwrap();
+
+        assert_eq!(resp, get_forks());
+    }
+
+    #[test]
+    fn test_forks_update() {
+        let (mut app, addr) = deploy();
+        let new_forks = Forks {
+            genesis: Fork {
+                epoch: 0,
+                fork_version: hex_str_to_bytes("0x03000000").unwrap(),
+            },
+            altair: Fork {
+                epoch: 1,
+                fork_version: hex_str_to_bytes("0x02000000").unwrap(),
+            },
+            bellatrix: Fork {
+                epoch: 2,
+                fork_version: hex_str_to_bytes("0x01000000").unwrap(),
+            },
+            capella: Fork {
+                epoch: 3,
+                fork_version: hex_str_to_bytes("0x00000000").unwrap(),
+            },
+        };
+
+        app.execute_contract(
+            Addr::unchecked("owner"),
+            addr.clone(),
+            &ExecuteMsg::UpdateForks {
+                forks: new_forks.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+        let resp: Forks = app
+            .wrap()
+            .query_wasm_smart(addr, &QueryMsg::Forks {})
+            .unwrap();
+
+        assert_eq!(resp, new_forks);
     }
 }
