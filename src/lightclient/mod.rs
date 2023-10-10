@@ -16,15 +16,22 @@ use self::helpers::calc_sync_period;
 pub struct LightClient {
     pub state: LightClientState,
     pub config: ChainConfig,
+    forks: Forks,
     env: Env,
 }
 
 impl LightClient {
-    pub fn new(config: &ChainConfig, state: Option<LightClientState>, env: &Env) -> Self {
+    pub fn new(
+        config: &ChainConfig,
+        forks: &Forks,
+        state: Option<LightClientState>,
+        env: &Env,
+    ) -> Self {
         let state = state.unwrap_or_default();
         return Self {
             state,
             config: config.clone(),
+            forks: forks.clone(),
             env: env.clone(),
         };
     }

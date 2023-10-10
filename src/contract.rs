@@ -13,12 +13,13 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let mut lc = LightClient::new(&msg.config, None, &env);
+    let mut lc = LightClient::new(&msg.config, &msg.forks, None, &env);
     lc.bootstrap(msg.bootstrap.clone()).unwrap();
 
     BOOTSTRAP.save(deps.storage, &msg.bootstrap)?;
     LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
     CONFIG.save(deps.storage, &msg.config)?;
+    FORKS.save(deps.storage, &msg.forks)?;
 
     Ok(Response::new())
 }
@@ -51,7 +52,8 @@ mod execute {
         // TODO: Fix this cloned state everywhere
         let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
         let config = CONFIG.load(deps.storage)?;
-        let mut lc = LightClient::new(&config, Some(state), &env);
+        let forks = FORKS.load(deps.storage)?;
+        let mut lc = LightClient::new(&config, &forks, Some(state), &env);
 
         let res = lc.verify_update(&update);
         if res.is_err() {
@@ -80,6 +82,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         Bootstrap {} => to_binary(&BOOTSTRAP.load(deps.storage)?),
         Update { period } => to_binary(&query::update(deps, period)?),
         LightClientState {} => to_binary(&LIGHT_CLIENT_STATE.load(deps.storage)?),
+        Forks {} => to_binary(&FORKS.load(deps.storage)?),
     }
 }
 
@@ -106,7 +109,9 @@ mod tests {
     use crate::{
         contract::{execute, instantiate, query},
         lightclient::helpers::hex_str_to_bytes,
-        lightclient::types::{Bootstrap, ChainConfig, LightClientState, SignatureBytes, Update},
+        lightclient::types::{
+            Bootstrap, ChainConfig, Fork, Forks, LightClientState, SignatureBytes, Update,
+        },
         lightclient::LightClient,
         msg::ExecuteMsg,
     };
@@ -164,6 +169,7 @@ mod tests {
                 &InstantiateMsg {
                     bootstrap: get_bootstrap(),
                     config: get_config(),
+                    forks: get_forks(),
                 },
                 &[],
                 "Contract",
@@ -192,7 +198,7 @@ mod tests {
             .query_wasm_smart(&addr, &QueryMsg::LightClientState {})
             .unwrap();
 
-        let mut lc = LightClient::new(&get_config(), None, &env);
+        let mut lc = LightClient::new(&get_config(), &get_forks(), None, &env);
         lc.bootstrap(bootstrap).unwrap();
         assert_eq!(resp, lc.state)
     }
