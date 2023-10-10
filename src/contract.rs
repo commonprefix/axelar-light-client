@@ -67,7 +67,6 @@ mod execute {
             return Err(ContractError::from(res.err().unwrap()));
         }
 
-        // TODO: Decide whether we'll store updates as well
         UPDATES.save(deps.storage, period, &update)?;
         LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
 

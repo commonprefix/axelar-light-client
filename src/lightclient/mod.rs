@@ -37,7 +37,6 @@ impl LightClient {
     }
 
     pub fn bootstrap(&mut self, mut bootstrap: Bootstrap) -> Result<(), ConsensusError> {
-        // TODO: Check that bootstrap is recent enough, after the Sync Committee fork
         let committee_valid = self.is_current_committee_proof_valid(
             &bootstrap.header.beacon,
             &mut bootstrap.current_sync_committee,
