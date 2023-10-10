@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use cosmwasm_std::testing::mock_env;
@@ -8,28 +7,10 @@ mod tests {
 
     use crate::{
         lightclient::error::ConsensusError,
-        lightclient::helpers::hex_str_to_bytes,
-        lightclient::types::{
-            BLSPubKey, Bootstrap, ChainConfig, Fork, Forks, Header, SignatureBytes, Update,
-        },
+        lightclient::helpers::test_helpers::{get_bootstrap, get_config, get_forks, get_update},
+        lightclient::types::{BLSPubKey, Header, SignatureBytes},
         lightclient::{self, LightClient},
     };
-
-    fn get_bootstrap() -> Bootstrap {
-        let file = File::open("testdata/bootstrap.json").unwrap();
-        let bootstrap: Bootstrap = serde_json::from_reader(file).unwrap();
-
-        return bootstrap;
-    }
-
-    // Currently have in testdata: 767, 862, 863
-    fn get_update(period: u64) -> Update {
-        let path = format!("testdata/{}.json", period);
-        let file = File::open(path).unwrap();
-        let update: Update = serde_json::from_reader(file).unwrap();
-
-        return update;
-    }
 
     fn init_lightclient() -> LightClient {
         let bootstrap = get_bootstrap();
@@ -50,38 +31,6 @@ mod tests {
         }
 
         return client;
-    }
-
-    fn get_config() -> ChainConfig {
-        return ChainConfig {
-            chain_id: 1,
-            genesis_time: 1606824023,
-            genesis_root: hex_str_to_bytes(
-                "0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95",
-            )
-            .unwrap(),
-        };
-    }
-
-    fn get_forks() -> Forks {
-        return Forks {
-            genesis: Fork {
-                epoch: 0,
-                fork_version: hex_str_to_bytes("0x00000000").unwrap(),
-            },
-            altair: Fork {
-                epoch: 74240,
-                fork_version: hex_str_to_bytes("0x01000000").unwrap(),
-            },
-            bellatrix: Fork {
-                epoch: 144896,
-                fork_version: hex_str_to_bytes("0x02000000").unwrap(),
-            },
-            capella: Fork {
-                epoch: 194048,
-                fork_version: hex_str_to_bytes("0x03000000").unwrap(),
-            },
-        };
     }
 
     #[test]
