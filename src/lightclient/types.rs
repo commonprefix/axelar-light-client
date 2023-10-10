@@ -1,6 +1,5 @@
 use std::vec;
 
-use crate::lightclient::helpers::{bytes_deserialize, bytes_serialize};
 use primitives::{ByteVector, U64};
 use serde;
 use ssz_rs::prelude::*;
@@ -84,10 +83,6 @@ pub struct ForkData {
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Default, Clone)]
 pub struct Fork {
     pub epoch: u64,
-    #[serde(
-        deserialize_with = "bytes_deserialize",
-        serialize_with = "bytes_serialize"
-    )]
     pub fork_version: Vec<u8>,
 }
 
