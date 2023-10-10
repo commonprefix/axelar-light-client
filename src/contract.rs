@@ -147,6 +147,27 @@ mod tests {
         };
     }
 
+    fn get_forks() -> Forks {
+        return Forks {
+            genesis: Fork {
+                epoch: 0,
+                fork_version: hex_str_to_bytes("0x00000000").unwrap(),
+            },
+            altair: Fork {
+                epoch: 74240,
+                fork_version: hex_str_to_bytes("0x01000000").unwrap(),
+            },
+            bellatrix: Fork {
+                epoch: 144896,
+                fork_version: hex_str_to_bytes("0x02000000").unwrap(),
+            },
+            capella: Fork {
+                epoch: 194048,
+                fork_version: hex_str_to_bytes("0x03000000").unwrap(),
+            },
+        };
+    }
+
     fn deploy() -> (App, Addr) {
         let mut app = App::default();
 
