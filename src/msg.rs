@@ -21,6 +21,7 @@ pub enum QueryMsg {
     Greet {},
     Bootstrap {},
     Update { period: u64 },
+    SyncCommittee { period: u64 },
     LightClientState {},
     Forks {},
 }

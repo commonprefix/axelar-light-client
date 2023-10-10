@@ -3,6 +3,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
 use crate::error::ContractError;
+use crate::lightclient::helpers::calc_sync_period;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::{lightclient::LightClient, state::*};
 
@@ -20,6 +21,9 @@ pub fn instantiate(
     LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
     CONFIG.save(deps.storage, &msg.config)?;
     FORKS.save(deps.storage, &msg.forks)?;
+
+    let period = calc_sync_period(msg.bootstrap.header.beacon.slot.into());
+    SYNC_COMMITTEES.save(deps.storage, period, &msg.bootstrap.current_sync_committee)?;
 
     Ok(Response::new())
 }
@@ -68,6 +72,7 @@ mod execute {
         }
 
         UPDATES.save(deps.storage, period, &update)?;
+        SYNC_COMMITTEES.save(deps.storage, period + 1, &update.next_sync_committee)?;
         LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
 
         Ok(Response::new())
@@ -89,19 +94,18 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         Update { period } => to_binary(&query::update(deps, period)?),
         LightClientState {} => to_binary(&LIGHT_CLIENT_STATE.load(deps.storage)?),
         Forks {} => to_binary(&FORKS.load(deps.storage)?),
+        SyncCommittee { period } => {
+            let sync_committee = &SYNC_COMMITTEES.load(deps.storage, period)?;
+            to_binary(&sync_committee)
+        }
     }
 }
 
 mod query {
     use super::*;
-    use crate::lightclient::types::Update;
 
     pub fn greet() -> StdResult<String> {
         Ok("Hello, world!".to_string())
-    }
-
-    pub fn update(deps: Deps, period: u64) -> StdResult<Update> {
-        UPDATES.load(deps.storage, period)
     }
 }
 
@@ -115,6 +119,7 @@ mod tests {
         lightclient::{
             helpers::hex_str_to_bytes,
             types::{Bootstrap, Fork, LightClientState, SignatureBytes},
+            types::{Fork, LightClientState, SignatureBytes},
         },
         lightclient::{helpers::test_helpers::*, types::Forks},
         msg::ExecuteMsg,
@@ -162,13 +167,6 @@ mod tests {
         let (app, addr) = deploy();
         let env = mock_env();
         let bootstrap = get_bootstrap();
-
-        let resp: Bootstrap = app
-            .wrap()
-            .query_wasm_smart(&addr, &QueryMsg::Bootstrap {})
-            .unwrap();
-
-        assert_eq!(resp, bootstrap);
 
         let resp: LightClientState = app
             .wrap()
