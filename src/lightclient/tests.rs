@@ -136,7 +136,7 @@ mod tests {
         update.attested_header.beacon.slot =
             U64::from(lightclient.state.finalized_header.slot.as_u64() - (256 * 32));
         update.finalized_header.beacon.slot =
-            U64::from(lightclient.state.finalized_header.slot.as_u64() - (256 * 32));
+            U64::from(lightclient.state.finalized_header.slot.as_u64() - (256 * 32) - 1); // subtracting 1 for a regression bug
         lightclient.state.next_sync_committee = None;
         err = lightclient.verify_update(&update).unwrap_err();
         assert_eq!(
