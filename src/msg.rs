@@ -21,4 +21,5 @@ pub enum QueryMsg {
     SyncCommittee { period: u64 },
     LightClientState {},
     Config {},
+    Version {},
 }

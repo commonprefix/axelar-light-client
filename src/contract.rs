@@ -1,11 +1,14 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{
+    to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdResult,
+};
 
 use crate::error::ContractError;
 use crate::lightclient::helpers::calc_sync_period;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::{lightclient::LightClient, state::*};
+use cw2::{self, set_contract_version};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -22,6 +25,9 @@ pub fn instantiate(
 
     let period = calc_sync_period(msg.bootstrap.header.beacon.slot.into());
     SYNC_COMMITTEES.save(deps.storage, period, &msg.bootstrap.current_sync_committee)?;
+
+    // TODO: Use commit hash or something else
+    cw2::set_contract_version(deps.storage, "lightclient", "0.1")?;
 
     Ok(Response::new())
 }
@@ -96,6 +102,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let sync_committee = &SYNC_COMMITTEES.load(deps.storage, period)?;
             to_binary(&sync_committee)
         }
+        Version {} => to_binary(&VERSION.load(deps.storage)?),
     }
 }
 
