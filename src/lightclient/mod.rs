@@ -93,7 +93,7 @@ impl LightClient {
         let update_has_next_committee =
             self.state.next_sync_committee.is_none() && update_attested_period == store_period;
 
-        if update.attested_header.beacon.slot <= update.finalized_header.beacon.slot
+        if update.attested_header.beacon.slot <= self.state.finalized_header.slot
             && !update_has_next_committee
         {
             return Err(ConsensusError::NotRelevant.into());
