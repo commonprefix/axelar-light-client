@@ -114,6 +114,17 @@ mod query {
     }
 }
 
+#[entry_point]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+    let contract_info = cw2::get_contract_version(deps.storage).unwrap();
+    set_contract_version(
+        deps.storage,
+        contract_info.contract,
+        (contract_info.version.parse::<f64>().unwrap() + 0.1).to_string(),
+    )?;
+    Ok(Response::default())
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
