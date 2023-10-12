@@ -13,11 +13,15 @@ mod tests {
         lightclient::error::ConsensusError,
         lightclient::helpers::calc_sync_period,
         lightclient::helpers::test_helpers::{get_bootstrap, get_config, get_update},
-        lightclient::types::{
-            primitives::U64, BLSPubKey, BeaconBlock, LightClientState, SignatureBytes,
-        },
         lightclient::types::{BeaconBlockHeader, SyncCommittee},
-        lightclient::{self, types::primitives::ByteVector, LightClient},
+        lightclient::{self},
+        lightclient::{
+            types::{
+                primitives::ByteVector, primitives::U64, BLSPubKey, BeaconBlock, LightClientState,
+                SignatureBytes,
+            },
+            LightClient,
+        },
     };
 
     fn init_lightclient() -> LightClient {
