@@ -1,6 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::{
+        fs::File,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     use cosmwasm_std::testing::mock_env;
     use cosmwasm_std::Timestamp;
@@ -8,9 +11,12 @@ mod tests {
 
     use crate::{
         lightclient::error::ConsensusError,
+        lightclient::helpers::calc_sync_period,
         lightclient::helpers::test_helpers::{get_bootstrap, get_config, get_update},
-        lightclient::types::BeaconBlockHeader,
-        lightclient::types::{primitives::U64, BLSPubKey, LightClientState, SignatureBytes},
+        lightclient::types::{
+            primitives::U64, BLSPubKey, BeaconBlock, LightClientState, SignatureBytes,
+        },
+        lightclient::types::{BeaconBlockHeader, SyncCommittee},
         lightclient::{self, types::primitives::ByteVector, LightClient},
     };
 
@@ -361,5 +367,27 @@ mod tests {
             lightclient.state.finalized_header, update.finalized_header.beacon,
             "finalized_header should be set after applying second update"
         );
+    }
+
+    #[test]
+    fn test_verify_block() {
+        let mut lightclient = init_lightclient();
+        let update = get_update(862);
+
+        let res = lightclient.apply_update(&update);
+        assert!(res.is_ok());
+
+        let file: File = File::open("testdata/input.json").unwrap();
+        let chain: [BeaconBlock; 2] = serde_json::from_reader(file).unwrap();
+
+        pub fn get_sync_committee_at_period(_i: u64) -> SyncCommittee {
+            let bootstrap = get_bootstrap();
+            return bootstrap.current_sync_committee;
+        }
+
+        let period = calc_sync_period(chain.last().unwrap().slot.into());
+        let sync_committee = get_sync_committee_at_period(period);
+
+        let res = lightclient.verify_block(&sync_committee, &chain);
     }
 }
