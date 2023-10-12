@@ -9,6 +9,7 @@ mod tests {
     use crate::{
         lightclient::error::ConsensusError,
         lightclient::helpers::test_helpers::{get_bootstrap, get_config, get_update},
+        lightclient::types::BeaconBlockHeader,
         lightclient::types::{primitives::U64, BLSPubKey, LightClientState, SignatureBytes},
         lightclient::{self, types::primitives::ByteVector, LightClient},
     };
@@ -61,6 +62,7 @@ mod tests {
                 + 12,
         );
         let mut err = lightclient.verify_update(&update).unwrap_err();
+        update.finalized_header.beacon = BeaconBlockHeader::default();
 
         assert_eq!(
             err.to_string(),
@@ -207,6 +209,11 @@ mod tests {
     fn test_bootstrap_state() {
         let lightclient = init_lightclient();
         let bootstrap = get_bootstrap();
+
+        let mut update = get_update(862);
+        update.finalized_header.beacon = BeaconBlockHeader::default();
+
+        let err = lightclient.verify_update(&update).err().unwrap();
         assert_eq!(
             lightclient.state,
             LightClientState {

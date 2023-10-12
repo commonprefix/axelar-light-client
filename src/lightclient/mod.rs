@@ -190,7 +190,7 @@ impl LightClient {
 
     fn is_current_committee_proof_valid(
         &self,
-        attested_header: &Header,
+        attested_header: &BeaconBlockHeader,
         current_committee: &mut SyncCommittee,
         current_committee_branch: &[Bytes32],
     ) -> bool {
@@ -222,8 +222,8 @@ impl LightClient {
 
     fn is_finality_proof_valid(
         &self,
-        attested_header: &Header,
-        finality_header: &mut Header,
+        attested_header: &BeaconBlockHeader,
+        finality_header: &mut BeaconBlockHeader,
         finality_branch: &[Bytes32],
     ) -> bool {
         is_proof_valid(attested_header, finality_header, finality_branch, 6, 41)
@@ -231,7 +231,7 @@ impl LightClient {
 
     fn is_next_committee_proof_valid(
         &self,
-        attested_header: &Header,
+        attested_header: &BeaconBlockHeader,
         next_committee: &mut SyncCommittee,
         next_committee_branch: &[Bytes32],
     ) -> bool {
@@ -285,7 +285,7 @@ impl LightClient {
         &self,
         config: &ChainConfig,
         pks: &[PublicKey],
-        attested_header: &Header,
+        attested_header: &BeaconBlockHeader,
         signature: &SignatureBytes,
         signature_slot: u64,
     ) -> bool {

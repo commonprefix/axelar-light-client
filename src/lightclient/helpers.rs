@@ -1,10 +1,10 @@
 use eyre::Result;
 use ssz_rs::prelude::*;
 
-use crate::lightclient::types::{Bytes32, Header};
+use crate::lightclient::types::{BeaconBlockHeader, Bytes32};
 
 pub fn is_proof_valid<L: Merkleized>(
-    attested_header: &Header,
+    attested_header: &BeaconBlockHeader,
     leaf_object: &mut L,
     branch: &[Bytes32],
     depth: usize,
