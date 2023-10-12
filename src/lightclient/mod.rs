@@ -249,14 +249,17 @@ impl LightClient {
     fn get_fork_version(&self, slot: u64) -> Vec<u8> {
         let epoch = slot / 32;
 
-        if epoch >= self.config.forks.capella.epoch {
-            self.config.forks.capella.fork_version.clone()
-        } else if epoch >= self.config.forks.bellatrix.epoch {
-            self.config.forks.bellatrix.fork_version.clone()
-        } else if epoch >= self.config.forks.altair.epoch {
-            self.config.forks.altair.fork_version.clone()
-        } else {
-            self.config.forks.genesis.fork_version.clone()
+        match epoch {
+            e if e >= self.config.forks.capella.epoch => {
+                self.config.forks.capella.fork_version.clone()
+            }
+            e if e >= self.config.forks.bellatrix.epoch => {
+                self.config.forks.bellatrix.fork_version.clone()
+            }
+            e if e >= self.config.forks.altair.epoch => {
+                self.config.forks.altair.fork_version.clone()
+            }
+            _ => self.config.forks.genesis.fork_version.clone(),
         }
     }
 
