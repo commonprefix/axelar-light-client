@@ -10,6 +10,7 @@ pub struct InstantiateMsg {
 }
 
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
+#[allow(clippy::large_enum_variant)] // TODO: Properly fix this
 pub enum ExecuteMsg {
     LightClientUpdate { period: u64, update: Update },
     UpdateForks { forks: Forks },
