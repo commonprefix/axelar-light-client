@@ -34,7 +34,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_update_insufficient_participation_error() {
+    fn test_verify_update_participation() {
         let lightclient = init_lightclient();
 
         let mut update = get_update(862);
@@ -49,7 +49,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_update_time_error() {
+    fn test_verify_update_time() {
         let lightclient = init_lightclient();
 
         let mut update = get_update(862);
@@ -88,7 +88,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_update_period_error() {
+    fn test_verify_update_period() {
         let mut lightclient = init_lightclient();
         // current period is 862, without a sync committee
         let mut update = get_update(863);
@@ -118,7 +118,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_update_relevance_error() {
+    fn test_verify_update_relevance() {
         let mut lightclient = init_lightclient();
         let mut update = get_update(862);
         lightclient.apply_update(&update).unwrap();
@@ -146,7 +146,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_update_finaliy_proof() {
+    fn test_verify_update_finality_proof() {
         let lightclient = init_lightclient();
         let mut update = get_update(862);
 
