@@ -16,22 +16,15 @@ use self::helpers::calc_sync_period;
 pub struct LightClient {
     pub state: LightClientState,
     pub config: ChainConfig,
-    forks: Forks,
     env: Env,
 }
 
 impl LightClient {
-    pub fn new(
-        config: &ChainConfig,
-        forks: &Forks,
-        state: Option<LightClientState>,
-        env: &Env,
-    ) -> Self {
+    pub fn new(config: &ChainConfig, state: Option<LightClientState>, env: &Env) -> Self {
         let state = state.unwrap_or_default();
         return Self {
             state,
             config: config.clone(),
-            forks: forks.clone(),
             env: env.clone(),
         };
     }
@@ -256,14 +249,17 @@ impl LightClient {
     fn get_fork_version(&self, slot: u64) -> Vec<u8> {
         let epoch = slot / 32;
 
-        if epoch >= self.forks.capella.epoch {
-            self.forks.capella.fork_version.clone()
-        } else if epoch >= self.forks.bellatrix.epoch {
-            self.forks.bellatrix.fork_version.clone()
-        } else if epoch >= self.forks.altair.epoch {
-            self.forks.altair.fork_version.clone()
-        } else {
-            self.forks.genesis.fork_version.clone()
+        match epoch {
+            e if e >= self.config.forks.capella.epoch => {
+                self.config.forks.capella.fork_version.clone()
+            }
+            e if e >= self.config.forks.bellatrix.epoch => {
+                self.config.forks.bellatrix.fork_version.clone()
+            }
+            e if e >= self.config.forks.altair.epoch => {
+                self.config.forks.altair.fork_version.clone()
+            }
+            _ => self.config.forks.genesis.fork_version.clone(),
         }
     }
 

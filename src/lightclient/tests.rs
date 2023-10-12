@@ -7,7 +7,7 @@ mod tests {
 
     use crate::{
         lightclient::error::ConsensusError,
-        lightclient::helpers::test_helpers::{get_bootstrap, get_config, get_forks, get_update},
+        lightclient::helpers::test_helpers::{get_bootstrap, get_config, get_update},
         lightclient::types::{BLSPubKey, Header, SignatureBytes},
         lightclient::{self, LightClient},
     };
@@ -15,7 +15,6 @@ mod tests {
     fn init_lightclient() -> LightClient {
         let bootstrap = get_bootstrap();
         let config = get_config();
-        let forks = get_forks();
         let mut env = mock_env();
         env.block.time = Timestamp::from_seconds(
             SystemTime::now()
@@ -24,7 +23,7 @@ mod tests {
                 .as_secs(),
         );
 
-        let mut client = LightClient::new(&config, &forks, None, &env);
+        let mut client = LightClient::new(&config, None, &env);
         let res = client.bootstrap(bootstrap);
         if let Err(e) = res {
             panic!("Error bootstrapping: {}", e);
