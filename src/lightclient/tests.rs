@@ -9,7 +9,7 @@ mod tests {
     use crate::{
         lightclient::error::ConsensusError,
         lightclient::helpers::test_helpers::{get_bootstrap, get_config, get_update},
-        lightclient::types::{primitives::U64, BLSPubKey, SignatureBytes},
+        lightclient::types::{primitives::U64, BLSPubKey, LightClientState, SignatureBytes},
         lightclient::{self, types::primitives::ByteVector, LightClient},
     };
 
@@ -204,9 +204,26 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_update() {
+    fn test_bootstrap_state() {
+        let lightclient = init_lightclient();
+        let bootstrap = get_bootstrap();
+        assert_eq!(
+            lightclient.state,
+            LightClientState {
+                finalized_header: bootstrap.header.beacon,
+                current_sync_committee: bootstrap.current_sync_committee,
+                next_sync_committee: None,
+                previous_max_active_participants: 0,
+                current_max_active_participants: 0
+            }
+        );
+    }
+
+    #[test]
+    fn test_apply_first_update() {
         let mut lightclient = init_lightclient();
         let update = get_update(862);
+        let bootstrap = get_bootstrap();
         let res = lightclient.verify_update(&update);
         assert!(res.is_ok());
 
@@ -217,9 +234,105 @@ mod tests {
             "finalized_header should be set after applying update"
         );
         assert_eq!(
+            lightclient.state.current_sync_committee, bootstrap.current_sync_committee,
+            "current_sync_committee should be unchanged"
+        );
+        assert_eq!(
             lightclient.state.next_sync_committee.unwrap(),
             update.next_sync_committee,
             "next_sync_committee should be set after applying update"
+        );
+        assert_eq!(
+            lightclient.state.previous_max_active_participants, 0,
+            "previous_max_active_participants should be unchanged"
+        );
+        assert_eq!(
+            lightclient.state.current_max_active_participants, 511,
+            "current_max_active_participants should be unchanged"
+        );
+    }
+
+    #[test]
+    fn test_apply_next_period_update() {
+        let mut lightclient = init_lightclient();
+
+        let mut res;
+        res = lightclient.apply_update(&get_update(862));
+        assert!(res.is_ok());
+        let state_before_update = lightclient.state.clone();
+
+        let update = get_update(863);
+        res = lightclient.apply_update(&update);
+        assert!(res.is_ok());
+
+        assert_eq!(
+            lightclient.state.finalized_header, update.finalized_header.beacon,
+            "finalized_header should be set after applying update"
+        );
+        assert_eq!(
+            lightclient.state.current_sync_committee,
+            state_before_update.next_sync_committee.unwrap(),
+            "current_sync_committee was updated with previous next_sync_committee"
+        );
+        assert_eq!(
+            lightclient.state.next_sync_committee.clone().unwrap(),
+            update.next_sync_committee,
+            "next_sync_committee was updated"
+        );
+        assert_eq!(
+            lightclient.state.previous_max_active_participants,
+            u64::max(
+                state_before_update.current_max_active_participants,
+                lightclient.get_bits(&update.sync_aggregate.sync_committee_bits),
+            ),
+            "previous_max_active_participants should be unchanged"
+        );
+        assert_eq!(
+            lightclient.state.current_max_active_participants, 0,
+            "current_max_active_participants should be unchanged"
+        );
+    }
+
+    #[test]
+    fn test_apply_same_period_update() {
+        let mut lightclient = init_lightclient();
+        let mut update = get_update(862);
+
+        let mut res;
+        res = lightclient.apply_update(&update);
+        assert!(res.is_ok());
+        let state_before_update = lightclient.state.clone();
+
+        update.finalized_header.beacon.slot =
+            U64::from(update.finalized_header.beacon.slot.as_u64() + 1);
+        res = lightclient.apply_update(&update);
+        assert!(res.is_ok());
+
+        assert_ne!(
+            lightclient.state.finalized_header,
+            state_before_update.finalized_header,
+        );
+        assert_eq!(
+            lightclient.state.finalized_header, update.finalized_header.beacon,
+            "finalized_header should be set after applying update"
+        );
+        assert_eq!(
+            lightclient.state.current_sync_committee, state_before_update.current_sync_committee,
+            "current_sync_committee should be unchanged"
+        );
+        assert_eq!(
+            lightclient.state.next_sync_committee, state_before_update.next_sync_committee,
+            "next_sync_committee should be unchanged"
+        );
+        assert_eq!(
+            lightclient.state.previous_max_active_participants,
+            state_before_update.previous_max_active_participants,
+            "previous_max_active_participants should be unchanged"
+        );
+        assert_eq!(
+            lightclient.state.current_max_active_participants,
+            state_before_update.current_max_active_participants,
+            "current_max_active_participants should be unchanged"
         );
     }
 
