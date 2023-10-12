@@ -146,6 +146,7 @@ impl LightClient {
         Ok(())
     }
 
+    // TODO: Maybe make this private and enforce verify first?
     pub fn apply_update(&mut self, update: &Update) -> Result<(), ConsensusError> {
         let committee_bits = self.get_bits(&update.sync_aggregate.sync_committee_bits);
 
