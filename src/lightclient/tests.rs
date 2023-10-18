@@ -13,7 +13,7 @@ mod tests {
         lightclient::error::ConsensusError,
         lightclient::helpers::test_helpers::{get_bootstrap, get_config, get_update},
         lightclient::types::{BeaconBlockHeader, BlockVerificationData},
-        lightclient::{self},
+        lightclient::{self, helpers::test_helpers::get_transaction_verification_request},
         lightclient::{
             types::{
                 primitives::ByteVector, primitives::U64, BLSPubKey, LightClientState,
@@ -307,6 +307,17 @@ mod tests {
             lightclient.state.current_max_active_participants, 0,
             "current_max_active_participants should be unchanged"
         );
+    }
+
+    #[test]
+    fn test_tx_proof() {
+        let lightclient = init_lightclient();
+        let mut request = get_transaction_verification_request();
+        assert!(lightclient.is_receipt_proof_valid(
+            request.receipts_root,
+            &mut request.receipt_key,
+            request.proof
+        ));
     }
 
     #[test]
