@@ -1,10 +1,10 @@
 use eyre::Result;
 use ssz_rs::prelude::*;
 
-use crate::lightclient::types::{BeaconBlockHeader, Bytes32};
+use crate::lightclient::types::Bytes32;
 
 pub fn is_proof_valid<L: Merkleized>(
-    attested_header: &BeaconBlockHeader,
+    root: &Bytes32,
     leaf_object: &mut L,
     branch: &[Bytes32],
     depth: usize,
@@ -12,7 +12,7 @@ pub fn is_proof_valid<L: Merkleized>(
 ) -> bool {
     let res: Result<bool> = (move || {
         let leaf_hash = leaf_object.hash_tree_root()?;
-        let state_root = bytes32_to_node(&attested_header.state_root)?;
+        let state_root = bytes32_to_node(root)?;
         let branch = branch_to_nodes(branch.to_vec())?;
 
         let is_valid = is_valid_merkle_branch(&leaf_hash, branch.iter(), depth, index, &state_root);
