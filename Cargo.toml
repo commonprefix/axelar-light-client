@@ -53,6 +53,8 @@ thiserror = { version = "1.0.31" }
 eyre = "0.6.8"
 milagro_bls = { git = "https://github.com/pkakelas/milagro_bls" }
 cw2 = "1.1.1"
+eth_trie = "0.3.0"
+primitive-types = "0.10.1"
 
 [dev-dependencies]
 cw-multi-test = "0.16.2"
