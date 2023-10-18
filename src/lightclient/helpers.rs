@@ -86,8 +86,8 @@ pub mod test_helpers {
         return update;
     }
 
-    pub fn get_transaction_verification_request() -> ReceiptVerificationRequest {
-        let path = format!("testdata/tx_proof.json");
+    pub fn get_receipt_verification_request() -> ReceiptVerificationRequest {
+        let path = format!("testdata/receipt_proof.json");
         let file = File::open(path).unwrap();
         let request: ReceiptVerificationRequest = serde_json::from_reader(file).unwrap();
 

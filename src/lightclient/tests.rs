@@ -13,7 +13,7 @@ mod tests {
         lightclient::error::ConsensusError,
         lightclient::helpers::test_helpers::{get_bootstrap, get_config, get_update},
         lightclient::types::{BeaconBlockHeader, BlockVerificationData},
-        lightclient::{self, helpers::test_helpers::get_transaction_verification_request},
+        lightclient::{self, helpers::test_helpers::get_receipt_verification_request},
         lightclient::{
             types::{
                 primitives::ByteVector, primitives::U64, BLSPubKey, LightClientState,
@@ -310,9 +310,9 @@ mod tests {
     }
 
     #[test]
-    fn test_tx_proof() {
+    fn test_receipt_proof() {
         let lightclient = init_lightclient();
-        let mut request = get_transaction_verification_request();
+        let mut request = get_receipt_verification_request();
         assert!(lightclient.is_receipt_proof_valid(
             request.receipts_root,
             &mut request.receipt_key,
