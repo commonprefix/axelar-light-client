@@ -22,11 +22,11 @@ pub struct LightClient {
 impl LightClient {
     pub fn new(config: &ChainConfig, state: Option<LightClientState>, env: &Env) -> Self {
         let state = state.unwrap_or_default();
-        return Self {
+        Self {
             state,
             config: config.clone(),
             env: env.clone(),
-        };
+        }
     }
 
     pub fn bootstrap(&mut self, mut bootstrap: Bootstrap) -> Result<(), ConsensusError> {
@@ -37,7 +37,7 @@ impl LightClient {
         );
 
         if !committee_valid {
-            return Err(ConsensusError::InvalidCurrentSyncCommitteeProof.into());
+            return Err(ConsensusError::InvalidCurrentSyncCommitteeProof);
         }
 
         self.state = LightClientState {
@@ -48,14 +48,14 @@ impl LightClient {
             current_max_active_participants: 0,
         };
 
-        return Ok(());
+        Ok(())
     }
 
     pub fn verify_update(&self, update: &Update) -> Result<(), ConsensusError> {
         // Check if there's any participation in the sync committee at all.
         let bits = self.get_bits(&update.sync_aggregate.sync_committee_bits);
         if bits == 0 {
-            return Err(ConsensusError::InsufficientParticipation.into());
+            return Err(ConsensusError::InsufficientParticipation);
         }
 
         // Check for valid timestamp conditions:
@@ -68,7 +68,7 @@ impl LightClient {
             && update.attested_header.beacon.slot >= update_finalized_slot;
 
         if !valid_time {
-            return Err(ConsensusError::InvalidTimestamp.into());
+            return Err(ConsensusError::InvalidTimestamp);
         }
 
         // Validate the sync committee periods: If there's a next sync committee in
@@ -84,7 +84,7 @@ impl LightClient {
         };
 
         if !valid_period {
-            return Err(ConsensusError::InvalidPeriod.into());
+            return Err(ConsensusError::InvalidPeriod);
         }
 
         // Calculate the period for the attested header and check its relevance.
@@ -93,10 +93,10 @@ impl LightClient {
         let update_has_next_committee =
             self.state.next_sync_committee.is_none() && update_attested_period == store_period;
 
-        if update.attested_header.beacon.slot <= update.finalized_header.beacon.slot
+        if update.attested_header.beacon.slot <= self.state.finalized_header.slot
             && !update_has_next_committee
         {
-            return Err(ConsensusError::NotRelevant.into());
+            return Err(ConsensusError::NotRelevant);
         }
 
         let is_valid = self.is_finality_proof_valid(
@@ -106,7 +106,7 @@ impl LightClient {
         );
 
         if !is_valid {
-            return Err(ConsensusError::InvalidFinalityProof.into());
+            return Err(ConsensusError::InvalidFinalityProof);
         }
 
         // Check that next committe in attested header
@@ -117,7 +117,7 @@ impl LightClient {
         );
 
         if !is_valid {
-            return Err(ConsensusError::InvalidNextSyncCommitteeProof.into());
+            return Err(ConsensusError::InvalidNextSyncCommitteeProof);
         }
 
         // Verify the sync committee's aggregate signature for the attested header.
@@ -140,12 +140,13 @@ impl LightClient {
         );
 
         if !is_valid_sig {
-            return Err(ConsensusError::InvalidSignature.into());
+            return Err(ConsensusError::InvalidSignature);
         }
 
         Ok(())
     }
 
+    // TODO: Maybe make this private and enforce verify first?
     pub fn apply_update(&mut self, update: &Update) -> Result<(), ConsensusError> {
         let committee_bits = self.get_bits(&update.sync_aggregate.sync_committee_bits);
 

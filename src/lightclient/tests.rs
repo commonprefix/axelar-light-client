@@ -4,12 +4,13 @@ mod tests {
 
     use cosmwasm_std::testing::mock_env;
     use cosmwasm_std::Timestamp;
+    use ssz_rs::Bitvector;
 
     use crate::{
         lightclient::error::ConsensusError,
         lightclient::helpers::test_helpers::{get_bootstrap, get_config, get_update},
-        lightclient::types::{BLSPubKey, Header, SignatureBytes},
-        lightclient::{self, LightClient},
+        lightclient::types::{primitives::U64, BLSPubKey, LightClientState, SignatureBytes},
+        lightclient::{self, types::primitives::ByteVector, LightClient},
     };
 
     fn init_lightclient() -> LightClient {
@@ -33,31 +34,149 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_update_invalid_committee() {
+    fn test_verify_update_participation() {
         let lightclient = init_lightclient();
 
         let mut update = get_update(862);
-        update.next_sync_committee.pubkeys[0] = BLSPubKey::default();
+        update.sync_aggregate.sync_committee_bits = Bitvector::default();
 
         let err = lightclient.verify_update(&update).unwrap_err();
 
         assert_eq!(
             err.to_string(),
-            lightclient::ConsensusError::InvalidNextSyncCommitteeProof.to_string()
+            lightclient::ConsensusError::InsufficientParticipation.to_string()
         );
     }
 
     #[test]
-    fn test_verify_update_invalid_finality() {
+    fn test_verify_update_time() {
         let lightclient = init_lightclient();
 
         let mut update = get_update(862);
-        update.finalized_header.beacon = Header::default();
+        update.signature_slot = U64::from(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+                + 12,
+        );
+        let mut err = lightclient.verify_update(&update).unwrap_err();
 
-        let err = lightclient.verify_update(&update).err().unwrap();
         assert_eq!(
             err.to_string(),
-            ConsensusError::InvalidFinalityProof.to_string()
+            lightclient::ConsensusError::InvalidTimestamp.to_string()
+        );
+
+        update = get_update(862);
+        update.signature_slot = update.attested_header.beacon.slot;
+        err = lightclient.verify_update(&update).unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            lightclient::ConsensusError::InvalidTimestamp.to_string()
+        );
+
+        update = get_update(862);
+        update.attested_header.beacon.slot =
+            U64::from(update.finalized_header.beacon.slot.as_u64() - 1);
+        err = lightclient.verify_update(&update).unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            lightclient::ConsensusError::InvalidTimestamp.to_string()
+        );
+    }
+
+    #[test]
+    fn test_verify_update_period() {
+        let mut lightclient = init_lightclient();
+        // current period is 862, without a sync committee
+        let mut update = get_update(863);
+
+        let mut err = lightclient.verify_update(&update).unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            lightclient::ConsensusError::InvalidPeriod.to_string()
+        );
+
+        // properly sync with period 862, store sync committee
+        update = get_update(862);
+        lightclient.apply_update(&update).unwrap();
+
+        // update was applied
+        assert!(lightclient.state.next_sync_committee.is_some());
+
+        // update period > current period + 1
+        update = get_update(864);
+        err = lightclient.verify_update(&update).unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            lightclient::ConsensusError::InvalidPeriod.to_string()
+        );
+    }
+
+    #[test]
+    fn test_verify_update_relevance() {
+        let mut lightclient = init_lightclient();
+        let mut update = get_update(862);
+        lightclient.apply_update(&update).unwrap();
+
+        update.attested_header.beacon.slot = lightclient.state.finalized_header.slot;
+        update.finalized_header.beacon.slot = lightclient.state.finalized_header.slot;
+        assert!(lightclient.state.next_sync_committee.is_some());
+        let mut err = lightclient.verify_update(&update).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            lightclient::ConsensusError::NotRelevant.to_string()
+        );
+
+        update = get_update(862);
+        update.attested_header.beacon.slot =
+            U64::from(lightclient.state.finalized_header.slot.as_u64() - (256 * 32));
+        update.finalized_header.beacon.slot =
+            U64::from(lightclient.state.finalized_header.slot.as_u64() - (256 * 32) - 1); // subtracting 1 for a regression bug
+        lightclient.state.next_sync_committee = None;
+        err = lightclient.verify_update(&update).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            lightclient::ConsensusError::NotRelevant.to_string()
+        );
+    }
+
+    #[test]
+    fn test_verify_update_finality_proof() {
+        let lightclient = init_lightclient();
+        let mut update = get_update(862);
+
+        update.attested_header.beacon.state_root = ByteVector::default();
+        let mut err = lightclient.verify_update(&update).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            lightclient::ConsensusError::InvalidFinalityProof.to_string()
+        );
+
+        update = get_update(862);
+        update.finalized_header.beacon.state_root = ByteVector::default();
+        err = lightclient.verify_update(&update).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            lightclient::ConsensusError::InvalidFinalityProof.to_string()
+        );
+    }
+
+    #[test]
+    fn test_verify_update_invalid_committee() {
+        let lightclient = init_lightclient();
+
+        let mut update = get_update(862);
+        update.next_sync_committee.pubkeys[0] = BLSPubKey::default();
+        let err = lightclient.verify_update(&update).unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            lightclient::ConsensusError::InvalidNextSyncCommitteeProof.to_string()
         );
     }
 
@@ -85,51 +204,26 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_finality_invalid_finality() {
+    fn test_bootstrap_state() {
         let lightclient = init_lightclient();
-
-        let mut update = get_update(862);
-        update.finalized_header.beacon = Header::default();
-
-        let err = lightclient.verify_update(&update).err().unwrap();
+        let bootstrap = get_bootstrap();
         assert_eq!(
-            err.to_string(),
-            ConsensusError::InvalidFinalityProof.to_string()
+            lightclient.state,
+            LightClientState {
+                finalized_header: bootstrap.header.beacon,
+                current_sync_committee: bootstrap.current_sync_committee,
+                next_sync_committee: None,
+                previous_max_active_participants: 0,
+                current_max_active_participants: 0
+            }
         );
     }
 
     #[test]
-    fn test_verify_finality_invalid_sig() {
-        let lightclient = init_lightclient();
-
-        let mut update = get_update(862);
-        update.sync_aggregate.sync_committee_signature = SignatureBytes::default();
-
-        let err = lightclient.verify_update(&update).err().unwrap();
-        assert_eq!(
-            err.to_string(),
-            ConsensusError::InvalidSignature.to_string()
-        );
-    }
-
-    #[test]
-    fn test_invalid_period() {
-        let lightclient = init_lightclient();
-
-        let update = get_update(863);
-        let err = lightclient.verify_update(&update).err().unwrap();
-
-        assert_eq!(
-            err.to_string(),
-            ConsensusError::InvalidPeriod.to_string(),
-            "should error on invalid period"
-        );
-    }
-
-    #[test]
-    fn test_apply_update() {
+    fn test_apply_first_update() {
         let mut lightclient = init_lightclient();
         let update = get_update(862);
+        let bootstrap = get_bootstrap();
         let res = lightclient.verify_update(&update);
         assert!(res.is_ok());
 
@@ -140,9 +234,105 @@ mod tests {
             "finalized_header should be set after applying update"
         );
         assert_eq!(
+            lightclient.state.current_sync_committee, bootstrap.current_sync_committee,
+            "current_sync_committee should be unchanged"
+        );
+        assert_eq!(
             lightclient.state.next_sync_committee.unwrap(),
             update.next_sync_committee,
             "next_sync_committee should be set after applying update"
+        );
+        assert_eq!(
+            lightclient.state.previous_max_active_participants, 0,
+            "previous_max_active_participants should be unchanged"
+        );
+        assert_eq!(
+            lightclient.state.current_max_active_participants, 511,
+            "current_max_active_participants should be unchanged"
+        );
+    }
+
+    #[test]
+    fn test_apply_next_period_update() {
+        let mut lightclient = init_lightclient();
+
+        let mut res;
+        res = lightclient.apply_update(&get_update(862));
+        assert!(res.is_ok());
+        let state_before_update = lightclient.state.clone();
+
+        let update = get_update(863);
+        res = lightclient.apply_update(&update);
+        assert!(res.is_ok());
+
+        assert_eq!(
+            lightclient.state.finalized_header, update.finalized_header.beacon,
+            "finalized_header should be set after applying update"
+        );
+        assert_eq!(
+            lightclient.state.current_sync_committee,
+            state_before_update.next_sync_committee.unwrap(),
+            "current_sync_committee was updated with previous next_sync_committee"
+        );
+        assert_eq!(
+            lightclient.state.next_sync_committee.clone().unwrap(),
+            update.next_sync_committee,
+            "next_sync_committee was updated"
+        );
+        assert_eq!(
+            lightclient.state.previous_max_active_participants,
+            u64::max(
+                state_before_update.current_max_active_participants,
+                lightclient.get_bits(&update.sync_aggregate.sync_committee_bits),
+            ),
+            "previous_max_active_participants should be unchanged"
+        );
+        assert_eq!(
+            lightclient.state.current_max_active_participants, 0,
+            "current_max_active_participants should be unchanged"
+        );
+    }
+
+    #[test]
+    fn test_apply_same_period_update() {
+        let mut lightclient = init_lightclient();
+        let mut update = get_update(862);
+
+        let mut res;
+        res = lightclient.apply_update(&update);
+        assert!(res.is_ok());
+        let state_before_update = lightclient.state.clone();
+
+        update.finalized_header.beacon.slot =
+            U64::from(update.finalized_header.beacon.slot.as_u64() + 1);
+        res = lightclient.apply_update(&update);
+        assert!(res.is_ok());
+
+        assert_ne!(
+            lightclient.state.finalized_header,
+            state_before_update.finalized_header,
+        );
+        assert_eq!(
+            lightclient.state.finalized_header, update.finalized_header.beacon,
+            "finalized_header should be set after applying update"
+        );
+        assert_eq!(
+            lightclient.state.current_sync_committee, state_before_update.current_sync_committee,
+            "current_sync_committee should be unchanged"
+        );
+        assert_eq!(
+            lightclient.state.next_sync_committee, state_before_update.next_sync_committee,
+            "next_sync_committee should be unchanged"
+        );
+        assert_eq!(
+            lightclient.state.previous_max_active_participants,
+            state_before_update.previous_max_active_participants,
+            "previous_max_active_participants should be unchanged"
+        );
+        assert_eq!(
+            lightclient.state.current_max_active_participants,
+            state_before_update.current_max_active_participants,
+            "current_max_active_participants should be unchanged"
         );
     }
 

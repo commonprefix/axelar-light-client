@@ -5,7 +5,6 @@ on: [push, pull_request]
 name: Basic
 
 jobs:
-
   test:
     name: Test Suite
     runs-on: ubuntu-latest
@@ -17,7 +16,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.60.0
+          toolchain: stable
           target: wasm32-unknown-unknown
           override: true
 
@@ -48,7 +47,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.60.0
+          toolchain: stable
           override: true
           components: rustfmt, clippy
 
@@ -72,4 +71,4 @@ jobs:
 
       - name: Schema Changes
         # fails if any changes not committed
-        run: git diff --exit-code schema
+        run: git diff --exit-code

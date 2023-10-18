@@ -63,7 +63,7 @@ mod execute {
     ) -> Result<Response, ContractError> {
         let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
         let config = CONFIG.load(deps.storage)?;
-        let mut lc = LightClient::new(&config, Some(state), &env);
+        let mut lc = LightClient::new(&config, Some(state), env);
 
         let res = lc.verify_update(&update);
         if res.is_err() {
