@@ -36,7 +36,7 @@ pub fn is_trie_proof_valid(root: H256, key: &mut [u8], proof: Vec<Vec<u8>>) -> b
     let trie = EthTrie::new(memdb.clone());
     let result = trie.verify_proof(root, key, proof).unwrap();
 
-    return result.is_some();
+    result.is_some()
 }
 
 pub fn branch_to_nodes(branch: Vec<Bytes32>) -> Result<Vec<Node>> {
