@@ -64,7 +64,9 @@ pub fn calc_sync_period(slot: u64) -> u64 {
 pub mod test_helpers {
     use std::fs::File;
 
-    use crate::lightclient::types::{Bootstrap, ChainConfig, Fork, Forks, Update};
+    use crate::lightclient::types::{
+        Bootstrap, ChainConfig, Fork, Forks, ReceiptVerificationRequest, Update,
+    };
 
     use super::hex_str_to_bytes;
 
@@ -82,6 +84,14 @@ pub mod test_helpers {
         let update: Update = serde_json::from_reader(file).unwrap();
 
         return update;
+    }
+
+    pub fn get_transaction_verification_request() -> ReceiptVerificationRequest {
+        let path = format!("testdata/tx_proof.json");
+        let file = File::open(path).unwrap();
+        let request: ReceiptVerificationRequest = serde_json::from_reader(file).unwrap();
+
+        return request;
     }
 
     pub fn get_config() -> ChainConfig {
