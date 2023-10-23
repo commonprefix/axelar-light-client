@@ -263,27 +263,26 @@ impl LightClient {
      * TODO: Make sure that the SigBlock is finalized
      * TODO: Change input structure from an array of blocks to a meaningful struct
      */
-    pub fn verify_block(&self, sync_committee: &SyncCommittee, chain: &[BeaconBlock]) -> bool {
-        if chain.len() < 2 {
-            println!("Chain should contain at least 2 blocks");
-            return false;
-        }
-        // Last block should attest the n - 1 block
-        let sig_block = &chain[chain.len() - 1];
-        let attest_block = &chain[chain.len() - 2];
-
-        let is_valid_sig = self.verify_attestation(attest_block, sig_block, sync_committee);
+    pub fn verify_block(
+        &self,
+        sync_committee: &SyncCommittee,
+        target_block: &BeaconBlock,
+        sync_aggregate: &SyncAggregate,
+        sig_slot: u64,
+    ) -> bool {
+        let is_valid_sig =
+            self.verify_attestation(target_block, sync_aggregate, sync_committee, sig_slot);
         println!("is_valid_sig: {}", is_valid_sig);
         if !is_valid_sig {
             println!("Last block doesn't contain valid signature to the previous block");
             return false;
         }
 
-        let is_valid_chain = self.verify_chain_of_blocks(&chain[..chain.len() - 2]);
-        if !is_valid_chain {
-            println!("Chain is not valid");
-            return false;
-        }
+        // let is_valid_chain = self.verify_chain_of_blocks(&chain[..chain.len() - 2]);
+        // if !is_valid_chain {
+        //     println!("Chain is not valid");
+        //     return false;
+        // }
 
         return true;
     }
@@ -328,10 +327,10 @@ impl LightClient {
     pub fn verify_attestation(
         &self,
         attest_block: &BeaconBlock,
-        sig_block: &BeaconBlock,
+        sync_aggregate: &SyncAggregate,
         sync_committee: &SyncCommittee,
+        sig_slot: u64,
     ) -> bool {
-        let sync_aggregate = &sig_block.body.sync_aggregate;
         let pks = self.get_participating_keys(sync_committee, &sync_aggregate.sync_committee_bits);
 
         if (pks.len() as u64) * 3 < 512 * 2 {
@@ -344,7 +343,7 @@ impl LightClient {
             &pks,
             attest_block,
             &sync_aggregate.sync_committee_signature,
-            sig_block.slot.into(),
+            sig_slot.into(),
         )
     }
 

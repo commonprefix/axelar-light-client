@@ -20,6 +20,13 @@ pub struct LightClientState {
     pub current_max_active_participants: u64,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Default)]
+pub struct BlockVerificationData {
+    pub target_block: BeaconBlock,
+    pub sync_aggregate: SyncAggregate,
+    pub sig_slot: U64,
+}
+
 #[derive(
     serde::Serialize, serde::Deserialize, SimpleSerialize, PartialEq, Debug, Clone, Default,
 )]

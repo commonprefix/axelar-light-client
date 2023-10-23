@@ -13,11 +13,11 @@ mod tests {
         lightclient::error::ConsensusError,
         lightclient::helpers::calc_sync_period,
         lightclient::helpers::test_helpers::{get_bootstrap, get_config, get_update},
-        lightclient::types::{BeaconBlockHeader, SyncCommittee},
+        lightclient::types::{BeaconBlockHeader, BlockVerificationData, SyncCommittee},
         lightclient::{self},
         lightclient::{
             types::{
-                primitives::ByteVector, primitives::U64, BLSPubKey, BeaconBlock, LightClientState,
+                primitives::ByteVector, primitives::U64, BLSPubKey, LightClientState,
                 SignatureBytes,
             },
             LightClient,
@@ -382,16 +382,21 @@ mod tests {
         assert!(res.is_ok());
 
         let file: File = File::open("testdata/input.json").unwrap();
-        let chain: [BeaconBlock; 2] = serde_json::from_reader(file).unwrap();
+        let data: BlockVerificationData = serde_json::from_reader(file).unwrap();
 
         pub fn get_sync_committee_at_period(_i: u64) -> SyncCommittee {
             let bootstrap = get_bootstrap();
             return bootstrap.current_sync_committee;
         }
 
-        let period = calc_sync_period(chain.last().unwrap().slot.into());
+        let period = calc_sync_period(data.sig_slot.into());
         let sync_committee = get_sync_committee_at_period(period);
 
-        let res = lightclient.verify_block(&sync_committee, &chain);
+        assert!(lightclient.verify_block(
+            &sync_committee,
+            &data.target_block,
+            &data.sync_aggregate,
+            data.sig_slot.into(),
+        ));
     }
 }
