@@ -2374,5 +2374,6 @@
     "sync_committee_bits": "0xffffffffffffffffffdffffffffffffffffffffffffffffffffffffffffff7ffffffffffffefffffffffffffffffbffffdffffffffffffffffffffffffffffff",
     "sync_committee_signature": "0xae8949dfb94e35686332624f057ab1aa4ef94157d1ce0da320ba4c3b595c1d6800c332df7888122f34ff80fe85d7acc109c9306b48eca3f79bee9b44f1a8eb12cafb8ada393025ae5dbbc662d0a365741e0e09602259118ff4c31d64a424ee81"
   },
-  "sig_slot": "7061553"
+  "sig_slot": "7061553",
+  "intermediate_chain": []
 }

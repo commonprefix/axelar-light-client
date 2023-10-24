@@ -11,9 +11,8 @@ mod tests {
 
     use crate::{
         lightclient::error::ConsensusError,
-        lightclient::helpers::calc_sync_period,
         lightclient::helpers::test_helpers::{get_bootstrap, get_config, get_update},
-        lightclient::types::{BeaconBlockHeader, BlockVerificationData, SyncCommittee},
+        lightclient::types::{BeaconBlockHeader, BlockVerificationData},
         lightclient::{self},
         lightclient::{
             types::{
@@ -374,23 +373,61 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_block() {
+    fn test_verify_block_directly() {
         let mut lightclient = init_lightclient();
-        let update = get_update(862);
+        let bootstrap = get_bootstrap();
 
+        let update = get_update(862);
         let res = lightclient.apply_update(&update);
         assert!(res.is_ok());
 
-        let file: File = File::open("testdata/input.json").unwrap();
+        let file: File = File::open("testdata/verification/7061552-7061553.json").unwrap();
         let data: BlockVerificationData = serde_json::from_reader(file).unwrap();
+        let sync_committee = bootstrap.current_sync_committee;
 
-        pub fn get_sync_committee_at_period(_i: u64) -> SyncCommittee {
-            let bootstrap = get_bootstrap();
-            return bootstrap.current_sync_committee;
-        }
+        assert!(lightclient.verify_block(
+            &sync_committee,
+            &data.target_block,
+            &data.intermediate_chain,
+            &data.sync_aggregate,
+            data.sig_slot.into(),
+        ));
+    }
 
-        let period = calc_sync_period(data.sig_slot.into());
-        let sync_committee = get_sync_committee_at_period(period);
+    #[test]
+    fn test_verify_block_with_intermediate_block() {
+        let mut lightclient = init_lightclient();
+        let bootstrap = get_bootstrap();
+
+        let update = get_update(862);
+        let res = lightclient.apply_update(&update);
+        assert!(res.is_ok());
+
+        let file: File = File::open("testdata/verification/7061551-7061553.json").unwrap();
+        let data: BlockVerificationData = serde_json::from_reader(file).unwrap();
+        let sync_committee = bootstrap.current_sync_committee;
+
+        assert!(lightclient.verify_block(
+            &sync_committee,
+            &data.target_block,
+            &data.intermediate_chain,
+            &data.sync_aggregate,
+            data.sig_slot.into(),
+        ));
+    }
+
+    #[test]
+    fn test_verify_block_with_intermediate_chain() {
+        let mut lightclient = init_lightclient();
+        let bootstrap = get_bootstrap();
+
+        let update = get_update(862);
+        let res = lightclient.apply_update(&update);
+        assert!(res.is_ok());
+
+        let file: File = File::open("testdata/verification/7061551-7061555.json").unwrap();
+        let data: BlockVerificationData = serde_json::from_reader(file).unwrap();
+        let sync_committee = bootstrap.current_sync_committee;
 
         assert!(lightclient.verify_block(
             &sync_committee,
