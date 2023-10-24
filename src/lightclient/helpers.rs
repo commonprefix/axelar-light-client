@@ -1,9 +1,4 @@
-use std::sync::Arc;
-
-use eth_trie::MemoryDB;
-use eth_trie::{EthTrie, Trie};
 use eyre::Result;
-use primitive_types::H256;
 use ssz_rs::prelude::*;
 
 use crate::lightclient::types::Bytes32;
@@ -29,14 +24,6 @@ pub fn is_proof_valid<L: Merkleized>(
     } else {
         false
     }
-}
-
-pub fn is_trie_proof_valid(root: H256, key: &mut [u8], proof: Vec<Vec<u8>>) -> bool {
-    let memdb = Arc::new(MemoryDB::new(true));
-    let trie = EthTrie::new(memdb.clone());
-    let result = trie.verify_proof(root, key, proof).unwrap();
-
-    result.is_some()
 }
 
 pub fn branch_to_nodes(branch: Vec<Bytes32>) -> Result<Vec<Node>> {

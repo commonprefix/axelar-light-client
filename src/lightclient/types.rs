@@ -1,4 +1,4 @@
-use std::{fmt, vec};
+use std::vec;
 
 use primitive_types::H256;
 use primitives::{ByteList, ByteVector, U64};
@@ -213,15 +213,6 @@ pub struct Bootstrap {
     pub current_sync_committee_branch: Vec<Bytes32>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
-pub struct ReceiptVerificationRequest {
-    #[serde(deserialize_with = "from_hex_array")]
-    pub proof: Vec<Vec<u8>>,
-    #[serde(deserialize_with = "from_hex_string")]
-    pub receipt_key: Vec<u8>,
-    pub receipts_root: H256,
-}
-
 #[derive(
     serde::Serialize, serde::Deserialize, SimpleSerialize, PartialEq, Debug, Clone, Default,
 )]
@@ -283,63 +274,6 @@ pub struct Forks {
 pub struct SigningData {
     pub object_root: Bytes32,
     pub domain: Bytes32,
-}
-
-fn from_hex_string<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    struct HexVisitor;
-
-    impl<'de> serde::de::Visitor<'de> for HexVisitor {
-        type Value = Vec<u8>;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("a string representing hex bytes")
-        }
-
-        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
-        {
-            hex::decode(value.trim_start_matches("0x"))
-                .map_err(|err| E::custom(format!("failed to decode hex: {}", err)))
-        }
-    }
-
-    deserializer.deserialize_str(HexVisitor)
-}
-
-fn from_hex_array<'de, D>(deserializer: D) -> Result<Vec<Vec<u8>>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    struct HexArrayVisitor;
-
-    impl<'de> serde::de::Visitor<'de> for HexArrayVisitor {
-        type Value = Vec<Vec<u8>>;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("an array of strings representing hex bytes")
-        }
-
-        fn visit_seq<S>(self, mut seq: S) -> Result<Self::Value, S::Error>
-        where
-            S: serde::de::SeqAccess<'de>,
-        {
-            let mut vec = Vec::new();
-            while let Some(hex_str) = seq.next_element::<String>()? {
-                // Adjusted to expect owned String values
-                let bytes = hex::decode(hex_str.trim_start_matches("0x")).map_err(|err| {
-                    serde::de::Error::custom(format!("failed to decode hex: {}", err))
-                })?;
-                vec.push(bytes);
-            }
-            Ok(vec)
-        }
-    }
-
-    deserializer.deserialize_seq(HexArrayVisitor)
 }
 
 /**

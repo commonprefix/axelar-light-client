@@ -8,11 +8,8 @@ use error::ConsensusError;
 use eyre::Result;
 use helpers::is_proof_valid;
 use milagro_bls::{AggregateSignature, PublicKey};
-use primitive_types::H256;
 use ssz_rs::prelude::*;
 use types::*;
-
-use crate::lightclient::helpers::is_trie_proof_valid;
 
 use self::helpers::calc_sync_period;
 
@@ -189,15 +186,6 @@ impl LightClient {
         }
 
         Ok(())
-    }
-
-    pub fn is_receipt_proof_valid(
-        &self,
-        receipts_root: H256,
-        receipt_key: &mut [u8],
-        proof: Vec<Vec<u8>>,
-    ) -> bool {
-        is_trie_proof_valid(receipts_root, receipt_key, proof)
     }
 
     fn is_current_committee_proof_valid(
