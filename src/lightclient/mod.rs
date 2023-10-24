@@ -267,24 +267,23 @@ impl LightClient {
         &self,
         sync_committee: &SyncCommittee,
         target_block: &BeaconBlock,
+        intermediate_chain: &[BeaconBlockHeader],
         sync_aggregate: &SyncAggregate,
         sig_slot: u64,
     ) -> bool {
-        let is_valid_sig =
-            self.verify_attestation(target_block, sync_aggregate, sync_committee, sig_slot);
-        println!("is_valid_sig: {}", is_valid_sig);
-        if !is_valid_sig {
-            println!("Last block doesn't contain valid signature to the previous block");
-            return false;
+        if intermediate_chain.len() == 0 {
+            return self.verify_attestation(target_block, sync_aggregate, sync_committee, sig_slot);
         }
 
-        // let is_valid_chain = self.verify_chain_of_blocks(&chain[..chain.len() - 2]);
-        // if !is_valid_chain {
-        //     println!("Chain is not valid");
-        //     return false;
-        // }
+        let is_valid_chain = self.verify_chain_of_blocks(target_block, intermediate_chain);
+        let is_valid_attestation = self.verify_attestation(
+            &intermediate_chain[intermediate_chain.len() - 1],
+            sync_aggregate,
+            sync_committee,
+            sig_slot,
+        );
 
-        return true;
+        return is_valid_chain && is_valid_attestation;
     }
 
     /**
@@ -324,13 +323,16 @@ impl LightClient {
         pks
     }
 
-    pub fn verify_attestation(
+    pub fn verify_attestation<T>(
         &self,
-        attest_block: &BeaconBlock,
+        attest_block: &T,
         sync_aggregate: &SyncAggregate,
         sync_committee: &SyncCommittee,
         sig_slot: u64,
-    ) -> bool {
+    ) -> bool
+    where
+        T: ssz_rs::Merkleized + Clone,
+    {
         let pks = self.get_participating_keys(sync_committee, &sync_aggregate.sync_committee_bits);
 
         if (pks.len() as u64) * 3 < 512 * 2 {
@@ -374,19 +376,26 @@ impl LightClient {
         }
     }
 
-    pub fn verify_chain_of_blocks(&self, chain: &[BeaconBlock]) -> bool {
-        for i in 0..chain.len() {
-            let hash = chain[i].clone().hash_tree_root().unwrap();
+    pub fn verify_chain_of_blocks(
+        &self,
+        interested_block: &BeaconBlock,
+        chain: &[BeaconBlockHeader],
+    ) -> bool {
+        if chain.len() == 0 {
+            return true;
+        }
 
-            if hash != chain[i + 1].parent_root.as_ref() {
-                println!(
-                    "Block {} doens't contain a valid parent root. i + 1 block parent: {:?}, hash of i: {:?}",
-                    i, serde_json::to_string(&chain[i + 1].parent_root).unwrap(), hash
-                );
-                return false;
+        for window in chain.windows(2) {
+            if let [prev, next] = window {
+                let hash = prev.clone().hash_tree_root().unwrap();
+                let next_hash = next.parent_root.as_ref();
+                if hash != next_hash {
+                    return false;
+                }
             }
         }
-        return true;
+
+        return interested_block.clone().hash_tree_root().unwrap() == chain[0].parent_root.as_ref();
     }
 
     pub fn is_aggregate_valid(

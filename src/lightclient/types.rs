@@ -23,6 +23,7 @@ pub struct LightClientState {
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Default)]
 pub struct BlockVerificationData {
     pub target_block: BeaconBlock,
+    pub intermediate_chain: Vec<BeaconBlockHeader>,
     pub sync_aggregate: SyncAggregate,
     pub sig_slot: U64,
 }

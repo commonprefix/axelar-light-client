@@ -395,6 +395,7 @@ mod tests {
         assert!(lightclient.verify_block(
             &sync_committee,
             &data.target_block,
+            &data.intermediate_chain,
             &data.sync_aggregate,
             data.sig_slot.into(),
         ));
