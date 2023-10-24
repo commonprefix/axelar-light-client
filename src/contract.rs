@@ -27,7 +27,7 @@ pub fn instantiate(
     SYNC_COMMITTEES.save(deps.storage, period, &msg.bootstrap.current_sync_committee)?;
 
     // TODO: Use commit hash or something else
-    cw2::set_contract_version(deps.storage, "lightclient", "0.1")?;
+    cw2::set_contract_version(deps.storage, "lightclient", "1")?;
 
     Ok(Response::new())
 }
@@ -120,7 +120,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
     set_contract_version(
         deps.storage,
         contract_info.contract,
-        (contract_info.version.parse::<f64>().unwrap() + 0.1).to_string(),
+        (contract_info.version.parse::<u64>().unwrap() + 1).to_string(),
     )?;
     Ok(Response::default())
 }
