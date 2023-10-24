@@ -279,6 +279,7 @@ pub struct SigningData {
  *
  * Primitives used to wrap ssz-rs types to make them serde compatible.
  * - ByteVector: a fixed-length vector of bytes.
+ * - ByteList: a fixed-length list of bytes.
  * - U64: a 64-bit unsigned integer.
  */
 

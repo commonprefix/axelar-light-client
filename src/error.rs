@@ -15,6 +15,9 @@ pub enum ContractError {
     #[error("Update for this period already exists")]
     UpdateAlreadyExists {},
 
+    #[error("No sync committee for this period")]
+    NoSyncCommittee { period: u64 },
+
     #[error("Consensus error: {:?}", error)]
     ConsensusError { error: ConsensusError },
     // Add any other custom errors you like here.
