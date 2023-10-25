@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdResult,
+    to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdResult,
 };
 
 use crate::error::ContractError;
@@ -48,13 +48,26 @@ pub fn execute(
         // TODO: only admin should do that
         UpdateForks { forks } => execute::update_forks(deps, forks),
         VerifyBlock { verification_data } => execute::verify_block(&deps, &env, verification_data),
+        verification_request @ VerifyProof { .. } => execute::verify_proof(verification_request),
     }
 }
 
 mod execute {
     use crate::lightclient::types::{BlockVerificationData, Forks, Update};
+    use cosmwasm_std::WasmMsg;
 
     use super::*;
+
+    pub fn verify_proof(msg: ExecuteMsg) -> Result<Response, ContractError> {
+        let message = WasmMsg::Execute {
+            contract_addr: String::from(
+                "axelar1awkf64kxnu07z0rljnryfajh5yl78c6cn2jzhwlgcw699ux6rfpsksuasf",
+            ),
+            msg: to_binary(&msg)?,
+            funds: vec![],
+        };
+        Ok(Response::new().add_message(message))
+    }
 
     pub fn light_client_update(
         deps: DepsMut,
