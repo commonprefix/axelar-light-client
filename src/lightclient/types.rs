@@ -348,7 +348,7 @@ impl Decodable for ReceiptLogs {
                     return Err(alloy_rlp::Error::UnexpectedString);
                 }
 
-                while b.len() > 0 {
+                while !b.is_empty() {
                     let mut log: ReceiptLog = ReceiptLog::default();
                     let item_head = alloy_rlp::Header::decode(b)?;
                     if !item_head.list {
@@ -369,13 +369,11 @@ impl Decodable for ReceiptLogs {
                     logs_list.0.push(log);
                 }
 
-                return Ok(logs_list);
+                Ok(logs_list)
             }
-            Ordering::Equal => {
-                return Err(alloy_rlp::Error::Custom(
-                    "an empty list is not a valid receipt encoding",
-                ));
-            }
+            Ordering::Equal => Err(alloy_rlp::Error::Custom(
+                "an empty list is not a valid receipt encoding",
+            )),
             Ordering::Greater => Err(alloy_rlp::Error::Custom("Transaction Type Not Supported")),
         }
     }
