@@ -136,7 +136,7 @@ pub mod test_helpers {
     use std::fs::File;
 
     use crate::lightclient::types::{
-        Bootstrap, ChainConfig, Fork, Forks, ReceiptVerificationRequest, Update,
+        Bootstrap, ChainConfig, Fork, Forks, TopicInclusionRequest, Update,
     };
 
     use super::hex_str_to_bytes;
@@ -157,10 +157,10 @@ pub mod test_helpers {
         return update;
     }
 
-    pub fn get_receipt_verification_request() -> ReceiptVerificationRequest {
-        let path = format!("testdata/receipt_proof.json");
+    pub fn get_topic_inclusion_query() -> TopicInclusionRequest {
+        let path = format!("testdata/topic_inclusion.json");
         let file = File::open(path).unwrap();
-        let request: ReceiptVerificationRequest = serde_json::from_reader(file).unwrap();
+        let request: TopicInclusionRequest = serde_json::from_reader(file).unwrap();
 
         return request;
     }
