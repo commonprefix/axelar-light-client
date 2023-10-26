@@ -60,8 +60,7 @@ pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, Contract
 }
 
 mod execute {
-    use crate::lightclient::types::{BlockVerificationData, Forks, Update};
-    use crate::lightclient::types::{Forks, ReceiptLogs, Update};
+    use crate::lightclient::types::{BlockVerificationData, Forks, ReceiptLogs, Update};
     use cosmwasm_std::WasmMsg;
 
     use super::*;

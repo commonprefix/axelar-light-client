@@ -2,7 +2,6 @@ use std::{cmp::Ordering, vec};
 
 use crate::lightclient::helpers::{from_hex_string, to_hex_string};
 use alloy_rlp::{Buf, Decodable};
-use primitive_types::H256;
 use primitives::{ByteList, ByteVector, U64};
 use serde;
 use ssz_rs::prelude::*;
