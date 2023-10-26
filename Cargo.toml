@@ -40,6 +40,8 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
+alloy-primitives = "0.4.2"
+alloy-rlp = {version = "0.3.3", features = ["derive", "arrayvec"]}
 cosmwasm-schema = "1.1.3"
 cosmwasm-std = "1.1.3"
 cosmwasm-storage = "1.1.3"
