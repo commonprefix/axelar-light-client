@@ -31,6 +31,12 @@ pub enum ExecuteMsg {
         #[serde(deserialize_with = "from_hex_string", serialize_with = "to_hex_string")]
         root: Vec<u8>, // TODO: set fixed size
     },
+    VerifyTopicInclusion {
+        #[serde(deserialize_with = "from_hex_string", serialize_with = "to_hex_string")]
+        receipt: Vec<u8>,
+        #[serde(deserialize_with = "from_hex_string", serialize_with = "to_hex_string")]
+        topic: Vec<u8>
+    }
 }
 
 #[cw_serde]
