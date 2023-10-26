@@ -8,6 +8,7 @@ use crate::error::ContractError;
 use crate::lightclient::helpers::calc_sync_period;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::{lightclient::LightClient, state::*};
+
 use cw2::{self, set_contract_version};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -49,11 +50,18 @@ pub fn execute(
         UpdateForks { forks } => execute::update_forks(deps, forks),
         VerifyBlock { verification_data } => execute::verify_block(&deps, &env, verification_data),
         verification_request @ VerifyProof { .. } => execute::verify_proof(verification_request),
+        VerifyTopicInclusion { receipt, topic } => execute::verify_topic_inclusion(receipt, topic),
     }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+    Ok(Response::new().add_attribute(msg.id.to_string(), "somevalue"))
 }
 
 mod execute {
     use crate::lightclient::types::{BlockVerificationData, Forks, Update};
+    use crate::lightclient::types::{Forks, ReceiptLogs, Update};
     use cosmwasm_std::WasmMsg;
 
     use super::*;
@@ -67,6 +75,16 @@ mod execute {
             funds: vec![],
         };
         Ok(Response::new().add_message(message))
+    }
+
+    pub fn verify_topic_inclusion(
+        receipt: Vec<u8>,
+        topic: Vec<u8>,
+    ) -> Result<Response, ContractError> {
+        let logs: ReceiptLogs = alloy_rlp::Decodable::decode(&mut &receipt[..]).unwrap();
+
+        let is_included = logs.contains_topic(&topic[..]);
+        Ok(Response::new().add_attribute("result", is_included.to_string()))
     }
 
     pub fn light_client_update(
@@ -219,6 +237,56 @@ mod tests {
             .unwrap();
 
         return (app, addr);
+    }
+
+    #[test]
+    fn test_topic_inclusion() {
+        let (mut app, addr) = deploy();
+        let mut request = get_topic_inclusion_query();
+        let mut resp = app
+            .execute_contract(
+                Addr::unchecked("owner"),
+                addr.to_owned(),
+                &ExecuteMsg::VerifyTopicInclusion {
+                    receipt: request.receipt.clone(),
+                    topic: request.topic.clone(),
+                },
+                &[],
+            )
+            .unwrap();
+
+        let wasm = resp.events.iter().find(|ev| ev.ty == "wasm").unwrap();
+        assert_eq!(
+            wasm.attributes
+                .iter()
+                .find(|attr| attr.key == "result")
+                .unwrap()
+                .value,
+            "true"
+        );
+
+        request.topic[0] = request.topic[0] + 1; // modify a random byte
+        resp = app
+            .execute_contract(
+                Addr::unchecked("owner"),
+                addr.to_owned(),
+                &ExecuteMsg::VerifyTopicInclusion {
+                    receipt: request.receipt.clone(),
+                    topic: request.topic.clone(),
+                },
+                &[],
+            )
+            .unwrap();
+
+        let wasm = resp.events.iter().find(|ev| ev.ty == "wasm").unwrap();
+        assert_eq!(
+            wasm.attributes
+                .iter()
+                .find(|attr| attr.key == "result")
+                .unwrap()
+                .value,
+            "false"
+        );
     }
 
     #[test]
