@@ -1,10 +1,10 @@
 use eyre::Result;
 use ssz_rs::prelude::*;
 
-use crate::lightclient::types::{Bytes32, Header};
+use crate::lightclient::types::{BeaconBlockHeader, Bytes32};
 
 pub fn is_proof_valid<L: Merkleized>(
-    attested_header: &Header,
+    attested_header: &BeaconBlockHeader,
     leaf_object: &mut L,
     branch: &[Bytes32],
     depth: usize,
@@ -59,7 +59,7 @@ pub mod test_helpers {
         let file = File::open("testdata/bootstrap.json").unwrap();
         let bootstrap: Bootstrap = serde_json::from_reader(file).unwrap();
 
-        return bootstrap;
+        bootstrap
     }
 
     // Currently have in testdata: 767, 862, 863
@@ -68,11 +68,11 @@ pub mod test_helpers {
         let file = File::open(path).unwrap();
         let update: Update = serde_json::from_reader(file).unwrap();
 
-        return update;
+        update
     }
 
     pub fn get_config() -> ChainConfig {
-        return ChainConfig {
+        ChainConfig {
             chain_id: 1,
             genesis_time: 1606824023,
             genesis_root: hex_str_to_bytes(
@@ -80,11 +80,11 @@ pub mod test_helpers {
             )
             .unwrap(),
             forks: get_forks(),
-        };
+        }
     }
 
     pub fn get_forks() -> Forks {
-        return Forks {
+        Forks {
             genesis: Fork {
                 epoch: 0,
                 fork_version: hex_str_to_bytes("0x00000000").unwrap(),
@@ -101,6 +101,6 @@ pub mod test_helpers {
                 epoch: 194048,
                 fork_version: hex_str_to_bytes("0x03000000").unwrap(),
             },
-        };
+        }
     }
 }

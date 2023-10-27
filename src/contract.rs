@@ -47,11 +47,12 @@ pub fn execute(
         }
         // TODO: only admin should do that
         UpdateForks { forks } => execute::update_forks(deps, forks),
+        VerifyBlock { verification_data } => execute::verify_block(&deps, &env, verification_data),
     }
 }
 
 mod execute {
-    use crate::lightclient::types::{Forks, Update};
+    use crate::lightclient::types::{BlockVerificationData, Forks, Update};
 
     use super::*;
 
@@ -87,6 +88,37 @@ mod execute {
             Ok(config)
         })?;
         Ok(Response::new())
+    }
+
+    pub fn verify_block(
+        deps: &DepsMut,
+        env: &Env,
+        ver_data: BlockVerificationData,
+    ) -> Result<Response, ContractError> {
+        let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
+        let config = CONFIG.load(deps.storage)?;
+        let lc = LightClient::new(&config, Some(state), env);
+
+        let sync_committee = SYNC_COMMITTEES.load(deps.storage, ver_data.sig_slot.into());
+        if sync_committee.is_err() {
+            return Err(ContractError::NoSyncCommittee {
+                period: calc_sync_period(ver_data.sig_slot.into()),
+            });
+        }
+
+        let res = lc.verify_block(
+            &sync_committee.unwrap(),
+            &ver_data.target_block,
+            &ver_data.intermediate_chain,
+            &ver_data.sync_aggregate,
+            ver_data.sig_slot.into(),
+        );
+
+        if res {
+            Ok(Response::new().add_attribute("result", "ok"))
+        } else {
+            Ok(Response::new().add_attribute("result", "err"))
+        }
     }
 }
 
@@ -173,7 +205,7 @@ mod tests {
             )
             .unwrap();
 
-        return (app, addr);
+        (app, addr)
     }
 
     #[test]
@@ -184,7 +216,7 @@ mod tests {
 
         let resp: LightClientState = app
             .wrap()
-            .query_wasm_smart(&addr, &QueryMsg::LightClientState {})
+            .query_wasm_smart(addr, &QueryMsg::LightClientState {})
             .unwrap();
 
         let mut lc = LightClient::new(&get_config(), None, &env);

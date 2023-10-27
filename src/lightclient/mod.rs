@@ -131,7 +131,7 @@ impl LightClient {
         let pks = self
             .get_participating_keys(&sync_committee, &update.sync_aggregate.sync_committee_bits);
 
-        let is_valid_sig = self.verify_sync_committee_signture(
+        let is_valid_sig = self.verify_sync_committee_signature(
             &self.config,
             &pks,
             &update.attested_header.beacon,
@@ -190,7 +190,7 @@ impl LightClient {
 
     fn is_current_committee_proof_valid(
         &self,
-        attested_header: &Header,
+        attested_header: &BeaconBlockHeader,
         current_committee: &mut SyncCommittee,
         current_committee_branch: &[Bytes32],
     ) -> bool {
@@ -222,8 +222,8 @@ impl LightClient {
 
     fn is_finality_proof_valid(
         &self,
-        attested_header: &Header,
-        finality_header: &mut Header,
+        attested_header: &BeaconBlockHeader,
+        finality_header: &mut BeaconBlockHeader,
         finality_branch: &[Bytes32],
     ) -> bool {
         is_proof_valid(attested_header, finality_header, finality_branch, 6, 41)
@@ -231,7 +231,7 @@ impl LightClient {
 
     fn is_next_committee_proof_valid(
         &self,
-        attested_header: &Header,
+        attested_header: &BeaconBlockHeader,
         next_committee: &mut SyncCommittee,
         next_committee_branch: &[Bytes32],
     ) -> bool {
@@ -242,6 +242,48 @@ impl LightClient {
             5,
             23,
         )
+    }
+
+    /**
+     * Accepts a chain of blocks [T, .., L, SigBlock] where
+     *      SigBlock: The block that contains the sync aggregate signature of L
+     *      L: A block that can be attested with enough participation by the sync commmittee
+     *      T: The block that we want to verify.
+     *    
+     * Given those blocks, this function verifies that:
+     *      1. SigBlock contains a valid signature to L
+     *      2. The chain of blocks from T to L is valid. ie the hash_tree root
+     *         of n block equals the parent root of n + 1 block
+     *
+     * Note that the chain of blocks from T..L should contain blocks that are
+     * subsequent to each other but the sigBlock just need to be more recent
+     * than the L block
+     *
+     * TODO: Accept block headers instead of full blocks
+     * TODO: Make sure that the SigBlock is finalized
+     * TODO: Change input structure from an array of blocks to a meaningful struct
+     */
+    pub fn verify_block(
+        &self,
+        sync_committee: &SyncCommittee,
+        target_block: &BeaconBlock,
+        intermediate_chain: &[BeaconBlockHeader],
+        sync_aggregate: &SyncAggregate,
+        sig_slot: u64,
+    ) -> bool {
+        if intermediate_chain.is_empty() {
+            return self.verify_attestation(target_block, sync_aggregate, sync_committee, sig_slot);
+        }
+
+        let is_valid_chain = self.verify_chain_of_blocks(target_block, intermediate_chain);
+        let is_valid_attestation = self.verify_attestation(
+            &intermediate_chain[intermediate_chain.len() - 1],
+            sync_aggregate,
+            sync_committee,
+            sig_slot,
+        );
+
+        is_valid_chain && is_valid_attestation
     }
 
     /**
@@ -281,18 +323,46 @@ impl LightClient {
         pks
     }
 
-    fn verify_sync_committee_signture(
+    pub fn verify_attestation<T>(
+        &self,
+        attest_block: &T,
+        sync_aggregate: &SyncAggregate,
+        sync_committee: &SyncCommittee,
+        sig_slot: u64,
+    ) -> bool
+    where
+        T: ssz_rs::Merkleized + Clone,
+    {
+        let pks = self.get_participating_keys(sync_committee, &sync_aggregate.sync_committee_bits);
+
+        if (pks.len() as u64) * 3 < 512 * 2 {
+            // Not enough participation
+            return false;
+        }
+
+        self.verify_sync_committee_signature(
+            &self.config,
+            &pks,
+            attest_block,
+            &sync_aggregate.sync_committee_signature,
+            sig_slot,
+        )
+    }
+
+    fn verify_sync_committee_signature<T>(
         &self,
         config: &ChainConfig,
         pks: &[PublicKey],
-        attested_header: &Header,
+        attested_block: &T,
         signature: &SignatureBytes,
         signature_slot: u64,
-    ) -> bool {
+    ) -> bool
+    where
+        T: ssz_rs::Merkleized + Clone,
+    {
         let res: Result<bool> = (move || {
             let pks: Vec<&PublicKey> = pks.iter().collect();
-            let header_root =
-                Bytes32::try_from(attested_header.clone().hash_tree_root()?.as_ref())?;
+            let header_root = Bytes32::try_from(attested_block.clone().hash_tree_root()?.as_ref())?;
             let signing_root =
                 self.compute_committee_sign_root(config, header_root, signature_slot)?;
 
@@ -304,6 +374,28 @@ impl LightClient {
         } else {
             false
         }
+    }
+
+    pub fn verify_chain_of_blocks(
+        &self,
+        interested_block: &BeaconBlock,
+        chain: &[BeaconBlockHeader],
+    ) -> bool {
+        if chain.is_empty() {
+            return true;
+        }
+
+        for window in chain.windows(2) {
+            if let [prev, next] = window {
+                let hash = prev.clone().hash_tree_root().unwrap();
+                let next_hash = next.parent_root.as_ref();
+                if hash != next_hash {
+                    return false;
+                }
+            }
+        }
+
+        return interested_block.clone().hash_tree_root().unwrap() == chain[0].parent_root.as_ref();
     }
 
     pub fn is_aggregate_valid(

@@ -1,6 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::{
+        fs::File,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     use cosmwasm_std::testing::mock_env;
     use cosmwasm_std::Timestamp;
@@ -9,8 +12,15 @@ mod tests {
     use crate::{
         lightclient::error::ConsensusError,
         lightclient::helpers::test_helpers::{get_bootstrap, get_config, get_update},
-        lightclient::types::{primitives::U64, BLSPubKey, LightClientState, SignatureBytes},
-        lightclient::{self, types::primitives::ByteVector, LightClient},
+        lightclient::types::{BeaconBlockHeader, BlockVerificationData},
+        lightclient::{self},
+        lightclient::{
+            types::{
+                primitives::ByteVector, primitives::U64, BLSPubKey, LightClientState,
+                SignatureBytes,
+            },
+            LightClient,
+        },
     };
 
     fn init_lightclient() -> LightClient {
@@ -30,7 +40,7 @@ mod tests {
             panic!("Error bootstrapping: {}", e);
         }
 
-        return client;
+        client
     }
 
     #[test]
@@ -207,6 +217,13 @@ mod tests {
     fn test_bootstrap_state() {
         let lightclient = init_lightclient();
         let bootstrap = get_bootstrap();
+
+        let mut update = get_update(862);
+        update.finalized_header.beacon = BeaconBlockHeader::default();
+
+        let err = lightclient.verify_update(&update);
+        assert!(err.is_err());
+
         assert_eq!(
             lightclient.state,
             LightClientState {
@@ -354,5 +371,71 @@ mod tests {
             lightclient.state.finalized_header, update.finalized_header.beacon,
             "finalized_header should be set after applying second update"
         );
+    }
+
+    #[test]
+    fn test_verify_block_directly() {
+        let mut lightclient = init_lightclient();
+        let bootstrap = get_bootstrap();
+
+        let update = get_update(862);
+        let res = lightclient.apply_update(&update);
+        assert!(res.is_ok());
+
+        let file: File = File::open("testdata/verification/7061552-7061553.json").unwrap();
+        let data: BlockVerificationData = serde_json::from_reader(file).unwrap();
+        let sync_committee = bootstrap.current_sync_committee;
+
+        assert!(lightclient.verify_block(
+            &sync_committee,
+            &data.target_block,
+            &data.intermediate_chain,
+            &data.sync_aggregate,
+            data.sig_slot.into(),
+        ));
+    }
+
+    #[test]
+    fn test_verify_block_with_intermediate_block() {
+        let mut lightclient = init_lightclient();
+        let bootstrap = get_bootstrap();
+
+        let update = get_update(862);
+        let res = lightclient.apply_update(&update);
+        assert!(res.is_ok());
+
+        let file: File = File::open("testdata/verification/7061551-7061553.json").unwrap();
+        let data: BlockVerificationData = serde_json::from_reader(file).unwrap();
+        let sync_committee = bootstrap.current_sync_committee;
+
+        assert!(lightclient.verify_block(
+            &sync_committee,
+            &data.target_block,
+            &data.intermediate_chain,
+            &data.sync_aggregate,
+            data.sig_slot.into(),
+        ));
+    }
+
+    #[test]
+    fn test_verify_block_with_intermediate_chain() {
+        let mut lightclient = init_lightclient();
+        let bootstrap = get_bootstrap();
+
+        let update = get_update(862);
+        let res = lightclient.apply_update(&update);
+        assert!(res.is_ok());
+
+        let file: File = File::open("testdata/verification/7061551-7061555.json").unwrap();
+        let data: BlockVerificationData = serde_json::from_reader(file).unwrap();
+        let sync_committee = bootstrap.current_sync_committee;
+
+        assert!(lightclient.verify_block(
+            &sync_committee,
+            &data.target_block,
+            &data.intermediate_chain,
+            &data.sync_aggregate,
+            data.sig_slot.into(),
+        ));
     }
 }
