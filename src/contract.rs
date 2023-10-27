@@ -102,7 +102,7 @@ mod execute {
         let sync_committee = SYNC_COMMITTEES.load(deps.storage, ver_data.sig_slot.into());
         if sync_committee.is_err() {
             return Err(ContractError::NoSyncCommittee {
-                period: ver_data.sig_slot.into(),
+                period: calc_sync_period(ver_data.sig_slot.into()),
             });
         }
 
