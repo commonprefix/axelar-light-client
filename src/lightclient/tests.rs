@@ -71,7 +71,6 @@ mod tests {
                 + 12,
         );
         let mut err = lightclient.verify_update(&update).unwrap_err();
-        update.finalized_header.beacon = BeaconBlockHeader::default();
 
         assert_eq!(
             err.to_string(),
@@ -222,7 +221,9 @@ mod tests {
         let mut update = get_update(862);
         update.finalized_header.beacon = BeaconBlockHeader::default();
 
-        let _err = lightclient.verify_update(&update).err().unwrap();
+        let err = lightclient.verify_update(&update);
+        assert!(err.is_err());
+
         assert_eq!(
             lightclient.state,
             LightClientState {

@@ -336,7 +336,7 @@ impl LightClient {
         let pks = self.get_participating_keys(sync_committee, &sync_aggregate.sync_committee_bits);
 
         if (pks.len() as u64) * 3 < 512 * 2 {
-            println!("Not enough participation");
+            // Not enough participation
             return false;
         }
 
