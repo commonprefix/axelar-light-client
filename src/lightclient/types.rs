@@ -118,7 +118,7 @@ pub struct ExecutionPayload {
     pub gas_used: U64,
     pub timestamp: U64,
     pub extra_data: ByteList<32>,
-    pub base_fee_per_gas: U256,
+    pub base_fee_per_gas: U64,
     pub block_hash: Bytes32,
     pub transactions: List<Transaction, 1048576>,
     pub withdrawals: List<Withdrawal, 16>,
