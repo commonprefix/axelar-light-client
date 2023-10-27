@@ -40,7 +40,7 @@ mod tests {
             panic!("Error bootstrapping: {}", e);
         }
 
-        return client;
+        client
     }
 
     #[test]

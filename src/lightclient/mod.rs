@@ -271,7 +271,7 @@ impl LightClient {
         sync_aggregate: &SyncAggregate,
         sig_slot: u64,
     ) -> bool {
-        if intermediate_chain.len() == 0 {
+        if intermediate_chain.is_empty() {
             return self.verify_attestation(target_block, sync_aggregate, sync_committee, sig_slot);
         }
 
@@ -283,7 +283,7 @@ impl LightClient {
             sig_slot,
         );
 
-        return is_valid_chain && is_valid_attestation;
+        is_valid_chain && is_valid_attestation
     }
 
     /**
@@ -345,7 +345,7 @@ impl LightClient {
             &pks,
             attest_block,
             &sync_aggregate.sync_committee_signature,
-            sig_slot.into(),
+            sig_slot,
         )
     }
 
@@ -381,7 +381,7 @@ impl LightClient {
         interested_block: &BeaconBlock,
         chain: &[BeaconBlockHeader],
     ) -> bool {
-        if chain.len() == 0 {
+        if chain.is_empty() {
             return true;
         }
 

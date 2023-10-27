@@ -205,7 +205,7 @@ mod tests {
             )
             .unwrap();
 
-        return (app, addr);
+        (app, addr)
     }
 
     #[test]
@@ -216,7 +216,7 @@ mod tests {
 
         let resp: LightClientState = app
             .wrap()
-            .query_wasm_smart(&addr, &QueryMsg::LightClientState {})
+            .query_wasm_smart(addr, &QueryMsg::LightClientState {})
             .unwrap();
 
         let mut lc = LightClient::new(&get_config(), None, &env);
