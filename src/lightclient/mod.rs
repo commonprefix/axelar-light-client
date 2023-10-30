@@ -195,7 +195,7 @@ impl LightClient {
         current_committee_branch: &[Bytes32],
     ) -> bool {
         is_proof_valid(
-            attested_header,
+            &attested_header.state_root,
             current_committee,
             current_committee_branch,
             5,
@@ -226,7 +226,13 @@ impl LightClient {
         finality_header: &mut BeaconBlockHeader,
         finality_branch: &[Bytes32],
     ) -> bool {
-        is_proof_valid(attested_header, finality_header, finality_branch, 6, 41)
+        is_proof_valid(
+            &attested_header.state_root,
+            finality_header,
+            finality_branch,
+            6,
+            41,
+        )
     }
 
     fn is_next_committee_proof_valid(
@@ -236,7 +242,7 @@ impl LightClient {
         next_committee_branch: &[Bytes32],
     ) -> bool {
         is_proof_valid(
-            attested_header,
+            &attested_header.state_root,
             next_committee,
             next_committee_branch,
             5,

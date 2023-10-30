@@ -1,6 +1,7 @@
 use cosmwasm_schema::cw_serde;
 use serde::{Deserialize, Serialize};
 
+use crate::lightclient::helpers::{from_hex_array, from_hex_string, to_hex_array, to_hex_string};
 use crate::lightclient::types::{BlockVerificationData, Bootstrap, ChainConfig, Forks, Update};
 
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
@@ -22,6 +23,20 @@ pub enum ExecuteMsg {
     VerifyBlock {
         verification_data: BlockVerificationData,
     },
+    VerifyProof {
+        #[serde(deserialize_with = "from_hex_array", serialize_with = "to_hex_array")]
+        proof: Vec<Vec<u8>>,
+        #[serde(deserialize_with = "from_hex_string", serialize_with = "to_hex_string")]
+        key: Vec<u8>,
+        #[serde(deserialize_with = "from_hex_string", serialize_with = "to_hex_string")]
+        root: Vec<u8>, // TODO: set fixed size
+    },
+    VerifyTopicInclusion {
+        #[serde(deserialize_with = "from_hex_string", serialize_with = "to_hex_string")]
+        receipt: Vec<u8>,
+        #[serde(deserialize_with = "from_hex_string", serialize_with = "to_hex_string")]
+        topic: Vec<u8>
+    }
 }
 
 #[cw_serde]
