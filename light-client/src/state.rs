@@ -1,7 +1,6 @@
 use cw2::ContractVersion;
 use cw_storage_plus::{Item, Map};
-
-use crate::lightclient::types::{ChainConfig, LightClientState, SyncCommittee};
+use types::{common::ChainConfig, consensus::SyncCommittee, lightclient::LightClientState};
 
 pub const CONFIG: Item<ChainConfig> = Item::new("config");
 pub const LIGHT_CLIENT_STATE: Item<LightClientState> = Item::new("light_client_state");
