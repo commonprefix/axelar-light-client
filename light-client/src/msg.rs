@@ -35,8 +35,8 @@ pub enum ExecuteMsg {
         #[serde(deserialize_with = "from_hex_string", serialize_with = "to_hex_string")]
         receipt: Vec<u8>,
         #[serde(deserialize_with = "from_hex_string", serialize_with = "to_hex_string")]
-        topic: Vec<u8>
-    }
+        topic: Vec<u8>,
+    },
 }
 
 #[cw_serde]
