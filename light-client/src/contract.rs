@@ -60,8 +60,11 @@ pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, Contract
 }
 
 mod execute {
-    use crate::lightclient::types::{BlockVerificationData, Forks, ReceiptLogs, Update};
     use cosmwasm_std::WasmMsg;
+    use types::{
+        common::Forks, consensus::Update, execution::ReceiptLogs,
+        lightclient::BlockVerificationData,
+    };
 
     use super::*;
 
@@ -193,16 +196,17 @@ mod tests {
 
     use crate::{
         contract::{execute, instantiate, query},
+        lightclient::helpers::hex_str_to_bytes,
+        lightclient::helpers::test_helpers::*,
         lightclient::LightClient,
-        lightclient::{
-            helpers::hex_str_to_bytes,
-            types::{ChainConfig, Fork, LightClientState, SignatureBytes},
-        },
-        lightclient::{helpers::test_helpers::*, types::Forks},
         msg::ExecuteMsg,
     };
     use cosmwasm_std::{testing::mock_env, Addr, Timestamp};
     use cw_multi_test::{App, ContractWrapper, Executor};
+    use types::{
+        common::{ChainConfig, Fork, Forks, SignatureBytes},
+        lightclient::LightClientState,
+    };
 
     use crate::msg::{InstantiateMsg, QueryMsg};
 

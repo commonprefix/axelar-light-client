@@ -3,7 +3,7 @@ use std::fmt;
 use eyre::Result;
 use ssz_rs::prelude::*;
 
-use crate::lightclient::types::Bytes32;
+use types::common::Bytes32;
 
 pub fn is_proof_valid<L: Merkleized>(
     root: &Bytes32,
@@ -135,8 +135,10 @@ where
 pub mod test_helpers {
     use std::fs::File;
 
-    use crate::lightclient::types::{
-        Bootstrap, ChainConfig, Fork, Forks, TopicInclusionRequest, Update,
+    use types::{
+        common::{ChainConfig, Fork, Forks},
+        consensus::{Bootstrap, Update},
+        lightclient::TopicInclusionRequest,
     };
 
     use super::hex_str_to_bytes;

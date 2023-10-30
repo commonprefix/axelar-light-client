@@ -5,22 +5,20 @@ mod tests {
         time::{SystemTime, UNIX_EPOCH},
     };
 
-    use cosmwasm_std::testing::mock_env;
-    use cosmwasm_std::Timestamp;
-    use ssz_rs::Bitvector;
-
     use crate::{
         lightclient::error::ConsensusError,
         lightclient::helpers::test_helpers::{get_bootstrap, get_config, get_update},
-        lightclient::types::{BeaconBlockHeader, BlockVerificationData},
+        lightclient::LightClient,
         lightclient::{self},
-        lightclient::{
-            types::{
-                primitives::ByteVector, primitives::U64, BLSPubKey, LightClientState,
-                SignatureBytes,
-            },
-            LightClient,
-        },
+    };
+    use cosmwasm_std::testing::mock_env;
+    use cosmwasm_std::Timestamp;
+    use ssz_rs::Bitvector;
+    use types::{
+        common::{BLSPubKey, SignatureBytes},
+        consensus::BeaconBlockHeader,
+        lightclient::{BlockVerificationData, LightClientState},
+        primitives::{ByteVector, U64},
     };
 
     fn init_lightclient() -> LightClient {

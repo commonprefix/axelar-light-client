@@ -2,7 +2,11 @@ use cosmwasm_schema::cw_serde;
 use serde::{Deserialize, Serialize};
 
 use crate::lightclient::helpers::{from_hex_array, from_hex_string, to_hex_array, to_hex_string};
-use crate::lightclient::types::{BlockVerificationData, Bootstrap, ChainConfig, Forks, Update};
+use types::{
+    common::{ChainConfig, Forks},
+    consensus::{Bootstrap, Update},
+    lightclient::BlockVerificationData,
+};
 
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
 pub struct InstantiateMsg {

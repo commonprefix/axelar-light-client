@@ -1,7 +1,6 @@
 pub mod error;
 pub mod helpers;
 pub mod tests;
-pub mod types;
 
 use cosmwasm_std::Env;
 use error::ConsensusError;
@@ -9,7 +8,11 @@ use eyre::Result;
 use helpers::is_proof_valid;
 use milagro_bls::{AggregateSignature, PublicKey};
 use ssz_rs::prelude::*;
-use types::*;
+use types::{
+    common::{Bytes32, ChainConfig, ForkData, SignatureBytes},
+    consensus::*,
+    lightclient::LightClientState,
+};
 
 use self::helpers::calc_sync_period;
 
