@@ -5507,20 +5507,11 @@ version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-multi-test",
- "cw-storage-plus",
- "cw2",
  "eyre",
  "hex",
- "milagro_bls 1.5.1",
- "schemars",
  "serde",
  "serde_json",
  "ssz_rs",
- "thiserror",
 ]
 
 [[package]]
