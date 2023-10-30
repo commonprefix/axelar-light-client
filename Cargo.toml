@@ -4,5 +4,4 @@ resolver="2"
 members = [
     "light-client",
     "types",
-    "feeder"
 ]
