@@ -1,12 +1,25 @@
 # Light Client
 
-An ethereum on-chain light client build in CosmWasm. This repo contains both the light client as a standalone module, as well as the smart contract entry points to access and use the light client.
+An Ethereum on-chain light client built in CosmWasm. This repo contains both the light client as a standalone module, as well as the smart contract entry points to access and use the light client.
 
-As an MVP the contract initializes with a bootstrap message from a consensus API and a config object (see src/lightclient/types.rs). Subsequently an update message can be provided from a consensus API and if it's valid, the light client updates it's state, which can be fetched using the LightClientState query message.
+The contract initializes with a `LightClientBootstrap` message from a Beacon API. Subsequently, `LightClientUpdate` messages can be provided from a Beacon API, updating the state of the light client.
 
-The light client is heavily inspired from a16z's Helios Consensus light client, with a couple of simplifications, changes and adjustments to become a valid smart contract. Also, the light clients uses a fork of the milagro_bls library, which has been simplified to be CosmWasm compatible (see https://github.com/pkakelas/milagro_bls).
+The light client is heavily inspired by a16z's Helios Consensus light client, with a couple of simplifications, changes, and adjustments to become a valid smart contract. Also, the light client uses a fork of the milagro_bls library, which has been simplified to be CosmWasm compatible (see https://github.com/pkakelas/milagro_bls).
 
-Also, currently the light client supports only ethereum mainnet due to hardcoded fork versions.
+The light client currently supports only Ethereum mainnet due to hardcoded fork versions.
+
+## Execution Endpoints (WIP)
+### `LightClientUpdate { period: u64, update: LightClientUpdate }`
+It receives a LightClientUpdate message from the Ethereum Beacon API. After verifying that the update is correct, it applies the changes to the state, essentially updating the current and next sync committees if needed.
+
+### `UpdateForks { forks: Forks }`
+Receives and stores configuration about the chain's forks.
+
+### `VerifyBlock { verification_data: BlockVerificationData }`
+Receives a target block, a chain of blocks, a sync committee aggregated signature, and a signature slot, and verifies that the sync committee of the light client has signed the chain of blocks back to the target block.
+
+### `VerifyTopicInclusion { receipt: Bytes[], topic: Bytes[] }`
+It RLP-decodes the receipt from the input and verifies that the topic is included in the receipt's events.
 
 ## Test
 
