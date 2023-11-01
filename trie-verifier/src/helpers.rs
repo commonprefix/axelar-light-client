@@ -5,7 +5,7 @@ use std::{fmt, sync::Arc};
 
 use cita_trie::{MemoryDB, PatriciaTrie, Trie};
 
-pub fn verify_proof(root: &Vec<u8>, key: &mut [u8], proof: Vec<Vec<u8>>) -> Vec<u8> {
+pub fn verify_proof(root: &[u8], key: &mut [u8], proof: Vec<Vec<u8>>) -> Vec<u8> {
     let memdb = Arc::new(MemoryDB::new(true));
     let hasher = Arc::new(HasherKeccak::new());
 
