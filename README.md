@@ -1,8 +1,10 @@
 # Light Client
 
-An Ethereum on-chain light client built in CosmWasm. This repo contains both the light client as a standalone module, as well as the smart contract entry points to access and use the light client.
+An Ethereum on-chain light client built in CosmWasm.
 
-The contract initializes with a `LightClientBootstrap` message from a Beacon API. Subsequently, `LightClientUpdate` messages can be provided from a Beacon API, updating the state of the light client.
+This repo is a collection of modules that work together to implement a light client. There are two independent smart contracts: the trie-verifier and the light-client. The sole purpose of the trie-verifier is to receive a MPT root, a proof, a leaf and verify that the leaf is indeed a part of that root using the provided proof.
+
+The light client initializes with a `LightClientBootstrap` message from a Beacon API. Subsequently, `LightClientUpdate` messages can be provided from a Beacon API, updating the state of the light client.
 
 The light client is heavily inspired by a16z's Helios Consensus light client, with a couple of simplifications, changes, and adjustments to become a valid smart contract. Also, the light client uses a fork of the milagro_bls library, which has been simplified to be CosmWasm compatible (see https://github.com/pkakelas/milagro_bls).
 
