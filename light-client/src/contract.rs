@@ -132,7 +132,8 @@ mod execute {
         let config = CONFIG.load(deps.storage)?;
         let lc = LightClient::new(&config, Some(state), env);
 
-        let sync_committee = SYNC_COMMITTEES.load(deps.storage, ver_data.sig_slot.into());
+        let sync_committee =
+            SYNC_COMMITTEES.load(deps.storage, calc_sync_period(ver_data.sig_slot.into()));
         if sync_committee.is_err() {
             return Err(ContractError::NoSyncCommittee {
                 period: calc_sync_period(ver_data.sig_slot.into()),
