@@ -49,7 +49,6 @@ pub enum ExecuteMsg {
 
 #[cw_serde]
 pub enum QueryMsg {
-    Greet {},
     SyncCommittee { period: u64 },
     LightClientState {},
     Config {},

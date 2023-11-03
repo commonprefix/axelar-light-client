@@ -188,7 +188,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     use QueryMsg::*;
 
     match msg {
-        Greet {} => to_binary(&query::greet()?),
         LightClientState {} => to_binary(&LIGHT_CLIENT_STATE.load(deps.storage)?),
         Config {} => to_binary(&CONFIG.load(deps.storage)?),
         SyncCommittee { period } => {
@@ -209,9 +208,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 mod query {
     use super::*;
 
-    pub fn greet() -> StdResult<String> {
-        Ok("Hello, world!".to_string())
-    }
 }
 
 #[entry_point]
