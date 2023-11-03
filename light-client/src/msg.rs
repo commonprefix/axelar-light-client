@@ -1,3 +1,4 @@
+use connection_router::state::Message;
 use cosmwasm_schema::cw_serde;
 use serde::{Deserialize, Serialize};
 
@@ -41,6 +42,9 @@ pub enum ExecuteMsg {
         #[serde(deserialize_with = "from_hex_string", serialize_with = "to_hex_string")]
         topic: Vec<u8>,
     },
+    VerifyMessages {
+        messages: Vec<Message>,
+    },
 }
 
 #[cw_serde]
@@ -50,4 +54,5 @@ pub enum QueryMsg {
     LightClientState {},
     Config {},
     Version {},
+    PendingMessages {},
 }
