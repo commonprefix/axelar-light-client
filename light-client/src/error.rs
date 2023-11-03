@@ -20,6 +20,9 @@ pub enum ContractError {
 
     #[error("Consensus error: {:?}", error)]
     ConsensusError { error: ConsensusError },
+
+    #[error("Empty Messages")]
+    EmptyMessages {},
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
 }
