@@ -1,7 +1,8 @@
+use connection_router::state::Message;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdResult,
+    to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Order, Reply, Response, StdResult,
 };
 
 use crate::error::ContractError;
@@ -51,6 +52,7 @@ pub fn execute(
         VerifyBlock { verification_data } => execute::verify_block(&deps, &env, verification_data),
         verification_request @ VerifyProof { .. } => execute::verify_proof(verification_request),
         VerifyTopicInclusion { receipt, topic } => execute::verify_topic_inclusion(receipt, topic),
+        VerifyMessages { messages } => execute::verify_messages(deps, messages),
     }
 }
 
@@ -60,6 +62,7 @@ pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, Contract
 }
 
 mod execute {
+    use connection_router::state::Message;
     use cosmwasm_std::WasmMsg;
     use types::{
         common::Forks, consensus::Update, execution::ReceiptLogs,
@@ -67,6 +70,30 @@ mod execute {
     };
 
     use super::*;
+
+    pub fn verify_messages(
+        deps: DepsMut,
+        messages: Vec<Message>,
+    ) -> Result<Response, ContractError> {
+        let new_messages: Vec<Message> = messages
+            .into_iter()
+            .filter(|message| {
+                PENDING_MESSAGES
+                    .load(deps.storage, message.cc_id.clone())
+                    .is_err()
+            })
+            .collect();
+
+        if new_messages.is_empty() {
+            return Err(ContractError::EmptyMessages {});
+        }
+
+        new_messages.iter().for_each(|message| {
+            let _ = PENDING_MESSAGES.save(deps.storage, message.cc_id.clone(), message);
+        });
+
+        Ok(Response::new())
+    }
 
     pub fn verify_proof(msg: ExecuteMsg) -> Result<Response, ContractError> {
         let message = WasmMsg::Execute {
