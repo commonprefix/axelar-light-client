@@ -23,8 +23,17 @@ pub enum ContractError {
 
     #[error("Empty Messages")]
     EmptyMessages {},
+
+    #[error("message {0} mismatch with verified message")]
+    MessageMismatch(String),
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
+}
+
+impl From<ContractError> for StdError {
+    fn from(value: ContractError) -> Self {
+        Self::generic_err(value.to_string())
+    }
 }
 
 // Wrap consensus error to contract error
