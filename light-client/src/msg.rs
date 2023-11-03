@@ -54,4 +54,5 @@ pub enum QueryMsg {
     Config {},
     Version {},
     PendingMessages {},
+    IsVerified { messages: Vec<Message> },
 }
