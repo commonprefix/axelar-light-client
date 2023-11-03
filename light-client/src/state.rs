@@ -8,3 +8,4 @@ pub const LIGHT_CLIENT_STATE: Item<LightClientState> = Item::new("light_client_s
 pub const SYNC_COMMITTEES: Map<u64, SyncCommittee> = Map::new("sync_committees");
 pub const VERSION: Item<ContractVersion> = Item::new("contract_info");
 pub const PENDING_MESSAGES: Map<CrossChainId, Message> = Map::new("pending_messages");
+pub const VERIFIED_MESSAGES: Map<CrossChainId, Message> = Map::new("verified_messages");
