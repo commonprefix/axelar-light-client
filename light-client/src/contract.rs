@@ -196,6 +196,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&sync_committee)
         }
         Version {} => to_binary(&VERSION.load(deps.storage)?),
+        PendingMessages {} => {
+            let mut messages: Vec<Message> = vec![];
+            for item in PENDING_MESSAGES.range(deps.storage, None, None, Order::Ascending) {
+                messages.push(item.unwrap().1)
+            }
+            to_binary(&messages)
+        }
     }
 }
 
