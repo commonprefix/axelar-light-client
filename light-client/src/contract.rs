@@ -99,11 +99,6 @@ mod execute {
         let config = CONFIG.load(deps.storage)?;
         let mut lc = LightClient::new(&config, Some(state), env);
 
-        let res = lc.verify_update(&update);
-        if res.is_err() {
-            return Err(ContractError::from(res.err().unwrap()));
-        }
-
         let res = lc.apply_update(&update);
         if res.is_err() {
             return Err(ContractError::from(res.err().unwrap()));
