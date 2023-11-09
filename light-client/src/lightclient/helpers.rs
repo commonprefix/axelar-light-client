@@ -137,6 +137,7 @@ where
 pub mod test_helpers {
     use std::fs::File;
 
+    use ssz_rs::Node;
     use types::{
         common::{ChainConfig, Fork, Forks},
         consensus::{Bootstrap, Update},
@@ -170,13 +171,16 @@ pub mod test_helpers {
     }
 
     pub fn get_config() -> ChainConfig {
+        let genesis_root_bytes: [u8; 32] =
+            hex_str_to_bytes("0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95")
+                .unwrap()
+                .try_into()
+                .unwrap();
+
         ChainConfig {
             chain_id: 1,
             genesis_time: 1606824023,
-            genesis_root: hex_str_to_bytes(
-                "0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95",
-            )
-            .unwrap(),
+            genesis_root: Node::from_bytes(genesis_root_bytes),
             forks: get_forks(),
         }
     }

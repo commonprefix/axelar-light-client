@@ -62,6 +62,7 @@ pub struct Update {
     pub finalized_header: BeaconHeader,
     pub finality_branch: Vec<Bytes32>,
     pub sync_aggregate: SyncAggregate<SYNC_COMMITTEE_SIZE>,
+    #[serde(with = "sync_committee_rs::serde::as_string")]
     pub signature_slot: u64,
 }
 
