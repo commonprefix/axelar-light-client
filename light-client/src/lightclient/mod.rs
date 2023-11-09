@@ -8,11 +8,12 @@ use eyre::Result;
 use helpers::is_proof_valid;
 use milagro_bls::{AggregateSignature, PublicKey};
 use ssz_rs::prelude::*;
-use types::{
-    common::{Bytes32, ChainConfig, ForkData, SignatureBytes},
-    consensus::*,
-    lightclient::LightClientState,
+use sync_committee_rs::{
+    consensus_types::{BeaconBlockHeader, ForkData, SyncAggregate, SyncCommittee},
+    constants::{BlsSignature, Bytes32, SYNC_COMMITTEE_SIZE},
+    util::SigningData,
 };
+use types::{common::ChainConfig, consensus::*, lightclient::LightClientState};
 
 use self::helpers::calc_sync_period;
 
@@ -79,7 +80,7 @@ impl Verification for OptimisticUpdate {
         // Check for valid timestamp conditions:
         // 1. The expected current slot given the genesis time should be equal or greater than the update's signature slot.
         // 2. The slot of the update's signature should be greater than the slot of the attested header.
-        let valid_time = lightclient.expected_current_slot() >= self.signature_slot.as_u64()
+        let valid_time = lightclient.expected_current_slot() >= self.signature_slot
             && self.signature_slot > self.attested_header.beacon.slot;
 
         if !valid_time {
@@ -87,7 +88,7 @@ impl Verification for OptimisticUpdate {
         }
 
         let store_period = calc_sync_period(lightclient.state.finalized_header.slot.into());
-        let update_sig_period = calc_sync_period(self.signature_slot.as_u64());
+        let update_sig_period = calc_sync_period(self.signature_slot);
 
         let valid_period = if lightclient.state.next_sync_committee.is_some() {
             update_sig_period == store_period || update_sig_period == store_period + 1
@@ -126,7 +127,7 @@ impl Verification for OptimisticUpdate {
             &pks,
             &self.attested_header.beacon,
             &self.sync_aggregate.sync_committee_signature,
-            self.signature_slot.as_u64(),
+            self.signature_slot,
         );
 
         if !is_valid_sig {
@@ -177,21 +178,21 @@ impl LightClient {
         self.state.current_max_active_participants =
             u64::max(self.state.current_max_active_participants, committee_bits);
 
-        let update_finalized_slot = update.finalized_header.beacon.slot.as_u64();
-        let update_attested_period = calc_sync_period(update.attested_header.beacon.slot.into());
+        let update_finalized_slot = update.finalized_header.beacon.slot;
+        let update_attested_period = calc_sync_period(update.attested_header.beacon.slot);
         let update_finalized_period = calc_sync_period(update_finalized_slot);
 
         let update_has_finalized_next_committee = update_finalized_period == update_attested_period;
 
         let should_apply_update = {
             let has_majority = committee_bits * 3 >= 512 * 2;
-            let update_is_newer = update_finalized_slot > self.state.finalized_header.slot.as_u64();
+            let update_is_newer = update_finalized_slot > self.state.finalized_header.slot;
             let good_update = update_is_newer || update_has_finalized_next_committee;
             has_majority && good_update
         };
 
         if should_apply_update {
-            let store_period = calc_sync_period(self.state.finalized_header.slot.into());
+            let store_period = calc_sync_period(self.state.finalized_header.slot);
 
             if self.state.next_sync_committee.is_none() {
                 self.state.next_sync_committee = Some(update.next_sync_committee.clone());
@@ -203,7 +204,7 @@ impl LightClient {
                 self.state.current_max_active_participants = 0;
             }
 
-            if update_finalized_slot > self.state.finalized_header.slot.as_u64() {
+            if update_finalized_slot > self.state.finalized_header.slot {
                 self.state.finalized_header = update.finalized_header.beacon.clone();
                 self.log_finality_update(update);
             }
@@ -215,7 +216,7 @@ impl LightClient {
     fn is_current_committee_proof_valid(
         &self,
         attested_header: &BeaconBlockHeader,
-        current_committee: &mut SyncCommittee,
+        current_committee: &mut SyncCommittee<SYNC_COMMITTEE_SIZE>,
         current_committee_branch: &[Bytes32],
     ) -> bool {
         is_proof_valid(
@@ -262,7 +263,7 @@ impl LightClient {
     fn is_next_committee_proof_valid(
         &self,
         attested_header: &BeaconBlockHeader,
-        next_committee: &mut SyncCommittee,
+        next_committee: &mut SyncCommittee<SYNC_COMMITTEE_SIZE>,
         next_committee_branch: &[Bytes32],
     ) -> bool {
         is_proof_valid(
@@ -295,10 +296,10 @@ impl LightClient {
      */
     pub fn verify_block(
         &self,
-        sync_committee: &SyncCommittee,
-        target_block: &BeaconBlock,
+        sync_committee: &SyncCommittee<SYNC_COMMITTEE_SIZE>,
+        target_block: &BeaconBlockAlias,
         intermediate_chain: &[BeaconBlockHeader],
-        sync_aggregate: &SyncAggregate,
+        sync_aggregate: &SyncAggregate<SYNC_COMMITTEE_SIZE>,
         sig_slot: u64,
     ) -> bool {
         if intermediate_chain.is_empty() {
@@ -319,7 +320,7 @@ impl LightClient {
     /**
      * Returns the fork version for a given slot.
      */
-    fn get_fork_version(&self, slot: u64) -> Vec<u8> {
+    fn get_fork_version(&self, slot: u64) -> [u8; 4] {
         let epoch = slot / 32;
 
         match epoch {
@@ -338,13 +339,13 @@ impl LightClient {
 
     fn get_participating_keys(
         &self,
-        committee: &SyncCommittee,
+        committee: &SyncCommittee<SYNC_COMMITTEE_SIZE>,
         bitfield: &Bitvector<512>,
     ) -> Vec<PublicKey> {
         let mut pks: Vec<PublicKey> = Vec::new();
         bitfield.iter().enumerate().for_each(|(i, bit)| {
             if bit == true {
-                let pk = &committee.pubkeys[i];
+                let pk = &committee.public_keys[i];
                 let pk = PublicKey::from_bytes_unchecked(pk).unwrap();
                 pks.push(pk);
             }
@@ -356,8 +357,8 @@ impl LightClient {
     pub fn verify_attestation<T>(
         &self,
         attest_block: &T,
-        sync_aggregate: &SyncAggregate,
-        sync_committee: &SyncCommittee,
+        sync_aggregate: &SyncAggregate<SYNC_COMMITTEE_SIZE>,
+        sync_committee: &SyncCommittee<SYNC_COMMITTEE_SIZE>,
         sig_slot: u64,
     ) -> bool
     where
@@ -384,7 +385,7 @@ impl LightClient {
         config: &ChainConfig,
         pks: &[PublicKey],
         attested_block: &T,
-        signature: &SignatureBytes,
+        signature: &BlsSignature,
         signature_slot: u64,
     ) -> bool
     where
@@ -392,7 +393,7 @@ impl LightClient {
     {
         let res: Result<bool> = (move || {
             let pks: Vec<&PublicKey> = pks.iter().collect();
-            let header_root = Bytes32::try_from(attested_block.clone().hash_tree_root()?.as_ref())?;
+            let header_root = attested_block.clone().hash_tree_root()?;
             let signing_root =
                 self.compute_committee_sign_root(config, header_root, signature_slot)?;
 
@@ -408,7 +409,7 @@ impl LightClient {
 
     pub fn verify_chain_of_blocks(
         &self,
-        interested_block: &BeaconBlock,
+        interested_block: &BeaconBlockAlias,
         chain: &[BeaconBlockHeader],
     ) -> bool {
         if chain.is_empty() {
@@ -418,19 +419,19 @@ impl LightClient {
         for window in chain.windows(2) {
             if let [prev, next] = window {
                 let hash = prev.clone().hash_tree_root().unwrap();
-                let next_hash = next.parent_root.as_ref();
+                let next_hash = next.parent_root;
                 if hash != next_hash {
                     return false;
                 }
             }
         }
 
-        return interested_block.clone().hash_tree_root().unwrap() == chain[0].parent_root.as_ref();
+        return interested_block.clone().hash_tree_root().unwrap() == chain[0].parent_root;
     }
 
     pub fn is_aggregate_valid(
         &self,
-        sig_bytes: &SignatureBytes,
+        sig_bytes: &BlsSignature,
         msg: &[u8],
         pks: &[&PublicKey],
     ) -> bool {
@@ -444,18 +445,18 @@ impl LightClient {
     fn compute_committee_sign_root(
         &self,
         config: &ChainConfig,
-        header: Bytes32,
+        header: Node,
         slot: u64,
     ) -> Result<Node> {
-        let genesis_root = config.genesis_root.to_vec().try_into().unwrap();
+        let genesis_root = config.genesis_root;
 
         let domain_type = &hex::decode("07000000")?[..];
-        let fork_version = Vector::try_from(self.get_fork_version(slot)).map_err(|(_, err)| err)?;
+        let fork_version = self.get_fork_version(slot);
         let domain = self.compute_domain(domain_type, fork_version, genesis_root)?;
         self.compute_signing_root(header, domain)
     }
 
-    pub fn compute_signing_root(&self, object_root: Bytes32, domain: Bytes32) -> Result<Node> {
+    pub fn compute_signing_root(&self, object_root: Node, domain: [u8; 32]) -> Result<Node> {
         let mut data = SigningData {
             object_root,
             domain,
@@ -466,9 +467,9 @@ impl LightClient {
     pub fn compute_domain(
         &self,
         domain_type: &[u8],
-        fork_version: Vector<u8, 4>,
-        genesis_root: Bytes32,
-    ) -> Result<Bytes32> {
+        fork_version: [u8; 4],
+        genesis_root: Node,
+    ) -> Result<[u8; 32]> {
         let fork_data_root = self.compute_fork_data_root(fork_version, genesis_root)?;
         let start = domain_type;
         let end = &fork_data_root.as_ref()[..28];
@@ -478,12 +479,12 @@ impl LightClient {
 
     fn compute_fork_data_root(
         &self,
-        current_version: Vector<u8, 4>,
-        genesis_validator_root: Bytes32,
+        current_version: [u8; 4],
+        genesis_validators_root: Node,
     ) -> Result<Node> {
         let mut fork_data = ForkData {
             current_version,
-            genesis_validator_root,
+            genesis_validators_root,
         };
         Ok(fork_data.hash_tree_root()?)
     }
@@ -491,7 +492,7 @@ impl LightClient {
     fn log_finality_update(&self, update: &Update) {
         println!(
             "finalized slot             slot={}",
-            update.finalized_header.beacon.slot.as_u64(),
+            update.finalized_header.beacon.slot,
         );
     }
 
@@ -500,7 +501,7 @@ impl LightClient {
         let body_root = &self.state.finalized_header.body_root.as_ref();
         println!(
             "client: slot: {:?} period: {:?}, finalized_block_hash: {:?}",
-            &self.state.finalized_header.slot.as_u64(),
+            &self.state.finalized_header.slot,
             period,
             hex::encode(body_root)
         );
