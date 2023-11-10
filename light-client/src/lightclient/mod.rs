@@ -297,7 +297,7 @@ impl LightClient {
     pub fn verify_block(
         &self,
         sync_committee: &SyncCommittee<SYNC_COMMITTEE_SIZE>,
-        target_block: &BeaconBlockAlias,
+        target_block: &BeaconBlockHeader,
         intermediate_chain: &[BeaconBlockHeader],
         sync_aggregate: &SyncAggregate<SYNC_COMMITTEE_SIZE>,
         sig_slot: u64,
@@ -409,7 +409,7 @@ impl LightClient {
 
     pub fn verify_chain_of_blocks(
         &self,
-        interested_block: &BeaconBlockAlias,
+        interested_block: &BeaconBlockHeader,
         chain: &[BeaconBlockHeader],
     ) -> bool {
         if chain.is_empty() {
