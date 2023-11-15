@@ -4,7 +4,9 @@ mod prover;
 mod types;
 mod wasm;
 
+use consensus_types::lightclient::UpdateVariant;
 use eth::{consensus::ConsensusRPC, constants::*, execution::ExecutionRPC, gateway::Gateway};
+use eyre::anyhow;
 use prover::Prover;
 use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
 use tokio;
@@ -35,9 +37,15 @@ async fn main() {
     let proof = prover
         .generate_proof(
             first_message.clone(),
-            types::FinalityOrOptimisticUpdate::Finality(finality_update),
+            UpdateVariant::Finality(finality_update),
         )
-        .await;
+        .await
+        .unwrap();
+
+    let json_string = serde_json::to_string(&proof).unwrap();
+
+    // Print the JSON string
+    println!("AncestryProof JSON: {}", json_string);
 
     // let state = wasm.get_state().await.unwrap();
     // println!("State: {:?}", state);

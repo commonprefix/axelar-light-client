@@ -1,27 +1,15 @@
-use ethers::types::{H160, H256, U256};
-use types::consensus::{BeaconHeader, Bootstrap, FinalityUpdate, OptimisticUpdate, Update};
+use consensus_types::{
+    consensus::{Bootstrap, FinalityUpdate, OptimisticUpdate, Update},
+    lightclient::Message,
+};
+use ethers::types::H256;
+use sync_committee_rs::consensus_types::BeaconBlockHeader;
 
-#[derive(Debug, Clone)]
-pub struct Message {
-    pub block_number: u64,
+#[derive(Clone, Debug)]
+pub struct InternalMessage {
+    pub message: Message,
     pub block_hash: H256,
-    pub tx_id: H256,
-    pub event_index: U256,
-    pub destination_address: String,
-    pub destination_chain: String,
-    pub source_address: H160,
-    pub payload_hash: H256,
-}
-
-#[derive(Debug, Clone)]
-pub enum FinalityOrOptimisticUpdate {
-    Finality(FinalityUpdate),
-    Optimistic(OptimisticUpdate),
-}
-
-#[derive(serde::Deserialize, Debug)]
-pub struct BeaconBlockResponse {
-    pub data: BeaconBlockData,
+    pub block_number: u64,
 }
 
 pub type UpdateResponse = Vec<UpdateData>;
@@ -37,8 +25,18 @@ pub struct BootstrapResponse {
 }
 
 #[derive(serde::Deserialize, Debug)]
-pub struct BeaconBlockData {
-    pub message: BeaconHeader,
+pub struct BeaconBlockResponse {
+    pub data: BeaconBlockHeaderResponse,
+}
+
+#[derive(serde::Deserialize, Debug)]
+pub struct BeaconBlockHeaderResponse {
+    pub header: BeaconBlockMessage,
+}
+
+#[derive(serde::Deserialize, Debug)]
+pub struct BeaconBlockMessage {
+    pub message: BeaconBlockHeader,
 }
 
 #[derive(serde::Deserialize, Debug)]

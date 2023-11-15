@@ -1,10 +1,10 @@
+use consensus_types::lightclient::LightClientState;
 use cosmos_sdk_proto::cosmwasm::wasm::v1::{
     query_client::QueryClient, QuerySmartContractStateRequest,
 };
 use eyre::Result;
 use futures::executor::block_on;
 use serde::de::DeserializeOwned;
-use types::lightclient::LightClientState;
 
 #[derive(Debug)]
 pub struct WasmClient {
