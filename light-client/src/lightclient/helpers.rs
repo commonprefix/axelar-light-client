@@ -2,9 +2,9 @@ use std::fmt;
 
 use eyre::Result;
 
-use ssz_rs::{is_valid_merkle_branch, GeneralizedIndex, Merkleized, Node};
+use ssz_rs::{is_valid_merkle_branch, verify_merkle_proof, GeneralizedIndex, Merkleized, Node};
 use sync_committee_rs::{
-    constants::{Bytes32, BLOCK_ROOTS_INDEX},
+    constants::{Bytes32, Root, BLOCK_ROOTS_INDEX},
     types::BlockRootsProof,
 };
 
@@ -28,6 +28,28 @@ pub fn is_proof_valid<L: Merkleized>(
     } else {
         false
     }
+}
+
+pub fn verify_block_roots_proof(proof: &BlockRootsProof, block: &Node, root: &Root) -> bool {
+    verify_merkle_proof(
+        block,
+        &proof.block_header_branch[..],
+        &GeneralizedIndex(proof.block_header_index as usize),
+        root,
+    )
+}
+
+pub fn verify_block_roots_branch(
+    block_roots_branch: &Vec<Node>,
+    block_roots_root: &Node,
+    state_root: &Root,
+) -> bool {
+    verify_merkle_proof(
+        block_roots_root,
+        block_roots_branch,
+        &GeneralizedIndex(BLOCK_ROOTS_INDEX as usize),
+        state_root,
+    )
 }
 
 pub fn branch_to_nodes(branch: Vec<Bytes32>) -> Result<Vec<Node>> {
