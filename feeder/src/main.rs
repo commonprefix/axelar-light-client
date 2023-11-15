@@ -6,10 +6,9 @@ mod wasm;
 
 use consensus_types::lightclient::UpdateVariant;
 use eth::{consensus::ConsensusRPC, constants::*, execution::ExecutionRPC, gateway::Gateway};
-
 use prover::Prover;
 use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
-
+use tokio;
 use wasm::WasmClient;
 
 #[tokio::main]
