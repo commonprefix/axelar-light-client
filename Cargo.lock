@@ -1852,6 +1852,8 @@ dependencies = [
  "retri",
  "serde",
  "serde_json",
+ "ssz-rs",
+ "sync-committee-primitives",
  "thiserror",
  "tokio",
  "tonic",
