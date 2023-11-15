@@ -2,24 +2,25 @@ use std::str::FromStr;
 
 use ethers::prelude::Http;
 use ethers::providers::{FilterKind, HttpRateLimitRetryPolicy, Middleware, Provider, RetryClient};
-use ethers::types::{Filter, Log, Transaction, TransactionReceipt, H256, U256};
+use ethers::types::{Block, Filter, Log, Transaction, TransactionReceipt, H256, U256, U64};
 use eyre::Result;
+use futures::Future;
 
 use crate::error::RpcError;
 pub struct ExecutionRPC {
-    provider: Provider<RetryClient<Http>>,
+    pub provider: Provider<RetryClient<Http>>,
 }
 
 #[allow(dead_code)]
 impl ExecutionRPC {
-    pub fn new(rpc: &str) -> Result<Self> {
-        let http = Http::from_str(rpc)?;
+    pub fn new(rpc: &str) -> Self {
+        let http = Http::from_str(rpc).expect("Could not initialize HTTP provider");
         let mut client = RetryClient::new(http, Box::new(HttpRateLimitRetryPolicy), 100, 50);
         client.set_compute_units(300);
 
         let provider = Provider::new(client);
 
-        Ok(ExecutionRPC { provider })
+        ExecutionRPC { provider }
     }
 
     pub async fn get_transaction_receipt(
@@ -33,6 +34,34 @@ impl ExecutionRPC {
             .map_err(|e| RpcError::new("get_transaction_receipt", e))?;
 
         Ok(receipt)
+    }
+
+    pub async fn get_block(&self, block_number: u64) -> Result<Option<Block<H256>>> {
+        let block = self
+            .provider
+            .get_block(block_number)
+            .await
+            .map_err(|e| RpcError::new("get_block", e))?;
+
+        Ok(block)
+    }
+
+    pub async fn get_blocks(&self, block_numbers: &[u64]) -> Result<Vec<Option<Block<H256>>>> {
+        let mut futures = vec![];
+        for &block_number in block_numbers {
+            futures.push(async move { self.get_block(block_number).await });
+        }
+
+        let results: Result<Vec<_>, _> = futures::future::try_join_all(futures).await;
+        results
+    }
+
+    pub async fn get_latest_block_number(&self) -> Result<U64> {
+        Ok(self
+            .provider
+            .get_block_number()
+            .await
+            .map_err(|e| RpcError::new("get_latest_block_number", e))?)
     }
 
     pub async fn get_transaction(&self, tx_hash: &H256) -> Result<Option<Transaction>> {
