@@ -1,7 +1,8 @@
 use crate::eth::constants::EXECUTION_RPC;
 use crate::eth::execution::ExecutionRPC;
 use crate::eth::utils::calc_slot_from_timestamp;
-use crate::types::Message;
+use crate::types::InternalMessage;
+use consensus_types::lightclient::{CrossChainId, Message};
 use ethers::abi::{Bytes, RawLog};
 use ethers::prelude::{EthEvent, Http};
 use ethers::providers::{Middleware, Provider};
@@ -42,7 +43,7 @@ impl Gateway {
         &self,
         from_block: u64,
         to_block: u64,
-    ) -> Result<Vec<Message>> {
+    ) -> Result<Vec<InternalMessage>> {
         let logs = self
             .get_contract_call_with_token_logs(from_block, to_block)
             .await?;
@@ -51,17 +52,30 @@ impl Gateway {
         let messages = logs
             .iter()
             .zip(events)
-            .map(|(log, event)| Message {
-                block_number: log.block_number.unwrap().as_u64(),
-                block_hash: log.block_hash.unwrap(),
-                tx_id: log.transaction_hash.unwrap(),
-                event_index: log.log_index.unwrap(),
-                destination_address: event.destination_contract_address,
-                destination_chain: event.destination_chain,
-                source_address: event.sender,
-                payload_hash: event.payload_hash,
+            .map(|(log, event)| {
+                println!("Log: {:#?}", log);
+                println!("Event: {:#?}", event);
+
+                let tx_index = log.transaction_index.unwrap();
+                let log_index = log.log_index.unwrap();
+                let cc_id = CrossChainId {
+                    chain: "ethereum".parse().unwrap(),
+                    id: format!("{}:{}", tx_index, log_index).parse().unwrap(),
+                };
+
+                InternalMessage {
+                    message: Message {
+                        cc_id,
+                        source_address: event.sender.to_string().parse().unwrap(),
+                        destination_chain: event.destination_chain.parse().unwrap(),
+                        destination_address: event.destination_contract_address.parse().unwrap(),
+                        payload_hash: event.payload_hash.into(),
+                    },
+                    block_hash: log.block_hash.unwrap(),
+                    block_number: log.block_number.unwrap().as_u64(),
+                }
             })
-            .collect::<Vec<Message>>();
+            .collect::<Vec<InternalMessage>>();
 
         Ok(messages)
     }
@@ -101,9 +115,9 @@ impl Gateway {
         &self,
         from_slot: u64,
         to_slot: u64,
-    ) -> Result<Vec<Message>> {
+    ) -> Result<Vec<InternalMessage>> {
         // TODO: Move that out of the code
-        const BLOCK_RANGE: u64 = 10000;
+        const BLOCK_RANGE: u64 = 500;
         let execution = ExecutionRPC::new(EXECUTION_RPC);
         let latest_block_number = execution.get_latest_block_number().await?;
 
@@ -122,7 +136,7 @@ impl Gateway {
 
         let blocks = execution.get_blocks(&block_heights).await.unwrap();
 
-        let filtered_messages: Vec<Message> = messages
+        let filtered_messages = messages
             .into_iter()
             .zip(blocks.iter())
             .filter_map(|(message, block)| {
@@ -131,7 +145,7 @@ impl Gateway {
                     (slot > from_slot && slot < to_slot).then(|| message)
                 })
             })
-            .collect();
+            .collect::<Vec<InternalMessage>>();
 
         println!("Messages in range: {:?}", filtered_messages.len());
 
