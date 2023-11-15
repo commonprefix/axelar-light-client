@@ -1,7 +1,9 @@
-use std::fmt;
+use std::{fmt, sync::Arc};
 
+use cita_trie::{MemoryDB, PatriciaTrie, Trie};
 use eyre::Result;
 
+use hasher::HasherKeccak;
 use ssz_rs::{is_valid_merkle_branch, verify_merkle_proof, GeneralizedIndex, Merkleized, Node};
 use sync_committee_rs::{
     constants::{
@@ -72,6 +74,16 @@ pub fn verify_execution_payload_branch(
         EXECUTION_PAYLOAD_INDEX as usize,
         state_root,
     )
+}
+
+pub fn verify_proof(root: &[u8], key: &mut [u8], proof: Vec<Vec<u8>>) -> Vec<u8> {
+    let memdb = Arc::new(MemoryDB::new(true));
+    let hasher = Arc::new(HasherKeccak::new());
+
+    let trie = PatriciaTrie::new(Arc::clone(&memdb), Arc::clone(&hasher));
+    let value_option = trie.verify_proof(root, key, proof).unwrap();
+
+    value_option.unwrap_or_else(|| vec![0])
 }
 
 pub fn branch_to_nodes(branch: Vec<Bytes32>) -> Result<Vec<Node>> {
