@@ -42,12 +42,14 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 [dependencies]
 alloy-primitives = "0.4.2"
 alloy-rlp = {version = "0.3.3", features = ["derive", "arrayvec"]}
+cita_trie = "5.0.1"
 cosmwasm-schema = "1.1.3"
 cosmwasm-std = "1.1.3"
 cosmwasm-storage = "1.1.3"
 cw-storage-plus = "1.0.1"
 cw2 = "1.1.1"
 eyre = "0.6.8"
+hasher = "0.1.4"
 hex = "0.4.3"
 milagro_bls = {git = "https://github.com/pkakelas/milagro_bls"}
 schemars = "0.8.10"

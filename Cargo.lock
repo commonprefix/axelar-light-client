@@ -2649,6 +2649,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
+ "cita_trie",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
@@ -2656,6 +2657,7 @@ dependencies = [
  "cw-storage-plus",
  "cw2",
  "eyre",
+ "hasher",
  "hex",
  "milagro_bls",
  "schemars",
