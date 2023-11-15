@@ -6,7 +6,7 @@ use eyre::Result;
 use reqwest;
 use retri::{retry, BackoffSettings};
 use serde::de::DeserializeOwned;
-use types::consensus::{Bootstrap, Update};
+use types::consensus::{BeaconStateType, Bootstrap, FinalityUpdate, OptimisticUpdate, Update};
 
 #[derive(Debug)]
 pub struct ConsensusRPC {
@@ -53,5 +53,38 @@ impl ConsensusRPC {
         let res: UpdateResponse = get(&req).await.map_err(|e| RpcError::new("updates", e))?;
 
         Ok(res.into_iter().map(|d| d.data).collect())
+    }
+
+    pub async fn get_finality_update(&self) -> Result<FinalityUpdate> {
+        let req = format!("{}/eth/v1/beacon/light_client/finality_update", self.rpc);
+
+        let res: FinalityUpdateData = get(&req).await.map_err(|e| RpcError::new("updates", e))?;
+
+        Ok(res.data)
+    }
+
+    pub async fn get_optimistic_update(&self) -> Result<OptimisticUpdate> {
+        let req = format!("{}/eth/v1/beacon/light_client/optimistic_update", self.rpc);
+
+        let res: OptimisticUpdateData = get(&req).await.map_err(|e| RpcError::new("updates", e))?;
+
+        Ok(res.data)
+    }
+
+    pub async fn get_state(&self, slot: u64) -> Result<BeaconStateType> {
+        let req = format!("{}/eth/v2/debug/beacon/states/{}", self.rpc, slot);
+
+        // Setting the header for the request
+        let client = reqwest::Client::new();
+        let res = client
+            .get(&req)
+            .header("accept", "application/octet-stream")
+            .send()
+            .await
+            .map_err(|e| RpcError::new("get_state", e))?;
+
+        let state: BeaconStateType = ssz_rs::deserialize(&res.bytes().await?)?;
+
+        return Ok(state);
     }
 }
