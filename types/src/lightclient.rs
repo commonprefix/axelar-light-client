@@ -42,11 +42,10 @@ pub struct EventVerificationData {
     pub message: Message,
     pub update: UpdateVariant,
     pub target_block: BeaconBlockHeader,
-    pub block_roots: Vector<Root, SLOTS_PER_HISTORICAL_ROOT>,
+    pub block_roots_root: Root,
     pub ancestry_proof: AncestryProof,
     pub receipt_proof: ReceiptProof,
 }
-
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct ReceiptProof {
     // Proof from receipt to receipts root
