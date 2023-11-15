@@ -30,12 +30,16 @@ pub fn is_proof_valid<L: Merkleized>(
     }
 }
 
-pub fn verify_block_roots_proof(proof: &BlockRootsProof, block: &Node, root: &Root) -> bool {
+pub fn verify_block_roots_proof(
+    proof: &BlockRootsProof,
+    block: &Node,
+    block_roots_root: &Root,
+) -> bool {
     verify_merkle_proof(
         block,
         &proof.block_header_branch[..],
         &GeneralizedIndex(proof.block_header_index as usize),
-        root,
+        block_roots_root,
     )
 }
 
