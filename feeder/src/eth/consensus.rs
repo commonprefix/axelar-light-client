@@ -88,7 +88,7 @@ impl ConsensusRPC {
 
         let state: BeaconStateType = ssz_rs::deserialize(&res.bytes().await?)?;
 
-        return Ok(state);
+        Ok(state)
     }
 
     pub async fn get_beacon_block_header(&self, slot: u64) -> Result<BeaconBlockHeader> {

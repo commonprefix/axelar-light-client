@@ -4,7 +4,7 @@ use ethers::prelude::Http;
 use ethers::providers::{FilterKind, HttpRateLimitRetryPolicy, Middleware, Provider, RetryClient};
 use ethers::types::{Block, Filter, Log, Transaction, TransactionReceipt, H256, U256, U64};
 use eyre::Result;
-use futures::Future;
+
 
 use crate::error::RpcError;
 pub struct ExecutionRPC {

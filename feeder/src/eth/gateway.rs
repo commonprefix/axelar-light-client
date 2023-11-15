@@ -36,7 +36,7 @@ impl Gateway {
         let provider = Provider::<Http>::try_from(rpc).unwrap();
         let client = Arc::new(provider);
 
-        return Self { client, address };
+        Self { client, address }
     }
 
     pub async fn get_contract_call_with_token_messages(
@@ -142,7 +142,7 @@ impl Gateway {
             .filter_map(|(message, block)| {
                 block.as_ref().and_then(|block| {
                     let slot = calc_slot_from_timestamp(block.timestamp.as_u64());
-                    (slot > from_slot && slot < to_slot).then(|| message)
+                    (slot > from_slot && slot < to_slot).then_some(message)
                 })
             })
             .collect::<Vec<InternalMessage>>();

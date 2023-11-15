@@ -31,7 +31,7 @@ impl WasmClient {
     pub async fn get_state(&mut self) -> Result<LightClientState> {
         let query_data = b"{\"light_client_state\": {}}".to_vec();
         let state = self.query(query_data).await?;
-        return Ok(state);
+        Ok(state)
     }
 
     pub async fn update() -> Result<()> {
