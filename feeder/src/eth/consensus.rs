@@ -2,11 +2,14 @@ use std::cmp;
 
 use crate::error::RpcError;
 use crate::types::*;
+use consensus_types::consensus::{
+    BeaconStateType, Bootstrap, FinalityUpdate, OptimisticUpdate, Update,
+};
 use eyre::Result;
 use reqwest;
 use retri::{retry, BackoffSettings};
 use serde::de::DeserializeOwned;
-use types::consensus::{BeaconStateType, Bootstrap, FinalityUpdate, OptimisticUpdate, Update};
+use sync_committee_rs::consensus_types::BeaconBlockHeader;
 
 #[derive(Debug)]
 pub struct ConsensusRPC {
@@ -86,5 +89,15 @@ impl ConsensusRPC {
         let state: BeaconStateType = ssz_rs::deserialize(&res.bytes().await?)?;
 
         return Ok(state);
+    }
+
+    pub async fn get_beacon_block_header(&self, slot: u64) -> Result<BeaconBlockHeader> {
+        let req = format!("{}/eth/v1/beacon/headers/{}", self.rpc, slot);
+
+        let res: BeaconBlockResponse = get(&req)
+            .await
+            .map_err(|e| RpcError::new("beacon_header", e))?;
+
+        Ok(res.data.header.message)
     }
 }
