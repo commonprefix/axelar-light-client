@@ -4,7 +4,10 @@ use eyre::Result;
 
 use ssz_rs::{is_valid_merkle_branch, verify_merkle_proof, GeneralizedIndex, Merkleized, Node};
 use sync_committee_rs::{
-    constants::{Bytes32, Root, BLOCK_ROOTS_INDEX},
+    constants::{
+        Bytes32, Root, BLOCK_ROOTS_INDEX, BLOCK_ROOTS_INDEX_LOG2, EXECUTION_PAYLOAD_INDEX,
+        EXECUTION_PAYLOAD_INDEX_LOG2,
+    },
     types::BlockRootsProof,
 };
 
@@ -48,10 +51,25 @@ pub fn verify_block_roots_branch(
     block_roots_root: &Node,
     state_root: &Root,
 ) -> bool {
-    verify_merkle_proof(
+    is_valid_merkle_branch(
         block_roots_root,
-        block_roots_branch,
-        &GeneralizedIndex(BLOCK_ROOTS_INDEX as usize),
+        block_roots_branch.iter(),
+        BLOCK_ROOTS_INDEX_LOG2 as usize,
+        BLOCK_ROOTS_INDEX as usize,
+        state_root,
+    )
+}
+
+pub fn verify_execution_payload_branch(
+    execution_payload_branch: &Vec<Node>,
+    execution_payload_root: &Root,
+    state_root: &Root,
+) -> bool {
+    is_valid_merkle_branch(
+        execution_payload_root,
+        execution_payload_branch.iter(),
+        EXECUTION_PAYLOAD_INDEX_LOG2 as usize,
+        EXECUTION_PAYLOAD_INDEX as usize,
         state_root,
     )
 }
