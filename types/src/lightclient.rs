@@ -1,9 +1,9 @@
 use crate::consensus::{FinalityUpdate, OptimisticUpdate};
 use crate::helpers::{from_hex_string, to_hex_string};
 use connection_router::state::Message;
-use ssz_rs::{Node, Vector};
+use ssz_rs::{Node};
 use sync_committee_rs::consensus_types::{BeaconBlockHeader, SyncAggregate, SyncCommittee};
-use sync_committee_rs::constants::{Root, SLOTS_PER_HISTORICAL_ROOT, SYNC_COMMITTEE_SIZE};
+use sync_committee_rs::constants::{Root, SYNC_COMMITTEE_SIZE};
 pub use sync_committee_rs::types::AncestryProof;
 
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]

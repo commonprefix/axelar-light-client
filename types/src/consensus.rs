@@ -73,7 +73,7 @@ impl Update {
             finalized_header: self.finalized_header.clone(),
             finality_branch: self.finality_branch.clone(),
             sync_aggregate: self.sync_aggregate.clone(),
-            signature_slot: self.signature_slot.clone(),
+            signature_slot: self.signature_slot,
         }
     }
 }
@@ -92,7 +92,7 @@ impl FinalityUpdate {
         OptimisticUpdate {
             attested_header: self.attested_header.clone(),
             sync_aggregate: self.sync_aggregate.clone(),
-            signature_slot: self.signature_slot.clone(),
+            signature_slot: self.signature_slot,
         }
     }
 }
