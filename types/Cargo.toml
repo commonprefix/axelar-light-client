@@ -12,5 +12,5 @@ hex = "0.4.3"
 serde = {version = "1.0.145", default-features = false, features = ["derive"]}
 serde_json = "1.0.105"
 ssz-rs = {git = "https://github.com/polytope-labs/ssz-rs", branch = "main"}
-sync-committee-rs = {package = "sync-committee-primitives", git = "https://github.com/commonprefix/sync-committee-rs", branch = "cp_changes", default-features = false, features = ["serialize"]}
 connection-router = {git = "https://github.com/axelarnetwork/axelar-amplifier", features = ["library"]}
+sync-committee-rs = {package = "sync-committee-primitives", git = "https://github.com/commonprefix/sync-committee-rs", branch = "cp_changes", default-features = false, features = ["serialize", "mainnet"]}

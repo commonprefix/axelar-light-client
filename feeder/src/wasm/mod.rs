@@ -24,7 +24,7 @@ impl WasmClient {
 
     pub async fn get_period(&mut self) -> Result<u64> {
         let state = self.get_state().await?;
-        let period = state.finalized_header.slot.as_u64() / 32 / 256;
+        let period = state.finalized_header.slot / 32 / 256;
         Ok(period)
     }
 

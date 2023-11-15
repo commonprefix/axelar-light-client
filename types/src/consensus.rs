@@ -1,13 +1,15 @@
 use ssz_rs::prelude::*;
-use sync_committee_rs::consensus_types::{
-    BeaconBlock, BeaconBlockHeader, SyncAggregate, SyncCommittee,
-};
+use sync_committee_rs::consensus_types::{BeaconBlock, BeaconState, SyncAggregate, SyncCommittee};
 use sync_committee_rs::constants::{
-    Bytes32, BYTES_PER_LOGS_BLOOM, MAX_ATTESTATIONS, MAX_ATTESTER_SLASHINGS,
+    Bytes32, BYTES_PER_LOGS_BLOOM, EPOCHS_PER_HISTORICAL_VECTOR, EPOCHS_PER_SLASHINGS_VECTOR,
+    ETH1_DATA_VOTES_BOUND, HISTORICAL_ROOTS_LIMIT, MAX_ATTESTATIONS, MAX_ATTESTER_SLASHINGS,
     MAX_BLS_TO_EXECUTION_CHANGES, MAX_BYTES_PER_TRANSACTION, MAX_DEPOSITS, MAX_EXTRA_DATA_BYTES,
     MAX_PROPOSER_SLASHINGS, MAX_TRANSACTIONS_PER_PAYLOAD, MAX_VALIDATORS_PER_COMMITTEE,
-    MAX_VOLUNTARY_EXITS, MAX_WITHDRAWALS_PER_PAYLOAD, SYNC_COMMITTEE_SIZE,
+    MAX_VOLUNTARY_EXITS, MAX_WITHDRAWALS_PER_PAYLOAD, SLOTS_PER_HISTORICAL_ROOT,
+    SYNC_COMMITTEE_SIZE, VALIDATOR_REGISTRY_LIMIT,
 };
+
+pub use sync_committee_rs::consensus_types::BeaconBlockHeader;
 
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct BeaconHeader {
@@ -28,6 +30,21 @@ pub type BeaconBlockAlias = BeaconBlock<
     MAX_TRANSACTIONS_PER_PAYLOAD,
     MAX_WITHDRAWALS_PER_PAYLOAD,
     MAX_BLS_TO_EXECUTION_CHANGES,
+>;
+
+pub type BeaconStateType = BeaconState<
+    SLOTS_PER_HISTORICAL_ROOT,
+    HISTORICAL_ROOTS_LIMIT,
+    ETH1_DATA_VOTES_BOUND,
+    VALIDATOR_REGISTRY_LIMIT,
+    EPOCHS_PER_HISTORICAL_VECTOR,
+    EPOCHS_PER_SLASHINGS_VECTOR,
+    MAX_VALIDATORS_PER_COMMITTEE,
+    SYNC_COMMITTEE_SIZE,
+    BYTES_PER_LOGS_BLOOM,
+    MAX_EXTRA_DATA_BYTES,
+    MAX_BYTES_PER_TRANSACTION,
+    MAX_TRANSACTIONS_PER_PAYLOAD,
 >;
 
 // impl TryFrom<&BeaconBlock> for BeaconBlockHeader {
@@ -78,12 +95,13 @@ impl Update {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
 pub struct FinalityUpdate {
     pub attested_header: BeaconHeader,
     pub finalized_header: BeaconHeader,
     pub finality_branch: Vec<Bytes32>,
     pub sync_aggregate: SyncAggregate<SYNC_COMMITTEE_SIZE>,
+    #[serde(with = "sync_committee_rs::serde::as_string")]
     pub signature_slot: u64,
 }
 
@@ -97,9 +115,10 @@ impl FinalityUpdate {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
 pub struct OptimisticUpdate {
     pub attested_header: BeaconHeader,
     pub sync_aggregate: SyncAggregate<SYNC_COMMITTEE_SIZE>,
+    #[serde(with = "sync_committee_rs::serde::as_string")]
     pub signature_slot: u64,
 }
