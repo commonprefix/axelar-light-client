@@ -3,6 +3,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdResult,
 };
+use types::lightclient::EventVerificationData;
 
 use crate::error::ContractError;
 use crate::lightclient::helpers::calc_sync_period;
@@ -51,6 +52,9 @@ pub fn execute(
         VerifyBlock { verification_data } => execute::verify_block(&deps, &env, verification_data),
         verification_request @ VerifyProof { .. } => execute::verify_proof(verification_request),
         VerifyTopicInclusion { receipt, topic } => execute::verify_topic_inclusion(receipt, topic),
+        EventVerificationData { payload } => {
+            execute::process_verification_data(deps, &env, payload)
+        }
     }
 }
 
@@ -61,12 +65,107 @@ pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, Contract
 
 mod execute {
     use cosmwasm_std::{to_json_binary, WasmMsg};
+    use ssz_rs::Merkleized;
+    use sync_committee_rs::types::AncestryProof;
     use types::{
-        common::Forks, consensus::Update, execution::ReceiptLogs,
-        lightclient::BlockVerificationData,
+        common::Forks,
+        consensus::Update,
+        execution::ReceiptLogs,
+        lightclient::{BlockVerificationData, UpdateVariant},
+    };
+
+    use crate::lightclient::{
+        helpers::{
+            verify_block_roots_branch, verify_block_roots_proof, verify_execution_payload_branch,
+            verify_trie_proof,
+        },
+        Verification,
     };
 
     use super::*;
+
+    pub fn process_verification_data(
+        deps: DepsMut,
+        env: &Env,
+        mut data: EventVerificationData,
+    ) -> Result<Response, ContractError> {
+        let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
+        let config = CONFIG.load(deps.storage)?;
+        let lc = LightClient::new(&config, Some(state), env);
+
+        // Get recent block
+        let recent_block = match data.update {
+            UpdateVariant::Finality(update) => {
+                update.verify(&lc)?;
+                update.finalized_header.beacon
+            }
+            UpdateVariant::Optimistic(update) => {
+                update.verify(&lc)?;
+                update.attested_header.beacon
+            }
+        };
+
+        // Verify ancestry proof
+        match data.ancestry_proof {
+            AncestryProof::BlockRoots {
+                block_roots_proof,
+                block_roots_branch,
+            } => {
+                let valid_block_roots_proof = verify_block_roots_proof(
+                    &block_roots_proof,
+                    &data.target_block.hash_tree_root().unwrap(),
+                    &data.block_roots_root,
+                );
+
+                if !valid_block_roots_proof {
+                    return Err(ContractError::InvalidBlockRootsProof);
+                }
+
+                let valid_block_roots_branch = verify_block_roots_branch(
+                    &block_roots_branch,
+                    &data.block_roots_root,
+                    &recent_block.state_root,
+                );
+
+                if !valid_block_roots_branch {
+                    return Err(ContractError::InvalidBlockRootsBranch);
+                }
+            }
+            AncestryProof::HistoricalRoots {
+                block_roots_proof: _,
+                historical_batch_proof: _,
+                historical_roots_proof: _,
+                historical_roots_index: _,
+                historical_roots_branch: _,
+            } => {
+                todo!()
+            }
+        }
+
+        // Verify receipt proof
+        let valid_receipt_proof = verify_trie_proof(
+            data.receipt_proof.receipts_root,
+            data.receipt_proof.receipt_index,
+            data.receipt_proof.receipt_branch,
+        );
+
+        if valid_receipt_proof.is_none() {
+            return Err(ContractError::InvalidReceiptProof);
+        }
+
+        // TODO: Verify receipt_root_branch
+
+        let valid_execution_branch = verify_execution_payload_branch(
+            &data.receipt_proof.execution_payload_branch,
+            &data.receipt_proof.execution_payload_root,
+            &data.target_block.state_root,
+        );
+
+        if !valid_execution_branch {
+            return Err(ContractError::InvalidExecutionBranch);
+        }
+        Ok(Response::new())
+    }
 
     pub fn verify_proof(msg: ExecuteMsg) -> Result<Response, ContractError> {
         let message = WasmMsg::Execute {
