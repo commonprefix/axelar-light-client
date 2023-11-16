@@ -53,9 +53,6 @@ impl Gateway {
             .iter()
             .zip(events)
             .map(|(log, event)| {
-                println!("Log: {:#?}", log);
-                println!("Event: {:#?}", event);
-
                 let tx_index = log.transaction_index.unwrap();
                 let log_index = log.log_index.unwrap();
                 let cc_id = CrossChainId {

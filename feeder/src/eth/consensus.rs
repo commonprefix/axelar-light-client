@@ -1,10 +1,11 @@
-use std::cmp;
+use std::{cmp, time::Instant};
 
 use crate::error::RpcError;
 use crate::types::*;
 use consensus_types::consensus::{
-    BeaconStateType, Bootstrap, FinalityUpdate, OptimisticUpdate, Update,
+    BeaconBlockAlias, BeaconStateType, Bootstrap, FinalityUpdate, OptimisticUpdate, Update,
 };
+use cosmos_sdk_proto::tendermint::serializers::bytes;
 use eyre::Result;
 use reqwest;
 use retri::{retry, BackoffSettings};
@@ -75,6 +76,9 @@ impl ConsensusRPC {
     }
 
     pub async fn get_state(&self, slot: u64) -> Result<BeaconStateType> {
+        let time = Instant::now();
+        println!("Getting state for slot {}", slot);
+
         let req = format!("{}/eth/v2/debug/beacon/states/{}", self.rpc, slot);
 
         // Setting the header for the request
@@ -84,9 +88,15 @@ impl ConsensusRPC {
             .header("accept", "application/octet-stream")
             .send()
             .await
-            .map_err(|e| RpcError::new("get_state", e))?;
+            .map_err(|e| RpcError::new("get_state", e))?
+            .bytes()
+            .await?;
 
-        let state: BeaconStateType = ssz_rs::deserialize(&res.bytes().await?)?;
+        println!("Got state for slot {} in {:?}", slot, time.elapsed());
+        let time = Instant::now();
+
+        let state: BeaconStateType = ssz_rs::deserialize(&res)?;
+        println!("Deserialized state in {:?}", time.elapsed());
 
         Ok(state)
     }
@@ -100,4 +110,14 @@ impl ConsensusRPC {
 
         Ok(res.data.header.message)
     }
+
+    // pub async fn get_beacon_block(&self, slot: u64) -> Result<BeaconBlockAlias> {
+    //     let req = format!("{}/eth/v1/beacon/blocks/{}", self.rpc, slot);
+
+    //     let res: BeaconBlockResponse = get(&req)
+    //         .await
+    //         .map_err(|e| RpcError::new("beacon_block", e))?;
+
+    //     Ok(res.data)
+    // }
 }

@@ -19,9 +19,20 @@ async fn main() {
     let consensus: ConsensusRPC = ConsensusRPC::new(CONSENSUS_RPC);
     let execution: ExecutionRPC = ExecutionRPC::new(EXECUTION_RPC);
     let gateway: Gateway = Gateway::new(EXECUTION_RPC, GATEWAY_ADDR);
+    let prover = Prover::new(execution, consensus);
+    let wasm = WasmClient::new(NODE_URL.into(), ADDR.into());
 
-    let mut wasm = WasmClient::new(NODE_URL.into(), ADDR.into());
+    // let execution: ExecutionRPC = ExecutionRPC::new(EXECUTION_RPC);
+    // let number = 18584114;
+    // let block = execution.get_block(number).await.unwrap().unwrap();
+    // let res = prover.prove_log_receipt(block, 0).await;
+    // if (res.is_err()) {
+    //     println!("Error: {:?}", res.err());
+    // } else {
+    //     println!("Result: {:?}", res.unwrap());
+    // }
 
+    let consensus: ConsensusRPC = ConsensusRPC::new(CONSENSUS_RPC);
     let finality_update = consensus.get_finality_update().await.unwrap();
     let finality_header_slot = finality_update.finalized_header.beacon.slot;
     let min_slot_in_block_roots = finality_header_slot - SLOTS_PER_HISTORICAL_ROOT as u64 + 1;
@@ -31,7 +42,6 @@ async fn main() {
         .unwrap();
 
     let first_message = interested_messages.first().unwrap();
-    let prover = Prover::new(execution, consensus);
 
     let proof = prover
         .generate_proof(
@@ -41,15 +51,15 @@ async fn main() {
         .await
         .unwrap();
 
-    let json_string = serde_json::to_string(&proof).unwrap();
+    // let json_string = serde_json::to_string(&proof).unwrap();
 
-    // Print the JSON string
-    println!("AncestryProof JSON: {}", json_string);
+    // // Print the JSON string
+    // println!("AncestryProof JSON: {}", json_string);
 
-    // let state = wasm.get_state().await.unwrap();
-    // println!("State: {:?}", state);
-    let period = wasm.get_period().await.unwrap();
-    println!("Period: {:?}", period);
+    // // let state = wasm.get_state().await.unwrap();
+    // // println!("State: {:?}", state);
+    // let period = wasm.get_period().await.unwrap();
+    // println!("Period: {:?}", period);
 
     //let state = consensus.get_state(7734415).await.unwrap();
     //let res = consensus.get_updates(863, 1).await.unwrap();

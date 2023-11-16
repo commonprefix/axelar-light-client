@@ -5,8 +5,8 @@ use ethers::providers::{FilterKind, HttpRateLimitRetryPolicy, Middleware, Provid
 use ethers::types::{Block, Filter, Log, Transaction, TransactionReceipt, H256, U256, U64};
 use eyre::Result;
 
-
 use crate::error::RpcError;
+
 pub struct ExecutionRPC {
     pub provider: Provider<RetryClient<Http>>,
 }
@@ -34,6 +34,16 @@ impl ExecutionRPC {
             .map_err(|e| RpcError::new("get_transaction_receipt", e))?;
 
         Ok(receipt)
+    }
+
+    pub async fn get_block_receipts(&self, block_number: u64) -> Result<Vec<TransactionReceipt>> {
+        let block_receipts = self
+            .provider
+            .get_block_receipts(block_number)
+            .await
+            .map_err(|e| RpcError::new("get_block_receipts", e))?;
+
+        Ok(block_receipts)
     }
 
     pub async fn get_block(&self, block_number: u64) -> Result<Option<Block<H256>>> {

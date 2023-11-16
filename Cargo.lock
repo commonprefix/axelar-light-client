@@ -1516,6 +1516,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "eth2_hashing"
+version = "0.3.0"
+source = "git+https://github.com/synapseweb3/lighthouse?rev=be911e6#be911e6bd3f54ae84b01310b411be19e2b274634"
+dependencies = [
+ "lazy_static",
+ "sha2 0.10.8",
+]
+
+[[package]]
 name = "ethabi"
 version = "18.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1842,11 +1851,13 @@ name = "feeder"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "cita_trie",
  "cosmos-sdk-proto",
  "cosmrs",
  "ethers",
  "eyre",
  "futures",
+ "hasher",
  "hex",
  "reqwest",
  "retri",
@@ -1857,6 +1868,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tonic",
+ "tree_hash",
  "types",
 ]
 
@@ -4821,6 +4833,16 @@ checksum = "97d095ae15e245a057c8e8451bab9b3ee1e1f68e9ba2b4fbc18d0ac5237835f2"
 dependencies = [
  "pin-project",
  "tracing",
+]
+
+[[package]]
+name = "tree_hash"
+version = "0.4.1"
+source = "git+https://github.com/synapseweb3/lighthouse?rev=be911e6#be911e6bd3f54ae84b01310b411be19e2b274634"
+dependencies = [
+ "eth2_hashing",
+ "ethereum-types",
+ "smallvec",
 ]
 
 [[package]]
