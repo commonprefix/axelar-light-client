@@ -20,6 +20,18 @@ pub enum ContractError {
 
     #[error("Consensus error: {:?}", error)]
     ConsensusError { error: ConsensusError },
+
+    #[error("Invalid BlockRoots proof")]
+    InvalidBlockRootsProof,
+
+    #[error("Invalid BlockRoots branch")]
+    InvalidBlockRootsBranch,
+
+    #[error("Invalid receipt proof")]
+    InvalidReceiptProof,
+
+    #[error("Invalid execution branch")]
+    InvalidExecutionBranch,
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
 }
