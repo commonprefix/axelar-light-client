@@ -7,7 +7,7 @@ use crate::{
 };
 use cita_trie::{MemoryDB, PatriciaTrie, Trie};
 use consensus_types::{
-    consensus::BeaconStateType,
+    consensus::{BeaconBlockAlias, BeaconStateType},
     lightclient::{EventVerificationData, ReceiptProof, UpdateVariant},
 };
 use consensus_types::{

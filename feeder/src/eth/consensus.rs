@@ -5,7 +5,6 @@ use crate::types::*;
 use consensus_types::consensus::{
     BeaconBlockAlias, BeaconStateType, Bootstrap, FinalityUpdate, OptimisticUpdate, Update,
 };
-use cosmos_sdk_proto::tendermint::serializers::bytes;
 use eyre::Result;
 use reqwest;
 use retri::{retry, BackoffSettings};
@@ -104,20 +103,20 @@ impl ConsensusRPC {
     pub async fn get_beacon_block_header(&self, slot: u64) -> Result<BeaconBlockHeader> {
         let req = format!("{}/eth/v1/beacon/headers/{}", self.rpc, slot);
 
-        let res: BeaconBlockResponse = get(&req)
+        let res: BeaconBlockHeaderResponse = get(&req)
             .await
             .map_err(|e| RpcError::new("beacon_header", e))?;
 
         Ok(res.data.header.message)
     }
 
-    // pub async fn get_beacon_block(&self, slot: u64) -> Result<BeaconBlockAlias> {
-    //     let req = format!("{}/eth/v1/beacon/blocks/{}", self.rpc, slot);
+    pub async fn get_beacon_block(&self, slot: u64) -> Result<BeaconBlockAlias> {
+        let req = format!("{}/eth/v2/beacon/blocks/{}", self.rpc, slot);
 
-    //     let res: BeaconBlockResponse = get(&req)
-    //         .await
-    //         .map_err(|e| RpcError::new("beacon_block", e))?;
+        let res: BeaconBlockResponse = get(&req)
+            .await
+            .map_err(|e| RpcError::new("beacon_block", e))?;
 
-    //     Ok(res.data)
-    // }
+        Ok(res.data.message)
+    }
 }

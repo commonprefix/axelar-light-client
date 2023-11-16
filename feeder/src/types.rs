@@ -1,5 +1,5 @@
 use consensus_types::{
-    consensus::{Bootstrap, FinalityUpdate, OptimisticUpdate, Update},
+    consensus::{BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update},
     lightclient::Message,
 };
 use ethers::types::H256;
@@ -25,20 +25,29 @@ pub struct BootstrapResponse {
 }
 
 #[derive(serde::Deserialize, Debug)]
-pub struct BeaconBlockResponse {
-    pub data: BeaconBlockHeaderResponse,
-}
-
-#[derive(serde::Deserialize, Debug)]
 pub struct BeaconBlockHeaderResponse {
-    pub header: BeaconBlockMessage,
+    pub data: BeaconBlockHeaderContainer,
 }
 
 #[derive(serde::Deserialize, Debug)]
-pub struct BeaconBlockMessage {
+pub struct BeaconBlockHeaderContainer {
+    pub header: BeaconBlockHeaderMessage,
+}
+
+#[derive(serde::Deserialize, Debug)]
+pub struct BeaconBlockHeaderMessage {
     pub message: BeaconBlockHeader,
 }
 
+#[derive(serde::Deserialize, Debug)]
+pub struct BeaconBlockResponse {
+    pub data: BeaconBlockContainer,
+}
+
+#[derive(serde::Deserialize, Debug)]
+pub struct BeaconBlockContainer {
+    pub message: BeaconBlockAlias,
+}
 #[derive(serde::Deserialize, Debug)]
 pub struct FinalityUpdateData {
     pub data: FinalityUpdate,
