@@ -76,14 +76,17 @@ pub fn verify_execution_payload_branch(
     )
 }
 
-pub fn verify_proof(root: &[u8], key: &mut [u8], proof: Vec<Vec<u8>>) -> Vec<u8> {
+pub fn verify_trie_proof(root: Root, key: u64, proof: Vec<Node>) -> Option<Vec<u8>> {
     let memdb = Arc::new(MemoryDB::new(true));
     let hasher = Arc::new(HasherKeccak::new());
+    let proof_bytes = proof
+        .into_iter()
+        .map(|node| node.as_bytes().to_vec())
+        .collect::<Vec<Vec<u8>>>();
 
     let trie = PatriciaTrie::new(Arc::clone(&memdb), Arc::clone(&hasher));
-    let value_option = trie.verify_proof(root, key, proof).unwrap();
-
-    value_option.unwrap_or_else(|| vec![0])
+    trie.verify_proof(root.as_bytes(), key.to_ne_bytes().as_ref(), proof_bytes)
+        .unwrap()
 }
 
 pub fn branch_to_nodes(branch: Vec<Bytes32>) -> Result<Vec<Node>> {
