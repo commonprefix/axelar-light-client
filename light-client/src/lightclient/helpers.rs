@@ -200,7 +200,7 @@ pub mod test_helpers {
     use types::{
         common::{ChainConfig, Fork, Forks},
         consensus::{Bootstrap, Update},
-        lightclient::TopicInclusionRequest,
+        lightclient::{EventVerificationData, TopicInclusionRequest},
     };
 
     use super::hex_str_to_bytes;
@@ -219,6 +219,12 @@ pub mod test_helpers {
         let update: Update = serde_json::from_reader(file).unwrap();
 
         update
+    }
+
+    pub fn get_event_verification_data() -> EventVerificationData {
+        let path = format!("testdata/event_verification_data.json");
+        let file = File::open(path).unwrap();
+        serde_json::from_reader(file).unwrap()
     }
 
     pub fn get_topic_inclusion_query() -> TopicInclusionRequest {
