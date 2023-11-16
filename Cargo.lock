@@ -388,7 +388,7 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 [[package]]
 name = "axelar-wasm-std"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier#27f1e1a6efcb40eaa554babd7197a2338da972e3"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier#da04fb5bee857869fa843adaf0e8aa9e6d5ae968"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -408,7 +408,7 @@ dependencies = [
 [[package]]
 name = "axelar-wasm-std-derive"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier#27f1e1a6efcb40eaa554babd7197a2338da972e3"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier#da04fb5bee857869fa843adaf0e8aa9e6d5ae968"
 dependencies = [
  "axelar-wasm-std",
  "error-stack",
@@ -522,7 +522,7 @@ checksum = "7e141fb0f8be1c7b45887af94c88b182472b57c96b56773250ae00cd6a14a164"
 dependencies = [
  "bs58",
  "hmac",
- "k256 0.13.1",
+ "k256 0.13.2",
  "rand_core 0.6.4",
  "ripemd",
  "sha2 0.10.8",
@@ -756,7 +756,7 @@ dependencies = [
  "coins-core",
  "digest 0.10.7",
  "hmac",
- "k256 0.13.1",
+ "k256 0.13.2",
  "serde",
  "sha2 0.10.8",
  "thiserror",
@@ -801,7 +801,7 @@ dependencies = [
 [[package]]
 name = "connection-router"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier#27f1e1a6efcb40eaa554babd7197a2338da972e3"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier#da04fb5bee857869fa843adaf0e8aa9e6d5ae968"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -872,7 +872,7 @@ version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32560304ab4c365791fd307282f76637213d8083c1a98490c35159cd67852237"
 dependencies = [
- "prost 0.12.1",
+ "prost 0.12.2",
  "prost-types",
  "tendermint-proto",
  "tonic",
@@ -886,13 +886,13 @@ checksum = "47126f5364df9387b9d8559dcef62e99010e1d4098f39eb3f7ee4b5c254e40ea"
 dependencies = [
  "bip32",
  "cosmos-sdk-proto",
- "ecdsa 0.16.8",
+ "ecdsa 0.16.9",
  "eyre",
- "k256 0.13.1",
+ "k256 0.13.2",
  "rand_core 0.6.4",
  "serde",
  "serde_json",
- "signature 2.1.0",
+ "signature 2.2.0",
  "subtle-encoding",
  "tendermint",
  "thiserror",
@@ -905,9 +905,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8bb3c77c3b7ce472056968c745eb501c440fbc07be5004eba02782c35bfbbe3"
 dependencies = [
  "digest 0.10.7",
- "ecdsa 0.16.8",
+ "ecdsa 0.16.9",
  "ed25519-zebra",
- "k256 0.13.1",
+ "k256 0.13.2",
  "rand_core 0.6.4",
  "thiserror",
 ]
@@ -1134,7 +1134,7 @@ dependencies = [
  "cw-utils",
  "derivative",
  "itertools 0.11.0",
- "prost 0.12.1",
+ "prost 0.12.2",
  "schemars",
  "serde",
  "sha2 0.10.8",
@@ -1335,15 +1335,15 @@ dependencies = [
 
 [[package]]
 name = "ecdsa"
-version = "0.16.8"
+version = "0.16.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4b1e0c257a9e9f25f90ff76d7a68360ed497ee519c8e428d1825ef0000799d4"
+checksum = "ee27f32b5c5292967d2d4a9d7f1e0b0aed2c15daded5a60300e4abb9d8020bca"
 dependencies = [
  "der 0.7.8",
  "digest 0.10.7",
- "elliptic-curve 0.13.6",
+ "elliptic-curve 0.13.7",
  "rfc6979 0.4.0",
- "signature 2.1.0",
+ "signature 2.2.0",
  "spki 0.7.2",
 ]
 
@@ -1354,7 +1354,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
 dependencies = [
  "pkcs8 0.10.2",
- "signature 2.1.0",
+ "signature 2.2.0",
 ]
 
 [[package]]
@@ -1413,9 +1413,9 @@ dependencies = [
 
 [[package]]
 name = "elliptic-curve"
-version = "0.13.6"
+version = "0.13.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d97ca172ae9dc9f9b779a6e3a65d308f2af74e5b8c921299075bdb4a0370e914"
+checksum = "e9775b22bc152ad86a0cf23f0f348b884b26add12bf741e7ffc4d4ab2ab4d205"
 dependencies = [
  "base16ct 0.2.0",
  "crypto-bigint 0.5.4",
@@ -1457,7 +1457,7 @@ dependencies = [
  "base64 0.21.5",
  "bytes",
  "hex",
- "k256 0.13.1",
+ "k256 0.13.2",
  "log",
  "rand",
  "rlp",
@@ -1474,9 +1474,9 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
 name = "errno"
-version = "0.3.6"
+version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c18ee0ed65a5f1f81cac6b1d213b69c35fa47d4252ad41f1486dbd8226fe36e"
+checksum = "f258a7194e7f7c2a7837a8913aeab7fd8c383457034fa20ce4dd3dcb813e8eb8"
 dependencies = [
  "libc",
  "windows-sys",
@@ -1661,10 +1661,10 @@ dependencies = [
  "cargo_metadata",
  "chrono",
  "const-hex",
- "elliptic-curve 0.13.6",
+ "elliptic-curve 0.13.7",
  "ethabi",
  "generic-array",
- "k256 0.13.1",
+ "k256 0.13.2",
  "num_enum",
  "once_cell",
  "open-fastrlp",
@@ -1769,7 +1769,7 @@ dependencies = [
  "coins-bip32",
  "coins-bip39",
  "const-hex",
- "elliptic-curve 0.13.6",
+ "elliptic-curve 0.13.7",
  "eth-keystore",
  "ethers-core",
  "rand",
@@ -1852,7 +1852,7 @@ dependencies = [
  "retri",
  "serde",
  "serde_json",
- "ssz-rs",
+ "ssz-rs 0.8.0 (git+https://github.com/commonprefix/ssz-rs?branch=main)",
  "sync-committee-primitives",
  "thiserror",
  "tokio",
@@ -2167,9 +2167,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.3.21"
+version = "0.3.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91fc23aa11be92976ef4729127f1a74adf36d8436f7816b185d18df956790833"
+checksum = "4d6250322ef6e60f93f9a2162799302cd6f68f79f6e5d85c8c16f14d1d958178"
 dependencies = [
  "bytes",
  "fnv",
@@ -2177,7 +2177,7 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "http",
- "indexmap 1.9.3",
+ "indexmap 2.1.0",
  "slab",
  "tokio",
  "tokio-util",
@@ -2553,16 +2553,16 @@ dependencies = [
 
 [[package]]
 name = "k256"
-version = "0.13.1"
+version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cadb76004ed8e97623117f3df85b17aaa6626ab0b0831e6573f104df16cd1bcc"
+checksum = "3f01b677d82ef7a676aa37e099defd83a28e15687112cafdd112d60236b6115b"
 dependencies = [
  "cfg-if",
- "ecdsa 0.16.8",
- "elliptic-curve 0.13.6",
+ "ecdsa 0.16.9",
+ "elliptic-curve 0.13.7",
  "once_cell",
  "sha2 0.10.8",
- "signature 2.1.0",
+ "signature 2.2.0",
 ]
 
 [[package]]
@@ -2649,7 +2649,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "ssz-rs",
+ "ssz-rs 0.8.0 (git+https://github.com/polytope-labs/ssz-rs?branch=main)",
  "sync-committee-primitives",
  "thiserror",
  "types",
@@ -3313,12 +3313,12 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.12.1"
+version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4fdd22f3b9c31b53c060df4a0613a1c7f062d4115a2b984dd15b1858f7e340d"
+checksum = "5a5a410fc7882af66deb8d01d01737353cf3ad6204c408177ba494291a626312"
 dependencies = [
  "bytes",
- "prost-derive 0.12.1",
+ "prost-derive 0.12.2",
 ]
 
 [[package]]
@@ -3336,9 +3336,9 @@ dependencies = [
 
 [[package]]
 name = "prost-derive"
-version = "0.12.1"
+version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "265baba7fabd416cf5078179f7d2cbeca4ce7a9041111900675ea7c4cb8a4c32"
+checksum = "065717a5dfaca4a83d2fe57db3487b311365200000551d7a364e715dbf4346bc"
 dependencies = [
  "anyhow",
  "itertools 0.11.0",
@@ -3349,11 +3349,11 @@ dependencies = [
 
 [[package]]
 name = "prost-types"
-version = "0.12.1"
+version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e081b29f63d83a4bc75cfc9f3fe424f9156cf92d8a4f0c9407cce9a1b67327cf"
+checksum = "8339f32236f590281e2f6368276441394fcd1b2133b549cc895d0ae80f2f9a52"
 dependencies = [
- "prost 0.12.1",
+ "prost 0.12.2",
 ]
 
 [[package]]
@@ -3500,7 +3500,7 @@ checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
 [[package]]
 name = "report"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier#27f1e1a6efcb40eaa554babd7197a2338da972e3"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier#da04fb5bee857869fa843adaf0e8aa9e6d5ae968"
 dependencies = [
  "error-stack",
  "eyre",
@@ -3717,9 +3717,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.21.8"
+version = "0.21.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "446e14c5cda4f3f30fe71863c34ec70f5ac79d6087097ad0bb433e1be5edf04c"
+checksum = "629648aced5775d558af50b2b4c7b02983a04b312126d45eeead26e7caa498b9"
 dependencies = [
  "log",
  "ring 0.17.5",
@@ -4112,9 +4112,9 @@ dependencies = [
 
 [[package]]
 name = "signature"
-version = "2.1.0"
+version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e1788eed21689f9cf370582dfc467ef36ed9c707f073528ddafa8d83e3b8500"
+checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
 dependencies = [
  "digest 0.10.7",
  "rand_core 0.6.4",
@@ -4231,6 +4231,22 @@ dependencies = [
 [[package]]
 name = "ssz-rs"
 version = "0.8.0"
+source = "git+https://github.com/commonprefix/ssz-rs?branch=main#a0258287dd789661769a7522c5f5fe8ea1737c89"
+dependencies = [
+ "as-any",
+ "bitvec",
+ "hex",
+ "itertools 0.10.5",
+ "num-bigint",
+ "parity-scale-codec",
+ "serde",
+ "sha2 0.9.9",
+ "ssz-rs-derive 0.8.0 (git+https://github.com/commonprefix/ssz-rs?branch=main)",
+]
+
+[[package]]
+name = "ssz-rs"
+version = "0.8.0"
 source = "git+https://github.com/polytope-labs/ssz-rs?branch=main#6f5d37b7f92875b5cbb6ef60e8c498ca013943cb"
 dependencies = [
  "as-any",
@@ -4241,7 +4257,17 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sha2 0.9.9",
- "ssz-rs-derive",
+ "ssz-rs-derive 0.8.0 (git+https://github.com/polytope-labs/ssz-rs?branch=main)",
+]
+
+[[package]]
+name = "ssz-rs-derive"
+version = "0.8.0"
+source = "git+https://github.com/commonprefix/ssz-rs?branch=main#a0258287dd789661769a7522c5f5fe8ea1737c89"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -4361,7 +4387,7 @@ dependencies = [
 [[package]]
 name = "sync-committee-primitives"
 version = "0.1.0"
-source = "git+https://github.com/commonprefix/sync-committee-rs?branch=cp_changes#7e560f0d605c4d32910a5dd6b2f9e23814ebb2d8"
+source = "git+https://github.com/commonprefix/sync-committee-rs?branch=cp_changes#832d117bb29b4ae5e542399e51b38f3165a6c4b3"
 dependencies = [
  "anyhow",
  "ark-bls12-381",
@@ -4372,7 +4398,7 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "serde",
- "ssz-rs",
+ "ssz-rs 0.8.0 (git+https://github.com/commonprefix/ssz-rs?branch=main)",
 ]
 
 [[package]]
@@ -4433,10 +4459,10 @@ dependencies = [
  "ed25519-consensus",
  "flex-error",
  "futures",
- "k256 0.13.1",
+ "k256 0.13.2",
  "num-traits",
  "once_cell",
- "prost 0.12.1",
+ "prost 0.12.2",
  "prost-types",
  "ripemd",
  "serde",
@@ -4444,7 +4470,7 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "sha2 0.10.8",
- "signature 2.1.0",
+ "signature 2.2.0",
  "subtle",
  "subtle-encoding",
  "tendermint-proto",
@@ -4462,7 +4488,7 @@ dependencies = [
  "flex-error",
  "num-derive",
  "num-traits",
- "prost 0.12.1",
+ "prost 0.12.2",
  "prost-types",
  "serde",
  "serde_bytes",
@@ -4715,7 +4741,7 @@ dependencies = [
  "hyper-timeout",
  "percent-encoding",
  "pin-project",
- "prost 0.12.1",
+ "prost 0.12.2",
  "tokio",
  "tokio-stream",
  "tower",
@@ -4854,7 +4880,7 @@ dependencies = [
  "hex",
  "serde",
  "serde_json",
- "ssz-rs",
+ "ssz-rs 0.8.0 (git+https://github.com/commonprefix/ssz-rs?branch=main)",
  "sync-committee-primitives",
 ]
 
@@ -5283,9 +5309,9 @@ dependencies = [
 
 [[package]]
 name = "zeroize"
-version = "1.6.0"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a0956f1ba7c7909bfb66c2e9e4124ab6f6482560f6628b5aaeba39207c9aad9"
+checksum = "525b4ec142c6b68a2d10f01f7bbf6755599ca3f81ea53b8431b7dd348f5fdb2d"
 dependencies = [
  "zeroize_derive",
 ]
