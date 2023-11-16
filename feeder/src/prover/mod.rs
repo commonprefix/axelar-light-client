@@ -9,9 +9,16 @@ use consensus_types::{
     consensus::BeaconStateType,
     lightclient::{EventVerificationData, ReceiptProof, UpdateVariant},
 };
+use ethers::types::{Block, H256};
 use eyre::{anyhow, Result};
-use ssz_rs::Merkleized;
-use sync_committee_rs::constants::{BLOCK_ROOTS_INDEX, SLOTS_PER_HISTORICAL_ROOT};
+use ssz_rs::{
+    get_generalized_index, GeneralizedIndex, Merkleized, SszReflect, SszTypeClass,
+    SszVariableOrIndex,
+};
+use sync_committee_rs::{
+    consensus_types::BeaconBlockHeader,
+    constants::{BLOCK_ROOTS_INDEX, SLOTS_PER_HISTORICAL_ROOT},
+};
 
 pub struct Prover {
     execution_rpc: ExecutionRPC,
@@ -36,7 +43,7 @@ impl Prover {
             return Err(eyre::eyre!("Block not found"));
         }
         let target_block_slot = calc_slot_from_timestamp(target_block.unwrap().timestamp.as_u64());
-        let target_beacon_block_header = self
+        let mut target_beacon_block_header = self
             .consensus_rpc
             .get_beacon_block_header(target_block_slot)
             .await?;
@@ -51,7 +58,7 @@ impl Prover {
             .prove_ancestry(
                 &mut recent_block_state,
                 recent_block.slot,
-                target_block_slot,
+                &mut target_beacon_block_header,
             )
             .await?;
 
@@ -71,15 +78,20 @@ impl Prover {
         &self,
         recent_block_state: &mut BeaconStateType,
         recent_block_slot: u64,
-        interested_block_slot: u64,
+        target_block: &mut BeaconBlockHeader,
     ) -> Result<AncestryProof> {
-        let is_in_block_roots_range = interested_block_slot < recent_block_slot
-            && recent_block_slot <= interested_block_slot + SLOTS_PER_HISTORICAL_ROOT as u64;
+        let is_in_block_roots_range = target_block.slot < recent_block_slot
+            && recent_block_slot <= target_block.slot + SLOTS_PER_HISTORICAL_ROOT as u64;
         if !is_in_block_roots_range {
             return Err(anyhow!("Invalid slot"));
         }
 
-        let block_index = interested_block_slot as usize % SLOTS_PER_HISTORICAL_ROOT;
+        let block_index = get_generalized_index(
+            &recent_block_state.block_roots,
+            &[SszVariableOrIndex::Index(
+                target_block.slot as usize % SLOTS_PER_HISTORICAL_ROOT,
+            )],
+        );
 
         println!("Generating proof from block roots to block_roots root");
         let start = Instant::now();
@@ -88,8 +100,18 @@ impl Prover {
 
         let block_roots_proof = BlockRootsProof {
             block_header_index: block_index as u64,
-            block_header_branch: proof,
+            block_header_branch: proof.clone(),
         };
+
+        // println!(
+        //     "{:?}",
+        //     ssz_rs::verify_merkle_proof(
+        //         &target_block.hash_tree_root()?,
+        //         &proof[..],
+        //         &GeneralizedIndex(block_index),
+        //         &recent_block_state.block_roots.hash_tree_root()?
+        //     )
+        // );
 
         println!("Generating proof block roots to state root");
         let start = Instant::now();
@@ -100,6 +122,5 @@ impl Prover {
             block_roots_proof,
             block_roots_branch,
         })
-        //}
     }
 }
