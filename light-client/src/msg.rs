@@ -3,7 +3,7 @@ use cosmwasm_schema::cw_serde;
 use types::{
     common::{ChainConfig, Forks},
     consensus::{Bootstrap, Update},
-    lightclient::BlockVerificationData,
+    lightclient::{BlockVerificationData, EventVerificationData},
 };
 
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
@@ -38,6 +38,9 @@ pub enum ExecuteMsg {
         receipt: Vec<u8>,
         // #[serde(deserialize_with = "from_hex_string", serialize_with = "to_hex_string")]
         topic: Vec<u8>,
+    },
+    EventVerificationData {
+        payload: EventVerificationData,
     },
 }
 
