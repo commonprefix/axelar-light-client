@@ -53,7 +53,13 @@ pub fn execute(
         verification_request @ VerifyProof { .. } => execute::verify_proof(verification_request),
         VerifyTopicInclusion { receipt, topic } => execute::verify_topic_inclusion(receipt, topic),
         EventVerificationData { payload } => {
-            execute::process_verification_data(deps, &env, payload)
+            let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
+            let config = CONFIG.load(deps.storage)?;
+            let lc = LightClient::new(&config, Some(state), &env);
+            if execute::process_verification_data(&lc, payload).is_err() {
+                return Err(ContractError::InvalidVerificationData);
+            }
+            Ok(Response::new())
         }
     }
 }
@@ -85,14 +91,9 @@ mod execute {
     use super::*;
 
     pub fn process_verification_data(
-        deps: DepsMut,
-        env: &Env,
+        lightclient: &LightClient,
         mut data: EventVerificationData,
-    ) -> Result<Response, ContractError> {
-        let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
-        let config = CONFIG.load(deps.storage)?;
-        let lc = LightClient::new(&config, Some(state), env);
-
+    ) -> Result<(), ContractError> {
         // Get recent block
         let recent_block = match data.update {
             UpdateVariant::Finality(update) => {
@@ -164,7 +165,7 @@ mod execute {
         if !valid_execution_branch {
             return Err(ContractError::InvalidExecutionBranch);
         }
-        Ok(Response::new())
+        return Ok(());
     }
 
     pub fn verify_proof(msg: ExecuteMsg) -> Result<Response, ContractError> {
