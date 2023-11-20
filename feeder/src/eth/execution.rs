@@ -56,6 +56,19 @@ impl ExecutionRPC {
         Ok(block)
     }
 
+    pub async fn get_block_with_txs(
+        &self,
+        block_number: u64,
+    ) -> Result<Option<Block<Transaction>>> {
+        let block = self
+            .provider
+            .get_block_with_txs(block_number)
+            .await
+            .map_err(|e| RpcError::new("get_block", e))?;
+
+        Ok(block)
+    }
+
     pub async fn get_blocks(&self, block_numbers: &[u64]) -> Result<Vec<Option<Block<H256>>>> {
         let mut futures = vec![];
         for &block_number in block_numbers {

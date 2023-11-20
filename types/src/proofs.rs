@@ -1,8 +1,10 @@
+use std::default;
+
 use ssz_rs::Node;
 
 /// Holds the neccessary proofs required to verify a header in the `block_roots` field
 /// either in [`BeaconState`] or [`HistoricalBatch`].
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
 pub struct BlockRootsProof {
     /// Generalized index of the header in the `block_roots` list.
     pub block_header_index: u64,

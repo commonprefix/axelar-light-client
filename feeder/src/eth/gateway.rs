@@ -53,11 +53,11 @@ impl Gateway {
             .iter()
             .zip(events)
             .map(|(log, event)| {
-                let tx_index = log.transaction_index.unwrap();
+                let tx_hash = log.transaction_hash.unwrap();
                 let log_index = log.log_index.unwrap();
                 let cc_id = CrossChainId {
                     chain: "ethereum".parse().unwrap(),
-                    id: format!("{}:{}", tx_index, log_index).parse().unwrap(),
+                    id: format!("{}:{}", tx_hash, log_index).parse().unwrap(),
                 };
 
                 InternalMessage {

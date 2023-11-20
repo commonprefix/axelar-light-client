@@ -15,8 +15,8 @@ use consensus_types::{
     proofs::{AncestryProof, BlockRootsProof},
 };
 use ethers::{
-    types::{Block, TransactionReceipt, H256},
-    utils::rlp::{encode, Encodable},
+    types::{Block, Transaction, TransactionReceipt, H256},
+    utils::rlp::{self, encode, Encodable},
 };
 use eyre::{anyhow, Result};
 use hasher::HasherKeccak;
@@ -44,7 +44,10 @@ impl Prover {
         message: InternalMessage,
         update: UpdateVariant,
     ) -> Result<EventVerificationData> {
-        let target_block = self.execution_rpc.get_block(message.block_number).await?;
+        let target_block = self
+            .execution_rpc
+            .get_block_with_txs(message.block_number)
+            .await?;
         if target_block.is_none() {
             return Err(eyre::eyre!("Block not found"));
         }
@@ -63,21 +66,40 @@ impl Prover {
             UpdateVariant::Optimistic(update) => update.attested_header.beacon,
         };
 
-        let mut recent_block_state = self.consensus_rpc.get_state(recent_block.slot).await?;
-        let ancestry_proof = self
-            .prove_ancestry(
-                &mut recent_block_state,
-                recent_block.slot,
-                &mut beacon_block_header,
-            )
-            .await?;
+        // let mut recent_block_state = self.consensus_rpc.get_state(recent_block.slot).await?;
+        // let ancestry_proof = self
+        //     .prove_ancestry(
+        //         &mut recent_block_state,
+        //         recent_block.slot,
+        //         &mut beacon_block_header,
+        //     )
+        //     .await?;
+        let ancestry_proof = AncestryProof::BlockRoots {
+            block_roots_proof: BlockRootsProof::default(),
+            block_roots_branch: Vec::<Node>::default(),
+        };
 
         let receipts = self
             .execution_rpc
             .get_block_receipts(target_block.number.unwrap().as_u64())
             .await?;
-        let receipt_index = self.get_receipt_index(receipts, &message.message.cc_id)?;
-        let receipts_proof = self.prove_log_receipt(&target_block, receipt_index).await?;
+        println!("Got receipts: {:?}", receipts.len());
+
+        let tx_index = self.get_tx_index(receipts, &message.message.cc_id)?;
+        println!("Got tx index: {:?}", tx_index);
+        let receipts_proof = self.prove_receipt(&target_block, tx_index).await?;
+        println!("Got receipts proof: {:?}", receipts_proof.len());
+        let transactions_proof = self.prove_transaction(&target_block, tx_index).await?;
+        println!("Got transactions proof: {:?}", transactions_proof.len());
+
+        let transactions_root_branch = self
+            .prove_transactions_root_to_exec_payload(&mut target_beacon_block)
+            .await?;
+        println!(
+            "Got transactions root branch: {:?}",
+            transactions_root_branch.len()
+        );
+
         let receipts_root_branch = self
             .prove_receipts_root_to_exec_payload(&mut target_beacon_block)
             .await?;
@@ -89,14 +111,14 @@ impl Prover {
             message: message.message,
             update: update.clone(),
             target_block: beacon_block_header,
-            block_roots_root: recent_block_state.block_roots.hash_tree_root()?,
+            block_roots_root: Node::default(), //recent_block_state.block_roots.hash_tree_root()?,
             ancestry_proof,
             receipt_proof: ReceiptProof {
-                transaction_index: receipt_index,
+                transaction_index: tx_index,
                 receipt_branch: receipts_proof,
                 receipts_root_branch,
-                transaction_branch: Vec::<Vec<u8>>::default(),
-                transactions_root_branch: Vec::<Node>::default(),
+                transaction_branch: transactions_proof,
+                transactions_root_branch: transactions_root_branch,
                 execution_payload_branch,
                 transactions_root: Bytes32::try_from(target_block.receipts_root.as_bytes())?,
                 receipts_root: Bytes32::try_from(target_block.receipts_root.as_bytes())?,
@@ -149,7 +171,32 @@ impl Prover {
         })
     }
 
-    pub async fn prove_log_receipt(&self, block: &Block<H256>, index: u64) -> Result<Vec<Vec<u8>>> {
+    pub async fn prove_transaction(
+        &self,
+        block: &Block<Transaction>,
+        index: u64,
+    ) -> Result<Vec<Vec<u8>>> {
+        let mut trie = self.generate_tx_trie(block.transactions.clone());
+        let trie_root = trie.root().unwrap();
+
+        // Reality check
+        if block.transactions_root != H256::from_slice(&trie_root[0..32]) {
+            return Err(anyhow!("Invalid transactions root from trie generation"));
+        }
+
+        let tx_index = encode(&index);
+        let proof = trie
+            .get_proof(tx_index.to_vec().as_slice())
+            .map_err(|e| anyhow!("Failed to generate proof: {:?}", e))?;
+
+        Ok(proof)
+    }
+
+    pub async fn prove_receipt(
+        &self,
+        block: &Block<Transaction>,
+        index: u64,
+    ) -> Result<Vec<Vec<u8>>> {
         let receipts = self
             .execution_rpc
             .get_block_receipts(block.number.unwrap().as_u64())
@@ -157,25 +204,16 @@ impl Prover {
 
         let mut trie = self.generate_receipts_trie(receipts);
         let trie_root = trie.root().unwrap();
-        let root = H256::from_slice(&trie_root[0..32]);
 
-        if block.receipts_root != root {
-            println!("Receipts root mismatch");
-            return Err(anyhow!("Receipts root mismatch"));
-            //return Err(anyhow!("Invalid receipts root from trie generation"));
+        // Reality check
+        if block.receipts_root != H256::from_slice(&trie_root[0..32]) {
+            return Err(anyhow!("Invalid transactions root from trie generation"));
         }
 
         let log_index = encode(&index);
         let proof = trie
             .get_proof(log_index.to_vec().as_slice())
             .map_err(|e| anyhow!("Failed to generate proof: {:?}", e))?;
-
-        // For themoukos
-        let is_proof_valid = trie.verify_proof(&trie_root, &log_index, proof.clone());
-        println!(
-            "Proof from receipt to receipts_root: {}",
-            is_proof_valid.is_ok()
-        );
 
         Ok(proof)
     }
@@ -184,65 +222,50 @@ impl Prover {
         &self,
         beacon_block: &mut BeaconBlockAlias,
     ) -> Result<Vec<Node>> {
-        let g_index = get_generalized_index(
-            &beacon_block.body,
-            &[SszVariableOrIndex::Name("execution_payload")],
-        );
+        let path = vec![SszVariableOrIndex::Name("execution_payload")];
+        let g_index = get_generalized_index(&beacon_block.body, &path);
+        let proof = ssz_rs::generate_proof(&mut beacon_block.body, &[g_index])?;
 
-        let proof = ssz_rs::generate_proof(&mut beacon_block.body, &[g_index]).unwrap();
-        println!("Proof from exec_payload to beacon_block: {:?}", proof);
+        Ok(proof)
+    }
 
-        // For themoukos
-        let is_proof_valid = ssz_rs::verify_merkle_proof(
-            &beacon_block.body.execution_payload.hash_tree_root()?,
-            &proof,
-            &GeneralizedIndex(g_index),
-            &beacon_block.body.hash_tree_root().unwrap(),
-        );
+    pub async fn prove_transactions_root_to_exec_payload(
+        &self,
+        beacon_block: &mut BeaconBlockAlias,
+    ) -> Result<Vec<Node>> {
+        let path = vec![SszVariableOrIndex::Name("transactions")];
+        // println!("{:#?}", beacon_block.body.execution_payload);
+        let g_index = get_generalized_index(&beacon_block.body.execution_payload, &path);
+        let proof = ssz_rs::generate_proof(&mut beacon_block.body.execution_payload, &[g_index])?;
 
-        println!(
-            "Proof from exec_payload to beacon_block: {:?}",
-            is_proof_valid
-        );
-
-        return Ok(proof);
+        Ok(proof)
     }
 
     pub async fn prove_receipts_root_to_exec_payload(
         &self,
         beacon_block: &mut BeaconBlockAlias,
     ) -> Result<Vec<Node>> {
-        let receipts_root_index = get_generalized_index(
-            &beacon_block.body.execution_payload,
-            &[SszVariableOrIndex::Name("receipts_root")],
-        );
-        let proof = ssz_rs::generate_proof(
-            &mut beacon_block.body.execution_payload,
-            &[receipts_root_index],
-        )?;
+        let path = vec![SszVariableOrIndex::Name("receipts_root")];
+        let g_index = get_generalized_index(&beacon_block.body.execution_payload, &path);
+        let proof = ssz_rs::generate_proof(&mut beacon_block.body.execution_payload, &[g_index])?;
 
-        // For themoukos
-        let is_proof_valid = ssz_rs::verify_merkle_proof(
-            &beacon_block
-                .body
-                .execution_payload
-                .receipts_root
-                .hash_tree_root()
-                .unwrap(),
-            &proof,
-            &GeneralizedIndex(receipts_root_index),
-            &beacon_block
-                .body
-                .execution_payload
-                .hash_tree_root()
-                .unwrap(),
-        );
-        println!(
-            "Proof from receipts_root to exec_payload: {}",
-            is_proof_valid
-        );
+        Ok(proof)
+    }
 
-        return Ok(proof);
+    fn generate_tx_trie(
+        &self,
+        transactions: Vec<Transaction>,
+    ) -> PatriciaTrie<MemoryDB, HasherKeccak> {
+        let memdb = Arc::new(MemoryDB::new(true));
+        let hasher = Arc::new(HasherKeccak::new());
+        let mut trie = PatriciaTrie::new(Arc::clone(&memdb), Arc::clone(&hasher));
+        for (i, tx) in transactions.iter().enumerate() {
+            let key = encode(&i);
+            let value = tx.rlp().to_vec();
+            trie.insert(key.to_vec(), value).unwrap();
+        }
+
+        trie
     }
 
     fn generate_receipts_trie(
@@ -275,24 +298,14 @@ impl Prover {
         }
     }
 
-    fn get_receipt_index(
-        &self,
-        receipts: Vec<TransactionReceipt>,
-        cc_id: &CrossChainId,
-    ) -> Result<u64> {
-        let tx_index = cc_id
-            .id
-            .split_once(":")
-            .and_then(|f| f.0.parse().ok())
-            .unwrap();
+    fn get_tx_index(&self, receipts: Vec<TransactionReceipt>, cc_id: &CrossChainId) -> Result<u64> {
+        let tx_hash = cc_id.id.split_once(":").unwrap().0;
 
-        let event_index = receipts
+        let tx_index = receipts
             .iter()
-            .position(|r| r.transaction_index == tx_index)
+            .position(|r| r.transaction_hash.to_string() == tx_hash)
             .unwrap();
 
-        assert!(event_index == tx_index.as_usize(), "Event index mismatch");
-
-        Ok(event_index as u64)
+        Ok(tx_index as u64)
     }
 }
