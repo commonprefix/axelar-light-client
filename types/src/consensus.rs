@@ -47,22 +47,15 @@ pub type BeaconStateType = BeaconState<
     MAX_TRANSACTIONS_PER_PAYLOAD,
 >;
 
-// impl TryFrom<&BeaconBlock> for BeaconBlockHeader {
-//     type Error = eyre::Report;
-
-//     fn try_from(block: &BeaconBlock) -> std::result::Result<Self, Self::Error> {
-//         let body_root_node = (block.body.clone()).hash_tree_root()?;
-//         let body_root_serialized = ssz_rs::serialize(&body_root_node.clone())?;
-
-//         Ok(Self {
-//             parent_root: block.parent_root.clone(),
-//             slot: block.slot,
-//             proposer_index: block.proposer_index,
-//             state_root: block.state_root.clone(),
-//             body_root: ByteVector::try_from(body_root_serialized)?,
-//         })
-//     }
-// }
+pub fn to_beacon_header(block: &BeaconBlockAlias) -> eyre::Result<BeaconBlockHeader> {
+    Ok(BeaconBlockHeader {
+        slot: block.slot,
+        parent_root: block.parent_root.clone(),
+        proposer_index: block.proposer_index,
+        state_root: block.state_root.clone(),
+        body_root: (block.body.clone()).hash_tree_root()?,
+    })
+}
 
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct Bootstrap {

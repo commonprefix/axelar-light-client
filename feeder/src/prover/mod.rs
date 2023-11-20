@@ -7,7 +7,7 @@ use crate::{
 };
 use cita_trie::{MemoryDB, PatriciaTrie, Trie};
 use consensus_types::{
-    consensus::{BeaconBlockAlias, BeaconStateType},
+    consensus::{to_beacon_header, BeaconBlockAlias, BeaconStateType},
     lightclient::{EventVerificationData, ReceiptProof, UpdateVariant},
 };
 use consensus_types::{
@@ -16,14 +16,14 @@ use consensus_types::{
 };
 use ethers::{
     types::{Block, TransactionReceipt, H256},
-    utils::rlp::{encode, Encodable, RlpStream},
+    utils::rlp::{encode, Encodable},
 };
 use eyre::{anyhow, Result};
-use hasher::{Hasher, HasherKeccak};
-use ssz_rs::{get_generalized_index, Merkleized, Node, SszVariableOrIndex};
+use hasher::HasherKeccak;
+use ssz_rs::{get_generalized_index, GeneralizedIndex, Merkleized, Node, SszVariableOrIndex};
 use sync_committee_rs::{
-    consensus_types::{BeaconBlock, BeaconBlockHeader},
-    constants::{BLOCK_ROOTS_INDEX, SLOTS_PER_HISTORICAL_ROOT},
+    consensus_types::BeaconBlockHeader,
+    constants::{Bytes32, BLOCK_ROOTS_INDEX, SLOTS_PER_HISTORICAL_ROOT},
 };
 
 pub struct Prover {
@@ -51,10 +51,12 @@ impl Prover {
         let target_block = target_block.unwrap();
         let target_block_slot = calc_slot_from_timestamp(target_block.timestamp.as_u64());
 
-        let mut target_beacon_block_header = self
+        let mut target_beacon_block = self
             .consensus_rpc
-            .get_beacon_block_header(target_block_slot)
+            .get_beacon_block(target_block_slot)
             .await?;
+
+        let mut beacon_block_header = to_beacon_header(&target_beacon_block)?;
 
         let recent_block = match update.clone() {
             UpdateVariant::Finality(update) => update.finalized_header.beacon,
@@ -66,7 +68,7 @@ impl Prover {
             .prove_ancestry(
                 &mut recent_block_state,
                 recent_block.slot,
-                &mut target_beacon_block_header,
+                &mut beacon_block_header,
             )
             .await?;
 
@@ -75,15 +77,34 @@ impl Prover {
             .get_block_receipts(target_block.number.unwrap().as_u64())
             .await?;
         let receipt_index = self.get_receipt_index(receipts, &message.message.cc_id)?;
-        let receipts_proof = self.prove_log_receipt(target_block, receipt_index).await?;
+        let receipts_proof = self.prove_log_receipt(&target_block, receipt_index).await?;
+        let receipts_root_branch = self
+            .prove_receipts_root_to_exec_payload(&mut target_beacon_block)
+            .await?;
+        let execution_payload_branch = self
+            .prove_exec_payload_to_beacon_block(&mut target_beacon_block)
+            .await?;
 
         Ok(EventVerificationData {
             message: message.message,
             update: update.clone(),
-            target_block: target_beacon_block_header,
-            block_roots_root: recent_block_state.block_roots.hash_tree_root().unwrap(),
+            target_block: beacon_block_header,
+            block_roots_root: recent_block_state.block_roots.hash_tree_root()?,
             ancestry_proof,
-            receipt_proof: ReceiptProof::default(),
+            receipt_proof: ReceiptProof {
+                transaction_index: receipt_index,
+                receipt_branch: receipts_proof,
+                receipts_root_branch,
+                transaction_branch: Vec::<Vec<u8>>::default(),
+                transactions_root_branch: Vec::<Node>::default(),
+                execution_payload_branch,
+                transactions_root: Bytes32::try_from(target_block.receipts_root.as_bytes())?,
+                receipts_root: Bytes32::try_from(target_block.receipts_root.as_bytes())?,
+                execution_payload_root: target_beacon_block
+                    .body
+                    .execution_payload
+                    .hash_tree_root()?,
+            },
         })
     }
 
@@ -116,16 +137,6 @@ impl Prover {
             block_header_branch: proof.clone(),
         };
 
-        // println!(
-        //     "{:?}",
-        //     ssz_rs::verify_merkle_proof(
-        //         &target_block.hash_tree_root()?,
-        //         &proof[..],
-        //         &GeneralizedIndex(block_index),
-        //         &recent_block_state.block_roots.hash_tree_root()?
-        //     )
-        // );
-
         println!("Generating proof block roots to state root");
         let start = Instant::now();
         let block_roots_branch =
@@ -138,7 +149,7 @@ impl Prover {
         })
     }
 
-    pub async fn prove_log_receipt(&self, block: Block<H256>, index: u64) -> Result<()> {
+    pub async fn prove_log_receipt(&self, block: &Block<H256>, index: u64) -> Result<Vec<Vec<u8>>> {
         let receipts = self
             .execution_rpc
             .get_block_receipts(block.number.unwrap().as_u64())
@@ -150,7 +161,7 @@ impl Prover {
 
         if block.receipts_root != root {
             println!("Receipts root mismatch");
-            return Ok(());
+            return Err(anyhow!("Receipts root mismatch"));
             //return Err(anyhow!("Invalid receipts root from trie generation"));
         }
 
@@ -160,15 +171,79 @@ impl Prover {
             .map_err(|e| anyhow!("Failed to generate proof: {:?}", e))?;
 
         // For themoukos
-        let is_proof_valid = trie.verify_proof(&trie_root, &log_index, proof);
-        println!("Is proof valid: {:?}", is_proof_valid.is_ok());
+        let is_proof_valid = trie.verify_proof(&trie_root, &log_index, proof.clone());
+        println!(
+            "Proof from receipt to receipts_root: {}",
+            is_proof_valid.is_ok()
+        );
 
-        Ok(())
+        Ok(proof)
     }
 
-    // pub async fn prove_receipts_root_to_exec_payload(beaconBlock: BeaconBlock) -> Result<()> {
+    pub async fn prove_exec_payload_to_beacon_block(
+        &self,
+        beacon_block: &mut BeaconBlockAlias,
+    ) -> Result<Vec<Node>> {
+        let g_index = get_generalized_index(
+            &beacon_block.body,
+            &[SszVariableOrIndex::Name("execution_payload")],
+        );
 
-    // }
+        let proof = ssz_rs::generate_proof(&mut beacon_block.body, &[g_index]).unwrap();
+        println!("Proof from exec_payload to beacon_block: {:?}", proof);
+
+        // For themoukos
+        let is_proof_valid = ssz_rs::verify_merkle_proof(
+            &beacon_block.body.execution_payload.hash_tree_root()?,
+            &proof,
+            &GeneralizedIndex(g_index),
+            &beacon_block.body.hash_tree_root().unwrap(),
+        );
+
+        println!(
+            "Proof from exec_payload to beacon_block: {:?}",
+            is_proof_valid
+        );
+
+        return Ok(proof);
+    }
+
+    pub async fn prove_receipts_root_to_exec_payload(
+        &self,
+        beacon_block: &mut BeaconBlockAlias,
+    ) -> Result<Vec<Node>> {
+        let receipts_root_index = get_generalized_index(
+            &beacon_block.body.execution_payload,
+            &[SszVariableOrIndex::Name("receipts_root")],
+        );
+        let proof = ssz_rs::generate_proof(
+            &mut beacon_block.body.execution_payload,
+            &[receipts_root_index],
+        )?;
+
+        // For themoukos
+        let is_proof_valid = ssz_rs::verify_merkle_proof(
+            &beacon_block
+                .body
+                .execution_payload
+                .receipts_root
+                .hash_tree_root()
+                .unwrap(),
+            &proof,
+            &GeneralizedIndex(receipts_root_index),
+            &beacon_block
+                .body
+                .execution_payload
+                .hash_tree_root()
+                .unwrap(),
+        );
+        println!(
+            "Proof from receipts_root to exec_payload: {}",
+            is_proof_valid
+        );
+
+        return Ok(proof);
+    }
 
     fn generate_receipts_trie(
         &self,

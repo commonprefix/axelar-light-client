@@ -4,10 +4,9 @@ mod prover;
 mod types;
 mod wasm;
 
-use consensus_types::lightclient::UpdateVariant;
 use eth::{consensus::ConsensusRPC, constants::*, execution::ExecutionRPC, gateway::Gateway};
 use prover::Prover;
-use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
+use ssz_rs::Merkleized;
 use tokio;
 use wasm::WasmClient;
 
@@ -33,23 +32,37 @@ async fn main() {
     // }
 
     let consensus: ConsensusRPC = ConsensusRPC::new(CONSENSUS_RPC);
-    let finality_update = consensus.get_finality_update().await.unwrap();
-    let finality_header_slot = finality_update.finalized_header.beacon.slot;
-    let min_slot_in_block_roots = finality_header_slot - SLOTS_PER_HISTORICAL_ROOT as u64 + 1;
-    let interested_messages = gateway
-        .get_messages_in_slot_range(min_slot_in_block_roots, finality_header_slot)
+    let mut beacon_block = consensus.get_beacon_block(7806120).await.unwrap();
+    let header = consensus.get_beacon_block_header(7806120).await.unwrap();
+
+    println!(
+        "Beacon Block body: {:?}, header body {:?}",
+        beacon_block.body.hash_tree_root(),
+        header.body_root
+    );
+
+    prover
+        .prove_exec_payload_to_beacon_block(&mut beacon_block)
         .await
         .unwrap();
 
-    let first_message = interested_messages.first().unwrap();
+    // let finality_update = consensus.get_finality_update().await.unwrap();
+    // let finality_header_slot = finality_update.finalized_header.beacon.slot;
+    // let min_slot_in_block_roots = finality_header_slot - SLOTS_PER_HISTORICAL_ROOT as u64 + 1;
+    // let interested_messages = gateway
+    //     .get_messages_in_slot_range(min_slot_in_block_roots, finality_header_slot)
+    //     .await
+    //     .unwrap();
 
-    let proof = prover
-        .generate_proof(
-            first_message.clone(),
-            UpdateVariant::Finality(finality_update),
-        )
-        .await
-        .unwrap();
+    // let first_message = interested_messages.first().unwrap();
+
+    // let proof = prover
+    //     .generate_proof(
+    //         first_message.clone(),
+    //         UpdateVariant::Finality(finality_update),
+    //     )
+    //     .await
+    //     .unwrap();
 
     // let json_string = serde_json::to_string(&proof).unwrap();
 
