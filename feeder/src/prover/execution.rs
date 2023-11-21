@@ -85,3 +85,71 @@ fn encode_receipt(receipt: &TransactionReceipt) -> Vec<u8> {
         legacy_receipt_encoded.to_vec()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use cita_trie::{MemoryDB, PatriciaTrie, Trie};
+    use ethers::{
+        types::{Block, Transaction, TransactionReceipt},
+        utils::rlp::encode,
+    };
+    use hasher::HasherKeccak;
+    use std::{fs::File, sync::Arc};
+    use sync_committee_rs::constants::Root;
+
+    use crate::prover::execution::{generate_receipt_proof, generate_transaction_proof};
+
+    fn get_execution_block() -> Block<Transaction> {
+        let file = File::open("./src/prover/testdata/execution_block.json").unwrap();
+        serde_json::from_reader(file).unwrap()
+    }
+
+    fn get_receipts() -> Vec<TransactionReceipt> {
+        let file = File::open("./src/prover/testdata/receipts.json").unwrap();
+        serde_json::from_reader(file).unwrap()
+    }
+
+    fn verify_trie_proof(root: Root, key: u64, proof_bytes: Vec<Vec<u8>>) -> Option<Vec<u8>> {
+        let memdb = Arc::new(MemoryDB::new(true));
+        let hasher = Arc::new(HasherKeccak::new());
+
+        let trie = PatriciaTrie::new(Arc::clone(&memdb), Arc::clone(&hasher));
+        trie.verify_proof(
+            root.as_bytes(),
+            encode(&key).to_vec().as_slice(),
+            proof_bytes,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn test_transactions_proof() {
+        let mut execution_block = get_execution_block();
+
+        let proof = generate_transaction_proof(&mut execution_block, 1).unwrap();
+        let bytes: Result<[u8; 32], _> = execution_block.transactions_root[0..32].try_into();
+        let root = Root::from_bytes(bytes.unwrap());
+
+        let valid_proof = verify_trie_proof(root, 1, proof.clone());
+        let invalid_proof = verify_trie_proof(root, 2, proof);
+
+        assert!(valid_proof.is_some());
+        assert!(invalid_proof.is_none())
+    }
+
+    #[test]
+    fn test_receipts_proof() {
+        let mut execution_block = get_execution_block();
+        let receipts = &get_receipts();
+
+        let proof = generate_receipt_proof(&mut execution_block, receipts, 1).unwrap();
+        let bytes: Result<[u8; 32], _> = execution_block.receipts_root[0..32].try_into();
+        let root = Root::from_bytes(bytes.unwrap());
+
+        let valid_proof = verify_trie_proof(root, 1, proof.clone());
+        let invalid_proof = verify_trie_proof(root, 2, proof);
+
+        assert!(valid_proof.is_some());
+        assert!(invalid_proof.is_none())
+    }
+}

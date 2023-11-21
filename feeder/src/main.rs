@@ -4,12 +4,11 @@ mod prover;
 mod types;
 mod wasm;
 
-
+use consensus_types::lightclient::UpdateVariant;
 use eth::{consensus::ConsensusRPC, constants::*, execution::ExecutionRPC, gateway::Gateway};
 use prover::Prover;
 
-
-
+use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
 use wasm::WasmClient;
 
 #[tokio::main]
@@ -36,7 +35,7 @@ async fn main() {
     let first_message = interested_messages.first().unwrap();
 
     let proof = prover
-        .generate_proof(
+        .prove_event(
             first_message.clone(),
             UpdateVariant::Finality(finality_update),
         )

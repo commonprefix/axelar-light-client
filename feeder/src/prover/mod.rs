@@ -1,8 +1,5 @@
 mod consensus;
 mod execution;
-mod test;
-
-
 
 use crate::{
     eth::{consensus::ConsensusRPC, execution::ExecutionRPC, utils::calc_slot_from_timestamp},
@@ -15,23 +12,15 @@ use crate::{
     },
     types::InternalMessage,
 };
+use consensus_types::lightclient::CrossChainId;
 use consensus_types::{
-    consensus::{to_beacon_header},
+    consensus::to_beacon_header,
     lightclient::{EventVerificationData, ReceiptProof, UpdateVariant},
 };
-use consensus_types::{
-    lightclient::CrossChainId,
-};
-
-use ethers::{
-    types::{TransactionReceipt},
-};
+use ethers::types::TransactionReceipt;
 use eyre::{anyhow, Result};
-
-use ssz_rs::{Merkleized};
-use sync_committee_rs::{
-    constants::{Bytes32},
-};
+use ssz_rs::Merkleized;
+use sync_committee_rs::constants::Bytes32;
 
 pub struct Prover {
     execution_rpc: ExecutionRPC,
