@@ -53,17 +53,17 @@ pub struct ReceiptProof {
     pub transaction_index: u64,
 
     // Proof from receipt to receipts root
-    pub receipt_branch: Vec<Vec<u8>>,
+    pub receipt_proof: Vec<Vec<u8>>,
     // Proof from receipts root to execution payload
-    pub receipts_root_branch: Vec<Node>,
+    pub receipts_branch: Vec<Node>,
 
     // Proof from transaction to transactions root
-    pub transaction_branch: Vec<Vec<u8>>,
+    pub transaction_proof: Vec<Vec<u8>>,
     // Proof from transactions root to execution body
-    pub transactions_root_branch: Vec<Node>,
+    pub transactions_branch: Vec<Node>,
 
     // Proof from execution payload to body_root
-    pub execution_payload_branch: Vec<Node>,
+    pub exec_payload_branch: Vec<Node>,
 
     pub transactions_root: Bytes32,
     pub receipts_root: Bytes32,

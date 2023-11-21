@@ -4,12 +4,12 @@ mod prover;
 mod types;
 mod wasm;
 
-use consensus_types::{execution, lightclient::UpdateVariant};
+
 use eth::{consensus::ConsensusRPC, constants::*, execution::ExecutionRPC, gateway::Gateway};
 use prover::Prover;
-use ssz_rs::Merkleized;
-use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
-use tokio;
+
+
+
 use wasm::WasmClient;
 
 #[tokio::main]

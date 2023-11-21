@@ -47,6 +47,8 @@ pub type BeaconStateType = BeaconState<
     MAX_TRANSACTIONS_PER_PAYLOAD,
 >;
 
+pub type BlockRootsType = Vector<Node, SLOTS_PER_HISTORICAL_ROOT>;
+
 pub fn to_beacon_header(block: &BeaconBlockAlias) -> eyre::Result<BeaconBlockHeader> {
     Ok(BeaconBlockHeader {
         slot: block.slot,
