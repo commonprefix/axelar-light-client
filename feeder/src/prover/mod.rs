@@ -1,6 +1,8 @@
 mod consensus;
 mod execution;
 
+use std::time::Instant;
+
 use crate::{
     eth::{consensus::ConsensusRPC, execution::ExecutionRPC, utils::calc_slot_from_timestamp},
     prover::{
@@ -63,28 +65,33 @@ impl Prover {
         };
 
         let mut recent_block_state = self.consensus_rpc.get_state(recent_block.slot).await?;
-
         let tx_index = self.get_tx_index(&receipts, &message.message.cc_id)?;
+
+        let now = Instant::now();
 
         // Execution Proofs
         let receipt_proof = generate_receipt_proof(&target_block, &receipts, tx_index)?;
-        println!("Got receipts proof: {:?}", receipt_proof.len());
+        println!(
+            "Got receipts proof: {:?} {}",
+            receipt_proof.len(),
+            now.elapsed().as_secs()
+        );
 
         let transaction_proof = generate_transaction_proof(&target_block, tx_index)?;
-        println!("Got transactions proof: {:?}", transaction_proof.len());
+        println!("Got transactions proof: {}", now.elapsed().as_millis());
 
         // Consensus Proofs
         let transactions_branch = generate_transactions_branch(&mut target_beacon_block)?;
-        println!("Got transactions branch: {:?}", transactions_branch.len());
+        println!("Got transactions branch: {}", now.elapsed().as_millis());
 
         let receipts_branch = generate_receipts_branch(&mut target_beacon_block)?;
-        println!("Got receipts branch: {:?}", receipts_branch.len());
+        println!("Got receipts branch: {}", now.elapsed().as_millis());
 
         let exec_payload_branch = generate_exec_payload_branch(&mut target_beacon_block)?;
-        println!("Got exec_payload branch: {:?}", exec_payload_branch.len());
+        println!("Got exec_payload branch: {}", now.elapsed().as_millis());
 
         let ancestry_proof = prove_ancestry(&mut recent_block_state, target_beacon_block.slot)?;
-        println!("Got ancestry proof");
+        println!("Got ancestry proof {}", now.elapsed().as_millis());
 
         Ok(EventVerificationData {
             message: message.message,
