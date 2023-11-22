@@ -5,6 +5,7 @@ use consensus_types::{
 use eyre::Result;
 use ssz_rs::{get_generalized_index, Node, SszVariableOrIndex};
 use sync_committee_rs::constants::{BLOCK_ROOTS_INDEX, SLOTS_PER_HISTORICAL_ROOT};
+
 /**
  * Generates a merkle proof from the transactions to the execution payload of
  * the beacon block body.

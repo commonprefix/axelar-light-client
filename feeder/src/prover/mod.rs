@@ -106,7 +106,7 @@ impl Prover {
                 transaction_proof,
                 transactions_branch,
                 exec_payload_branch,
-                transactions_root: Bytes32::try_from(target_block.receipts_root.as_bytes())?,
+                transactions_root: Bytes32::try_from(target_block.transactions_root.as_bytes())?,
                 receipts_root: Bytes32::try_from(target_block.receipts_root.as_bytes())?,
                 execution_payload_root: target_beacon_block
                     .body
