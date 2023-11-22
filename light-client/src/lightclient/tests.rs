@@ -16,13 +16,12 @@ mod tests {
     };
     use cosmwasm_std::testing::mock_env;
     use cosmwasm_std::Timestamp;
-    use ssz_rs::Bitvector;
-    use types::{
-        common::{BLSPubKey, SignatureBytes},
-        consensus::BeaconBlockHeader,
-        lightclient::{BlockVerificationData, LightClientState},
-        primitives::{ByteVector, U64},
+    use ssz_rs::{Bitvector, Node};
+    use sync_committee_rs::{
+        consensus_types::BeaconBlockHeader,
+        constants::{BlsPublicKey, BlsSignature},
     };
+    use types::lightclient::{BlockVerificationData, LightClientState};
 
     fn init_lightclient() -> LightClient {
         let bootstrap = get_bootstrap();
@@ -64,13 +63,11 @@ mod tests {
         let lightclient = init_lightclient();
 
         let mut update = get_update(862);
-        update.signature_slot = U64::from(
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs()
-                + 12,
-        );
+        update.signature_slot = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            + 12;
         let mut err = update.verify(&lightclient).unwrap_err();
 
         assert_eq!(
@@ -88,8 +85,7 @@ mod tests {
         );
 
         update = get_update(862);
-        update.finalized_header.beacon.slot =
-            U64::from(u64::from(update.attested_header.beacon.slot) + 1);
+        update.finalized_header.beacon.slot = update.attested_header.beacon.slot + 1;
         err = update.verify(&lightclient).unwrap_err();
 
         assert_eq!(
@@ -144,10 +140,9 @@ mod tests {
         );
 
         update = get_update(862);
-        update.attested_header.beacon.slot =
-            U64::from(lightclient.state.finalized_header.slot.as_u64() - (256 * 32));
+        update.attested_header.beacon.slot = lightclient.state.finalized_header.slot - (256 * 32);
         update.finalized_header.beacon.slot =
-            U64::from(lightclient.state.finalized_header.slot.as_u64() - (256 * 32) - 1); // subtracting 1 for a regression bug
+            lightclient.state.finalized_header.slot - (256 * 32) - 1; // subtracting 1 for a regression bug
         lightclient.state.next_sync_committee = None;
         err = update.verify(&lightclient).unwrap_err();
         assert_eq!(
@@ -169,7 +164,7 @@ mod tests {
         );
 
         update = get_update(862);
-        update.finalized_header.beacon.state_root = ByteVector::default();
+        update.finalized_header.beacon.state_root = Node::default();
         err = update.verify(&lightclient).unwrap_err();
         assert_eq!(
             err.to_string(),
@@ -182,7 +177,7 @@ mod tests {
         let lightclient = init_lightclient();
 
         let mut update = get_update(862);
-        update.next_sync_committee.pubkeys[0] = BLSPubKey::default();
+        update.next_sync_committee.public_keys[0] = BlsPublicKey::default();
         let err = update.verify(&lightclient).unwrap_err();
 
         assert_eq!(
@@ -196,7 +191,7 @@ mod tests {
         let lightclient = init_lightclient();
 
         let mut update = get_update(862);
-        update.sync_aggregate.sync_committee_signature = SignatureBytes::default();
+        update.sync_aggregate.sync_committee_signature = BlsSignature::default();
 
         let err = update.verify(&lightclient).err().unwrap();
         assert_eq!(

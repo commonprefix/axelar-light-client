@@ -1,12 +1,15 @@
 use std::fmt;
 
 use eyre::Result;
-use ssz_rs::prelude::*;
 
-use types::common::Bytes32;
+use ssz_rs::{is_valid_merkle_branch, GeneralizedIndex, Merkleized, Node};
+use sync_committee_rs::{
+    constants::{Bytes32, BLOCK_ROOTS_INDEX},
+    types::BlockRootsProof,
+};
 
 pub fn is_proof_valid<L: Merkleized>(
-    root: &Bytes32,
+    state_root: &Node,
     leaf_object: &mut L,
     branch: &[Bytes32],
     depth: usize,
@@ -14,7 +17,6 @@ pub fn is_proof_valid<L: Merkleized>(
 ) -> bool {
     let res: Result<bool> = (move || {
         let leaf_hash = leaf_object.hash_tree_root()?;
-        let state_root = bytes32_to_node(root)?;
         let branch = branch_to_nodes(branch.to_vec())?;
 
         let is_valid = is_valid_merkle_branch(&leaf_hash, branch.iter(), depth, index, &state_root);
@@ -135,6 +137,7 @@ where
 pub mod test_helpers {
     use std::fs::File;
 
+    use ssz_rs::Node;
     use types::{
         common::{ChainConfig, Fork, Forks},
         consensus::{Bootstrap, Update},
@@ -168,13 +171,16 @@ pub mod test_helpers {
     }
 
     pub fn get_config() -> ChainConfig {
+        let genesis_root_bytes: [u8; 32] =
+            hex_str_to_bytes("0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95")
+                .unwrap()
+                .try_into()
+                .unwrap();
+
         ChainConfig {
             chain_id: 1,
             genesis_time: 1606824023,
-            genesis_root: hex_str_to_bytes(
-                "0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95",
-            )
-            .unwrap(),
+            genesis_root: Node::from_bytes(genesis_root_bytes),
             forks: get_forks(),
         }
     }
@@ -183,19 +189,19 @@ pub mod test_helpers {
         Forks {
             genesis: Fork {
                 epoch: 0,
-                fork_version: hex_str_to_bytes("0x00000000").unwrap(),
+                fork_version: hex_str_to_bytes("0x00000000").unwrap().try_into().unwrap(),
             },
             altair: Fork {
                 epoch: 74240,
-                fork_version: hex_str_to_bytes("0x01000000").unwrap(),
+                fork_version: hex_str_to_bytes("0x01000000").unwrap().try_into().unwrap(),
             },
             bellatrix: Fork {
                 epoch: 144896,
-                fork_version: hex_str_to_bytes("0x02000000").unwrap(),
+                fork_version: hex_str_to_bytes("0x02000000").unwrap().try_into().unwrap(),
             },
             capella: Fork {
                 epoch: 194048,
-                fork_version: hex_str_to_bytes("0x03000000").unwrap(),
+                fork_version: hex_str_to_bytes("0x03000000").unwrap().try_into().unwrap(),
             },
         }
     }

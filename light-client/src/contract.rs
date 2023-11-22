@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdResult,
+    to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdResult,
 };
 
 use crate::error::ContractError;
@@ -60,7 +60,7 @@ pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, Contract
 }
 
 mod execute {
-    use cosmwasm_std::WasmMsg;
+    use cosmwasm_std::{to_json_binary, WasmMsg};
     use types::{
         common::Forks, consensus::Update, execution::ReceiptLogs,
         lightclient::BlockVerificationData,
@@ -73,7 +73,7 @@ mod execute {
             contract_addr: String::from(
                 "axelar1awkf64kxnu07z0rljnryfajh5yl78c6cn2jzhwlgcw699ux6rfpsksuasf",
             ),
-            msg: to_binary(&msg)?,
+            msg: to_json_binary(&msg)?,
             funds: vec![],
         };
         Ok(Response::new().add_message(message))
@@ -156,14 +156,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     use QueryMsg::*;
 
     match msg {
-        Greet {} => to_binary(&query::greet()?),
-        LightClientState {} => to_binary(&LIGHT_CLIENT_STATE.load(deps.storage)?),
-        Config {} => to_binary(&CONFIG.load(deps.storage)?),
+        Greet {} => to_json_binary(&query::greet()?),
+        LightClientState {} => to_json_binary(&LIGHT_CLIENT_STATE.load(deps.storage)?),
+        Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
         SyncCommittee { period } => {
             let sync_committee = &SYNC_COMMITTEES.load(deps.storage, period)?;
-            to_binary(&sync_committee)
+            to_json_binary(&sync_committee)
         }
-        Version {} => to_binary(&VERSION.load(deps.storage)?),
+        Version {} => to_json_binary(&VERSION.load(deps.storage)?),
     }
 }
 
@@ -199,8 +199,9 @@ mod tests {
     };
     use cosmwasm_std::{testing::mock_env, Addr, Timestamp};
     use cw_multi_test::{App, ContractWrapper, Executor};
+    use sync_committee_rs::constants::BlsSignature;
     use types::{
-        common::{ChainConfig, Fork, Forks, SignatureBytes},
+        common::{ChainConfig, Fork, Forks},
         lightclient::LightClientState,
     };
 
@@ -339,7 +340,7 @@ mod tests {
     fn test_invalid_update() {
         let (mut app, addr) = deploy();
         let mut update = get_update(862);
-        update.sync_aggregate.sync_committee_signature = SignatureBytes::default();
+        update.sync_aggregate.sync_committee_signature = BlsSignature::default();
 
         //Call update
         let resp = app.execute_contract(
@@ -372,19 +373,19 @@ mod tests {
         let new_forks = Forks {
             genesis: Fork {
                 epoch: 0,
-                fork_version: hex_str_to_bytes("0x03000000").unwrap(),
+                fork_version: hex_str_to_bytes("0x03000000").unwrap().try_into().unwrap(),
             },
             altair: Fork {
                 epoch: 1,
-                fork_version: hex_str_to_bytes("0x02000000").unwrap(),
+                fork_version: hex_str_to_bytes("0x02000000").unwrap().try_into().unwrap(),
             },
             bellatrix: Fork {
                 epoch: 2,
-                fork_version: hex_str_to_bytes("0x01000000").unwrap(),
+                fork_version: hex_str_to_bytes("0x01000000").unwrap().try_into().unwrap(),
             },
             capella: Fork {
                 epoch: 3,
-                fork_version: hex_str_to_bytes("0x00000000").unwrap(),
+                fork_version: hex_str_to_bytes("0x00000000").unwrap().try_into().unwrap(),
             },
         };
 

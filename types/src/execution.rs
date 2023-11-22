@@ -1,40 +1,6 @@
 use alloy_rlp::{Buf, Decodable};
-use serde;
 use ssz_rs::prelude::*;
 use std::cmp::Ordering;
-
-use crate::common::{Address, Bytes32};
-use crate::primitives::{ByteList, ByteVector, U64};
-
-pub type LogsBloom = ByteVector<256>;
-pub type Transaction = ByteList<1073741824>;
-
-#[derive(serde::Deserialize, serde::Serialize, Debug, Default, SimpleSerialize, Clone)]
-pub struct ExecutionPayload {
-    pub parent_hash: Bytes32,
-    pub fee_recipient: Address,
-    pub state_root: Bytes32,
-    pub receipts_root: Bytes32,
-    pub logs_bloom: LogsBloom,
-    pub prev_randao: Bytes32,
-    pub block_number: U64,
-    pub gas_limit: U64,
-    pub gas_used: U64,
-    pub timestamp: U64,
-    pub extra_data: ByteList<32>,
-    pub base_fee_per_gas: U64,
-    pub block_hash: Bytes32,
-    pub transactions: List<Transaction, 1048576>,
-    pub withdrawals: List<Withdrawal, 16>,
-}
-
-#[derive(serde::Deserialize, serde::Serialize, Debug, Default, SimpleSerialize, Clone)]
-pub struct Withdrawal {
-    index: U64,
-    validator_index: U64,
-    address: Address,
-    amount: U64,
-}
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct ReceiptLog {
