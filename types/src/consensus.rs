@@ -184,6 +184,44 @@ pub struct Update {
     pub signature_slot: U64,
 }
 
+impl Update {
+    pub fn into_finality_update(&self) -> FinalityUpdate {
+        FinalityUpdate {
+            attested_header: self.attested_header.clone(),
+            finalized_header: self.finalized_header.clone(),
+            finality_branch: self.finality_branch.clone(),
+            sync_aggregate: self.sync_aggregate.clone(),
+            signature_slot: self.signature_slot.clone(),
+        }
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
+pub struct FinalityUpdate {
+    pub attested_header: BeaconHeader,
+    pub finalized_header: BeaconHeader,
+    pub finality_branch: Vec<Bytes32>,
+    pub sync_aggregate: SyncAggregate,
+    pub signature_slot: U64,
+}
+
+impl FinalityUpdate {
+    pub fn into_optimistic_update(&self) -> OptimisticUpdate {
+        OptimisticUpdate {
+            attested_header: self.attested_header.clone(),
+            sync_aggregate: self.sync_aggregate.clone(),
+            signature_slot: self.signature_slot.clone(),
+        }
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
+pub struct OptimisticUpdate {
+    pub attested_header: BeaconHeader,
+    pub sync_aggregate: SyncAggregate,
+    pub signature_slot: U64,
+}
+
 #[derive(
     serde::Serialize, serde::Deserialize, SimpleSerialize, PartialEq, Debug, Clone, Default,
 )]

@@ -21,6 +21,121 @@ pub struct LightClient {
     pub config: ChainConfig,
     env: Env,
 }
+pub trait Verification {
+    fn verify(&self, lightclient: &LightClient) -> Result<(), ConsensusError>;
+}
+
+impl Verification for Update {
+    fn verify(&self, lightclient: &LightClient) -> Result<(), ConsensusError> {
+        self.into_finality_update().verify(lightclient)?;
+
+        // Check that next committe in attested header
+        let is_valid = lightclient.is_next_committee_proof_valid(
+            &self.attested_header.beacon,
+            &mut self.next_sync_committee.clone(),
+            &self.next_sync_committee_branch,
+        );
+
+        if !is_valid {
+            return Err(ConsensusError::InvalidNextSyncCommitteeProof);
+        }
+
+        Ok(())
+    }
+}
+
+impl Verification for FinalityUpdate {
+    fn verify(&self, lightclient: &LightClient) -> Result<(), ConsensusError> {
+        self.into_optimistic_update().verify(lightclient)?;
+
+        // Check for valid timestamp conditions:
+        // 1. The attested header's slot should be equal or greater than the finalized header's slot.
+        if self.attested_header.beacon.slot < self.finalized_header.beacon.slot {
+            return Err(ConsensusError::InvalidTimestamp);
+        }
+
+        let is_valid = lightclient.is_finality_proof_valid(
+            &self.attested_header.beacon,
+            &mut self.finalized_header.beacon.clone(),
+            &self.finality_branch,
+        );
+
+        if !is_valid {
+            return Err(ConsensusError::InvalidFinalityProof);
+        }
+
+        Ok(())
+    }
+}
+
+impl Verification for OptimisticUpdate {
+    fn verify(&self, lightclient: &LightClient) -> Result<(), ConsensusError> {
+        // Check if there's any participation in the sync committee at all.
+        let bits = lightclient.get_bits(&self.sync_aggregate.sync_committee_bits);
+        if bits == 0 {
+            return Err(ConsensusError::InsufficientParticipation);
+        }
+
+        // Check for valid timestamp conditions:
+        // 1. The expected current slot given the genesis time should be equal or greater than the update's signature slot.
+        // 2. The slot of the update's signature should be greater than the slot of the attested header.
+        let valid_time = lightclient.expected_current_slot() >= self.signature_slot.as_u64()
+            && self.signature_slot > self.attested_header.beacon.slot;
+
+        if !valid_time {
+            return Err(ConsensusError::InvalidTimestamp);
+        }
+
+        let store_period = calc_sync_period(lightclient.state.finalized_header.slot.into());
+        let update_sig_period = calc_sync_period(self.signature_slot.as_u64());
+
+        let valid_period = if lightclient.state.next_sync_committee.is_some() {
+            update_sig_period == store_period || update_sig_period == store_period + 1
+        } else {
+            update_sig_period == store_period
+        };
+
+        if !valid_period {
+            return Err(ConsensusError::InvalidPeriod);
+        }
+
+        // Calculate the period for the attested header and check its relevance.
+        // Ensure the attested header isn't already finalized unless the update introduces a new sync committee.
+        let update_attested_period = calc_sync_period(self.attested_header.beacon.slot.into());
+        let update_has_next_committee = lightclient.state.next_sync_committee.is_none()
+            && update_attested_period == store_period;
+
+        if self.attested_header.beacon.slot <= lightclient.state.finalized_header.slot
+            && !update_has_next_committee
+        {
+            return Err(ConsensusError::NotRelevant);
+        }
+
+        // Verify the sync committee's aggregate signature for the attested header.
+        let sync_committee = if update_sig_period == store_period {
+            lightclient.state.current_sync_committee.clone()
+        } else {
+            lightclient.state.next_sync_committee.clone().unwrap()
+        };
+
+        let pks = lightclient
+            .get_participating_keys(&sync_committee, &self.sync_aggregate.sync_committee_bits);
+
+        let is_valid_sig = lightclient.verify_sync_committee_signature(
+            &lightclient.config,
+            &pks,
+            &self.attested_header.beacon,
+            &self.sync_aggregate.sync_committee_signature,
+            self.signature_slot.as_u64(),
+        );
+
+        if !is_valid_sig {
+            return Err(ConsensusError::InvalidSignature);
+        }
+
+        Ok(())
+    }
+}
 
 impl LightClient {
     pub fn new(config: &ChainConfig, state: Option<LightClientState>, env: &Env) -> Self {
@@ -54,103 +169,9 @@ impl LightClient {
         Ok(())
     }
 
-    pub fn verify_update(&self, update: &Update) -> Result<(), ConsensusError> {
-        // Check if there's any participation in the sync committee at all.
-        let bits = self.get_bits(&update.sync_aggregate.sync_committee_bits);
-        if bits == 0 {
-            return Err(ConsensusError::InsufficientParticipation);
-        }
-
-        // Check for valid timestamp conditions:
-        // 1. The expected current slot given the genesis time should be equal or greater than the update's signature slot.
-        // 2. The slot of the update's signature should be greater than the slot of the attested header.
-        // 3. The attested header's slot should be equal or greater than the finalized header's slot.
-        let update_finalized_slot = update.finalized_header.beacon.slot;
-        let valid_time = self.expected_current_slot() >= update.signature_slot.as_u64()
-            && update.signature_slot > update.attested_header.beacon.slot
-            && update.attested_header.beacon.slot >= update_finalized_slot;
-
-        if !valid_time {
-            return Err(ConsensusError::InvalidTimestamp);
-        }
-
-        // Validate the sync committee periods: If there's a next sync committee in
-        // the state, the update's signature period should match the current period
-        // or the next one.  Otherwise, it should only match the current period.
-        let store_period = calc_sync_period(self.state.finalized_header.slot.into());
-        let update_sig_period = calc_sync_period(update.signature_slot.as_u64());
-
-        let valid_period = if self.state.next_sync_committee.is_some() {
-            update_sig_period == store_period || update_sig_period == store_period + 1
-        } else {
-            update_sig_period == store_period
-        };
-
-        if !valid_period {
-            return Err(ConsensusError::InvalidPeriod);
-        }
-
-        // Calculate the period for the attested header and check its relevance.
-        // Ensure the attested header isn't already finalized unless the update introduces a new sync committee.
-        let update_attested_period = calc_sync_period(update.attested_header.beacon.slot.into());
-        let update_has_next_committee =
-            self.state.next_sync_committee.is_none() && update_attested_period == store_period;
-
-        if update.attested_header.beacon.slot <= self.state.finalized_header.slot
-            && !update_has_next_committee
-        {
-            return Err(ConsensusError::NotRelevant);
-        }
-
-        let is_valid = self.is_finality_proof_valid(
-            &update.attested_header.beacon,
-            &mut update.finalized_header.beacon.clone(),
-            &update.finality_branch,
-        );
-
-        if !is_valid {
-            return Err(ConsensusError::InvalidFinalityProof);
-        }
-
-        // Check that next committe in attested header
-        let is_valid = self.is_next_committee_proof_valid(
-            &update.attested_header.beacon,
-            &mut update.next_sync_committee.clone(),
-            &update.next_sync_committee_branch,
-        );
-
-        if !is_valid {
-            return Err(ConsensusError::InvalidNextSyncCommitteeProof);
-        }
-
-        // Verify the sync committee's aggregate signature for the attested header.
-
-        let sync_committee = if update_sig_period == store_period {
-            self.state.current_sync_committee.clone()
-        } else {
-            self.state.next_sync_committee.clone().unwrap()
-        };
-
-        let pks = self
-            .get_participating_keys(&sync_committee, &update.sync_aggregate.sync_committee_bits);
-
-        let is_valid_sig = self.verify_sync_committee_signature(
-            &self.config,
-            &pks,
-            &update.attested_header.beacon,
-            &update.sync_aggregate.sync_committee_signature,
-            update.signature_slot.as_u64(),
-        );
-
-        if !is_valid_sig {
-            return Err(ConsensusError::InvalidSignature);
-        }
-
-        Ok(())
-    }
-
-    // TODO: Maybe make this private and enforce verify first?
     pub fn apply_update(&mut self, update: &Update) -> Result<(), ConsensusError> {
+        update.verify(self)?;
+
         let committee_bits = self.get_bits(&update.sync_aggregate.sync_committee_bits);
 
         self.state.current_max_active_participants =
