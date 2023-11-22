@@ -1865,7 +1865,7 @@ dependencies = [
  "retri",
  "serde",
  "serde_json",
- "ssz-rs 0.8.0 (git+https://github.com/commonprefix/ssz-rs?branch=main)",
+ "ssz-rs",
  "sync-committee-primitives",
  "thiserror",
  "tokio",
@@ -2665,7 +2665,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "ssz-rs 0.8.0 (git+https://github.com/polytope-labs/ssz-rs?branch=main)",
+ "ssz-rs",
  "sync-committee-primitives",
  "thiserror",
  "types",
@@ -4257,39 +4257,13 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sha2 0.9.9",
- "ssz-rs-derive 0.8.0 (git+https://github.com/commonprefix/ssz-rs?branch=main)",
-]
-
-[[package]]
-name = "ssz-rs"
-version = "0.8.0"
-source = "git+https://github.com/polytope-labs/ssz-rs?branch=main#6f5d37b7f92875b5cbb6ef60e8c498ca013943cb"
-dependencies = [
- "as-any",
- "bitvec",
- "hex",
- "itertools 0.10.5",
- "num-bigint",
- "parity-scale-codec",
- "serde",
- "sha2 0.9.9",
- "ssz-rs-derive 0.8.0 (git+https://github.com/polytope-labs/ssz-rs?branch=main)",
+ "ssz-rs-derive",
 ]
 
 [[package]]
 name = "ssz-rs-derive"
 version = "0.8.0"
 source = "git+https://github.com/commonprefix/ssz-rs?branch=main#a0258287dd789661769a7522c5f5fe8ea1737c89"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "ssz-rs-derive"
-version = "0.8.0"
-source = "git+https://github.com/polytope-labs/ssz-rs?branch=main#6f5d37b7f92875b5cbb6ef60e8c498ca013943cb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4414,7 +4388,7 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "serde",
- "ssz-rs 0.8.0 (git+https://github.com/commonprefix/ssz-rs?branch=main)",
+ "ssz-rs",
 ]
 
 [[package]]
@@ -4917,7 +4891,7 @@ dependencies = [
  "hex",
  "serde",
  "serde_json",
- "ssz-rs 0.8.0 (git+https://github.com/commonprefix/ssz-rs?branch=main)",
+ "ssz-rs",
  "sync-committee-primitives",
 ]
 
