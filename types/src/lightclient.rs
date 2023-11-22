@@ -1,10 +1,10 @@
 use crate::consensus::{FinalityUpdate, OptimisticUpdate};
 use crate::helpers::{from_hex_string, to_hex_string};
-use connection_router::state::Message;
-use ssz_rs::{Node};
+use crate::proofs::AncestryProof;
+pub use connection_router::state::{Address as AddressType, ChainName, CrossChainId, Message};
+use ssz_rs::Node;
 use sync_committee_rs::consensus_types::{BeaconBlockHeader, SyncAggregate, SyncCommittee};
-use sync_committee_rs::constants::{Root, SYNC_COMMITTEE_SIZE};
-pub use sync_committee_rs::types::AncestryProof;
+use sync_committee_rs::constants::{Bytes32, Root, SYNC_COMMITTEE_SIZE};
 
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct LightClientState {
@@ -31,13 +31,13 @@ pub struct TopicInclusionRequest {
     pub topic: Vec<u8>,
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
 pub enum UpdateVariant {
     Finality(FinalityUpdate),
     Optimistic(OptimisticUpdate),
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
 pub struct EventVerificationData {
     pub message: Message,
     pub update: UpdateVariant,
@@ -46,15 +46,26 @@ pub struct EventVerificationData {
     pub ancestry_proof: AncestryProof,
     pub receipt_proof: ReceiptProof,
 }
+
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct ReceiptProof {
+    // Same index of transaction to transaction trie and from receipt to receipt trie
+    pub transaction_index: u64,
+
     // Proof from receipt to receipts root
-    pub receipt_branch: Vec<Node>,
-    pub receipt_index: u64,
-    pub receipts_root: Root,
-    // Proof from receipts root to execution body
-    pub receipts_root_branch: Vec<Node>,
-    pub execution_payload_root: Root,
+    pub receipt_proof: Vec<Vec<u8>>,
+    // Proof from receipts root to execution payload
+    pub receipts_branch: Vec<Node>,
+
+    // Proof from transaction to transactions root
+    pub transaction_proof: Vec<Vec<u8>>,
+    // Proof from transactions root to execution body
+    pub transactions_branch: Vec<Node>,
+
     // Proof from execution payload to body_root
-    pub execution_payload_branch: Vec<Node>,
+    pub exec_payload_branch: Vec<Node>,
+
+    pub transactions_root: Bytes32,
+    pub receipts_root: Bytes32,
+    pub execution_payload_root: Root,
 }
