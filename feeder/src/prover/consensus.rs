@@ -1,10 +1,13 @@
+use crate::error::RpcError;
+use crate::eth::{constants::STATE_PROVER_RPC, utils::get};
+use crate::prover::types::ProofResponse;
 use consensus_types::{
-    consensus::{BeaconBlockAlias, BeaconStateType, BlockRootsType},
-    proofs::{AncestryProof, BlockRootsProof},
+    consensus::{BeaconBlockAlias, BeaconStateType},
+    proofs::AncestryProof,
 };
 use eyre::Result;
 use ssz_rs::{get_generalized_index, Node, SszVariableOrIndex};
-use sync_committee_rs::constants::{BLOCK_ROOTS_INDEX, SLOTS_PER_HISTORICAL_ROOT};
+use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
 
 /**
  * Generates a merkle proof from the transactions to the execution payload of
@@ -46,73 +49,47 @@ pub fn generate_exec_payload_branch(beacon_block: &mut BeaconBlockAlias) -> Resu
  * Generates an ancestry proof from the recent block state to the target block
  * using either the block_roots or the historical_roots beacon state property.
 */
-pub fn prove_ancestry(
-    recent_block_state: &mut BeaconStateType,
+pub async fn prove_ancestry(
     target_block_slot: u64,
+    recent_block_slot: u64,
+    recent_block_state_id: String,
 ) -> Result<AncestryProof> {
-    let is_in_block_roots_range = target_block_slot < recent_block_state.slot
-        && recent_block_state.slot <= target_block_slot + SLOTS_PER_HISTORICAL_ROOT as u64;
+    let is_in_block_roots_range = target_block_slot < recent_block_slot
+        && recent_block_slot <= target_block_slot + SLOTS_PER_HISTORICAL_ROOT as u64;
 
     let proof = if is_in_block_roots_range {
-        prove_ancestry_with_block_roots(recent_block_state, target_block_slot)?
+        prove_ancestry_with_block_roots(target_block_slot, recent_block_state_id).await?
     } else {
-        prove_ancestry_with_historical_roots(recent_block_state, target_block_slot)?
+        unimplemented!()
     };
-
-    Ok(proof)
-}
-
-/**
- * Generates a proof from the block_roots_root to the beacon state root.
-*/
-pub fn generate_block_roots_branch(beacon_state: &mut BeaconStateType) -> Result<Vec<Node>> {
-    let path = &[BLOCK_ROOTS_INDEX as usize];
-    let proof = ssz_rs::generate_proof(beacon_state, path)?;
-
-    Ok(proof)
-}
-
-/**
- * Generates a proof from the interested block to the block_roots_root.
-*/
-pub fn generate_block_root_proof(
-    block_roots: &mut BlockRootsType,
-    g_index: usize,
-) -> Result<Vec<Node>> {
-    let proof = ssz_rs::generate_proof(block_roots, &[g_index])?;
 
     Ok(proof)
 }
 
 /**
  * Generates an ancestry proof from the recent block state to the target block
- * using the block_roots beacon state property. The target block must in
- * the range [recent_block_slot - SLOTS_PER_HISTORICAL_ROOT, recent_block_slot].
+ * using the block_roots beacon state property using the lodestar prover. The
+ * target block must in the range
+ * [recent_block_slot - SLOTS_PER_HISTORICAL_ROOT, recent_block_slot].
  */
-pub fn prove_ancestry_with_block_roots(
-    recent_block_state: &mut BeaconStateType,
+pub async fn prove_ancestry_with_block_roots(
     target_block_slot: u64,
+    recent_block_state_id: String,
 ) -> Result<AncestryProof> {
-    let block_index = get_generalized_index(
-        &recent_block_state.block_roots,
-        &[SszVariableOrIndex::Index(
-            target_block_slot as usize % SLOTS_PER_HISTORICAL_ROOT,
-        )],
-    );
+    let index = target_block_slot as usize % SLOTS_PER_HISTORICAL_ROOT;
+    let g_index_from_state_root = get_generalized_index(
+        &BeaconStateType::default(),
+        &[
+            SszVariableOrIndex::Name("block_roots"),
+            SszVariableOrIndex::Index(index),
+        ],
+    ) as u64;
 
-    let block_roots_proof = BlockRootsProof {
-        block_header_index: block_index as u64,
-        block_header_branch: generate_block_root_proof(
-            &mut recent_block_state.block_roots,
-            block_index,
-        )?,
-    };
-
-    let block_roots_branch = generate_block_roots_branch(recent_block_state)?;
+    let res = get_state_proof(recent_block_state_id, g_index_from_state_root).await?;
 
     let ancestry_proof = AncestryProof::BlockRoots {
-        block_roots_proof,
-        block_roots_branch,
+        block_roots_index: g_index_from_state_root as u64,
+        block_root_proof: res.witnesses,
     };
 
     Ok(ancestry_proof)
@@ -128,6 +105,19 @@ pub fn prove_ancestry_with_historical_roots(
     _target_block_slot: u64,
 ) -> Result<AncestryProof> {
     unimplemented!()
+}
+
+async fn get_state_proof(state_id: String, gindex: u64) -> Result<ProofResponse> {
+    let req = format!(
+        "{}/state_proof/?state_id={}&gindex={}",
+        STATE_PROVER_RPC, state_id, gindex
+    );
+
+    let res: ProofResponse = get(&req)
+        .await
+        .map_err(|e| RpcError::new("get_state_proof", e))?;
+
+    Ok(res)
 }
 
 #[cfg(test)]

@@ -1,7 +1,6 @@
 mod consensus;
 mod execution;
-
-use std::time::Instant;
+mod types;
 
 use crate::{
     eth::{consensus::ConsensusRPC, execution::ExecutionRPC, utils::calc_slot_from_timestamp},
@@ -21,7 +20,7 @@ use consensus_types::{
 };
 use ethers::types::TransactionReceipt;
 use eyre::{anyhow, Result};
-use ssz_rs::Merkleized;
+use ssz_rs::{Merkleized, Node};
 use sync_committee_rs::constants::Bytes32;
 
 pub struct Prover {
@@ -64,40 +63,38 @@ impl Prover {
             UpdateVariant::Optimistic(update) => update.attested_header.beacon,
         };
 
-        let mut recent_block_state = self.consensus_rpc.get_state(recent_block.slot).await?;
         let tx_index = self.get_tx_index(&receipts, &message.message.cc_id)?;
-
-        let now = Instant::now();
 
         // Execution Proofs
         let receipt_proof = generate_receipt_proof(&target_block, &receipts, tx_index)?;
-        println!(
-            "Got receipts proof: {:?} {}",
-            receipt_proof.len(),
-            now.elapsed().as_secs()
-        );
+        println!("Got receipts proof");
 
         let transaction_proof = generate_transaction_proof(&target_block, tx_index)?;
-        println!("Got transactions proof: {}", now.elapsed().as_millis());
+        println!("Got transactions proof");
 
         // Consensus Proofs
         let transactions_branch = generate_transactions_branch(&mut target_beacon_block)?;
-        println!("Got transactions branch: {}", now.elapsed().as_millis());
+        println!("Got transactions branch");
 
         let receipts_branch = generate_receipts_branch(&mut target_beacon_block)?;
-        println!("Got receipts branch: {}", now.elapsed().as_millis());
+        println!("Got receipts branch");
 
         let exec_payload_branch = generate_exec_payload_branch(&mut target_beacon_block)?;
-        println!("Got exec_payload branch: {}", now.elapsed().as_millis());
+        println!("Got exec_payload branch");
 
-        let ancestry_proof = prove_ancestry(&mut recent_block_state, target_beacon_block.slot)?;
-        println!("Got ancestry proof {}", now.elapsed().as_millis());
+        let ancestry_proof = prove_ancestry(
+            target_beacon_block.slot,
+            recent_block.slot,
+            recent_block.state_root.to_string(),
+        )
+        .await?;
+        println!("Got ancestry proof");
 
         Ok(EventVerificationData {
             message: message.message,
             update: update.clone(),
             target_block: to_beacon_header(&target_beacon_block)?,
-            block_roots_root: recent_block_state.block_roots.hash_tree_root()?,
+            block_roots_root: Node::default(),
             ancestry_proof,
             receipt_proof: ReceiptProof {
                 transaction_index: tx_index,

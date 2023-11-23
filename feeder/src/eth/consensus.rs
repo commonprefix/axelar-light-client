@@ -1,29 +1,17 @@
-use std::{cmp, time::Instant};
+use std::cmp;
 
 use crate::error::RpcError;
+use crate::eth::utils::get;
 use crate::types::*;
 use consensus_types::consensus::{
-    BeaconBlockAlias, BeaconStateType, Bootstrap, FinalityUpdate, OptimisticUpdate, Update,
+    BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update,
 };
 use eyre::Result;
-use reqwest;
-use retri::{retry, BackoffSettings};
-use serde::de::DeserializeOwned;
 use sync_committee_rs::consensus_types::BeaconBlockHeader;
 
 #[derive(Debug)]
 pub struct ConsensusRPC {
     rpc: String,
-}
-
-async fn get<R: DeserializeOwned>(req: &str) -> Result<R> {
-    let bytes = retry(
-        || async { Ok::<_, eyre::Report>(reqwest::get(req).await?.bytes().await?) },
-        BackoffSettings::default(),
-    )
-    .await?;
-
-    Ok(serde_json::from_slice::<R>(&bytes)?)
 }
 
 #[allow(dead_code)]
@@ -72,32 +60,6 @@ impl ConsensusRPC {
         let res: OptimisticUpdateData = get(&req).await.map_err(|e| RpcError::new("updates", e))?;
 
         Ok(res.data)
-    }
-
-    pub async fn get_state(&self, slot: u64) -> Result<BeaconStateType> {
-        let time = Instant::now();
-        println!("Getting state for slot {}", slot);
-
-        let req = format!("{}/eth/v2/debug/beacon/states/{}", self.rpc, slot);
-
-        // Setting the header for the request
-        let client = reqwest::Client::new();
-        let res = client
-            .get(&req)
-            .header("accept", "application/octet-stream")
-            .send()
-            .await
-            .map_err(|e| RpcError::new("get_state", e))?
-            .bytes()
-            .await?;
-
-        println!("Got state for slot {} in {:?}", slot, time.elapsed());
-        let time = Instant::now();
-
-        let state: BeaconStateType = ssz_rs::deserialize(&res)?;
-        println!("Deserialized state in {:?}", time.elapsed());
-
-        Ok(state)
     }
 
     pub async fn get_beacon_block_header(&self, slot: u64) -> Result<BeaconBlockHeader> {

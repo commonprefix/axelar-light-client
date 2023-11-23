@@ -4,7 +4,8 @@ pub mod gateway;
 pub mod utils;
 
 pub mod constants {
-    pub const CONSENSUS_RPC: &str = "http://nimbus-mainnet.commonprefix.com";
+    pub const CONSENSUS_RPC: &str = "http://lodestar-mainnet.chainsafe.io";
     pub const EXECUTION_RPC: &str = "https://eth.meowrpc.com";
+    pub const STATE_PROVER_RPC: &str = "http://65.21.123.218:3000";
     pub const GATEWAY_ADDR: &str = "0x4F4495243837681061C4743b74B3eEdf548D56A5";
 }
