@@ -33,7 +33,7 @@ async fn main() {
 
     let now = Instant::now();
 
-    let proof = prover
+    let _proof = prover
         .prove_event(
             first_message.clone(),
             UpdateVariant::Finality(finality_update),

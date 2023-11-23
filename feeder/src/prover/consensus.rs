@@ -100,7 +100,7 @@ pub async fn prove_ancestry_with_block_roots(
  * using the historical_roots beacon state property. The target block should be
  * in a slot less than recent_block_slot - SLOTS_PER_HISTORICAL_ROOT.
  */
-pub fn prove_ancestry_with_historical_roots(
+pub fn _prove_ancestry_with_historical_roots(
     _recent_block_state: &BeaconStateType,
     _target_block_slot: u64,
 ) -> Result<AncestryProof> {
@@ -122,12 +122,18 @@ async fn get_state_proof(state_id: String, gindex: u64) -> Result<ProofResponse>
 
 #[cfg(test)]
 mod tests {
+    use crate::eth::consensus::ConsensusRPC;
+    use crate::eth::constants::CONSENSUS_RPC;
     use crate::prover::consensus::{
         generate_exec_payload_branch, generate_receipts_branch, generate_transactions_branch,
+        prove_ancestry_with_block_roots,
     };
     use consensus_types::consensus::BeaconBlockAlias;
+    use consensus_types::proofs::AncestryProof;
+    use core::panic;
     use ssz_rs::{GeneralizedIndex, Merkleized};
     use std::fs::File;
+    use tokio::test as tokio_test;
 
     pub fn get_beacon_block() -> BeaconBlockAlias {
         let file = File::open("./src/prover/testdata/beacon_block.json").unwrap();
@@ -206,5 +212,39 @@ mod tests {
         );
 
         assert!(is_proof_valid);
+    }
+
+    /**
+     * REQUIRES NETWORK REQUESTS
+     */
+    #[tokio_test]
+    async fn test_block_roots_proof() {
+        let consensus = ConsensusRPC::new(CONSENSUS_RPC);
+        let latest_block = consensus.get_latest_beacon_block_header().await.unwrap();
+        let mut old_block = consensus
+            .get_beacon_block_header(latest_block.slot - 1000)
+            .await
+            .unwrap();
+
+        let proof =
+            prove_ancestry_with_block_roots(old_block.slot, latest_block.state_root.to_string())
+                .await
+                .unwrap();
+
+        match proof {
+            AncestryProof::BlockRoots {
+                block_roots_index,
+                block_root_proof,
+            } => {
+                let is_valid_proof = ssz_rs::verify_merkle_proof(
+                    &old_block.hash_tree_root().unwrap(),
+                    block_root_proof.as_slice(),
+                    &GeneralizedIndex(block_roots_index as usize),
+                    &latest_block.state_root,
+                );
+                assert!(is_valid_proof)
+            }
+            _ => panic!("Expected block roots proof"),
+        }
     }
 }
