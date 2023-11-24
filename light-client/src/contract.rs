@@ -76,13 +76,14 @@ mod execute {
     use types::{
         common::Forks,
         consensus::Update,
-        execution::{ReceiptLog, ReceiptLogs},
+        execution::ReceiptLogs,
         lightclient::{BlockVerificationData, UpdateVariant},
     };
 
     use crate::lightclient::helpers::{
         verify_block_roots_branch, verify_block_roots_proof, verify_message, verify_trie_proof,
     };
+    use crate::lightclient::Verification;
 
     use super::*;
 
@@ -93,11 +94,11 @@ mod execute {
         // Get recent block
         let recent_block = match data.update {
             UpdateVariant::Finality(update) => {
-                update.verify(&lc)?;
+                update.verify(lightclient)?;
                 update.finalized_header.beacon
             }
             UpdateVariant::Optimistic(update) => {
-                update.verify(&lc)?;
+                update.verify(lightclient)?;
                 update.attested_header.beacon
             }
         };
