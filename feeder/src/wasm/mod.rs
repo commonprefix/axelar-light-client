@@ -7,12 +7,14 @@ use futures::executor::block_on;
 use serde::de::DeserializeOwned;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct WasmClient {
     _rpc: String,
     address: String,
     query_client: QueryClient<tonic::transport::Channel>,
 }
 
+#[allow(dead_code)]
 impl WasmClient {
     pub fn new(rpc: String, address: String) -> Self {
         Self {

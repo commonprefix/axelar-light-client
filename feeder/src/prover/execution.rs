@@ -14,10 +14,10 @@ use hasher::HasherKeccak;
 */
 pub fn generate_receipt_proof(
     block: &Block<Transaction>,
-    receipts: &Vec<TransactionReceipt>,
+    receipts: &[TransactionReceipt],
     index: u64,
 ) -> Result<Vec<Vec<u8>>> {
-    let mut trie = generate_trie(receipts.clone(), encode_receipt);
+    let mut trie = generate_trie(receipts.to_owned(), encode_receipt);
     let trie_root = trie.root().unwrap();
 
     // Reality check
