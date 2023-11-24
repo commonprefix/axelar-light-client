@@ -83,9 +83,10 @@ pub fn verify_trie_proof(root: Root, key: u64, proof: Vec<Vec<u8>>) -> Option<Ve
 }
 
 pub fn parse_log(log: &ReceiptLog) -> Result<ContractCallBase, StdError> {
-    let abi_path = "../abi.json";
-    let abi_string = std::fs::read_to_string(abi_path).unwrap();
-    let abi: JsonAbi = serde_json::from_str(&abi_string).unwrap();
+    let abi = JsonAbi::parse([
+        "event ContractCall(address indexed sender,string destinationChain,string destinationContractAddress,bytes32 indexed payloadHash,bytes payload)",
+        "event ContractCallWithToken(address indexed sender,string destinationChain,string destinationContractAddress,bytes32 indexed payloadHash,bytes payload,string symbol,uint256 amount)"])
+        .unwrap();
     for item in abi.items() {
         if let AbiItem::Event(e) = item {
             let hasher = HasherKeccak::new();
