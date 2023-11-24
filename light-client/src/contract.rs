@@ -25,7 +25,7 @@ pub fn instantiate(
     LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
     CONFIG.save(deps.storage, &msg.config)?;
 
-    let period = calc_sync_period(msg.bootstrap.header.beacon.slot.into());
+    let period = calc_sync_period(msg.bootstrap.header.beacon.slot);
     SYNC_COMMITTEES.save(deps.storage, period, &msg.bootstrap.current_sync_committee)?;
 
     // TODO: Use commit hash or something else
@@ -183,14 +183,14 @@ mod execute {
         );
 
         // TODO: fixme
-        if !valid_transactions_root && false {
+        if !valid_transactions_root {
             return Err(ContractError::InvalidTransactionsBranchProof);
         }
 
         let logs: ReceiptLogs = alloy_rlp::Decodable::decode(&mut &receipt[..]).unwrap();
         let mut verified_message = false;
         for log in logs.0.iter() {
-            if verify_message(&data.message, &log, &transaction) {
+            if verify_message(&data.message, log, &transaction) {
                 verified_message = true;
             }
         }
@@ -208,7 +208,7 @@ mod execute {
         if !valid_execution_branch {
             return Err(ContractError::InvalidExecutionBranch);
         }
-        return Ok(());
+        Ok(())
     }
 
     pub fn verify_proof(msg: ExecuteMsg) -> Result<Response, ContractError> {
@@ -271,10 +271,10 @@ mod execute {
         let lc = LightClient::new(&config, Some(state), env);
 
         let sync_committee =
-            SYNC_COMMITTEES.load(deps.storage, calc_sync_period(ver_data.sig_slot.into()));
+            SYNC_COMMITTEES.load(deps.storage, calc_sync_period(ver_data.sig_slot));
         if sync_committee.is_err() {
             return Err(ContractError::NoSyncCommittee {
-                period: calc_sync_period(ver_data.sig_slot.into()),
+                period: calc_sync_period(ver_data.sig_slot),
             });
         }
 
@@ -283,7 +283,7 @@ mod execute {
             &ver_data.target_block,
             &ver_data.intermediate_chain,
             &ver_data.sync_aggregate,
-            ver_data.sig_slot.into(),
+            ver_data.sig_slot,
         );
 
         if res {

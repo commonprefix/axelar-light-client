@@ -1,7 +1,5 @@
 use std::{
-    error::Error,
     fmt::{self},
-    ops::Deref,
     sync::Arc,
 };
 
@@ -20,7 +18,7 @@ use sync_committee_rs::{
     types::BlockRootsProof,
 };
 use types::{
-    execution::{ContractCallBase, ReceiptLog, ReceiptLogs},
+    execution::{ContractCallBase, ReceiptLog},
     lightclient::Message,
 };
 
@@ -35,7 +33,7 @@ pub fn is_proof_valid<L: Merkleized>(
         let leaf_hash = leaf_object.hash_tree_root()?;
         let branch = branch_to_nodes(branch.to_vec())?;
 
-        let is_valid = is_valid_merkle_branch(&leaf_hash, branch.iter(), depth, index, &state_root);
+        let is_valid = is_valid_merkle_branch(&leaf_hash, branch.iter(), depth, index, state_root);
         Ok(is_valid)
     })();
 
@@ -60,7 +58,7 @@ pub fn verify_block_roots_proof(
 }
 
 pub fn verify_block_roots_branch(
-    block_roots_branch: &Vec<Node>,
+    block_roots_branch: &[Node],
     block_roots_root: &Node,
     state_root: &Root,
 ) -> bool {
@@ -78,9 +76,8 @@ pub fn verify_trie_proof(root: Root, key: u64, proof: Vec<Vec<u8>>) -> Option<Ve
     let hasher = Arc::new(HasherKeccak::new());
 
     let trie = PatriciaTrie::new(Arc::clone(&memdb), Arc::clone(&hasher));
-    let res = trie.verify_proof(root.as_bytes(), &encode(&key), proof);
-    if res.is_ok() {
-        return res.unwrap();
+    if let Ok(res) = trie.verify_proof(root.as_bytes(), &encode(key), proof) {
+        return res;
     }
     None
 }
@@ -90,81 +87,76 @@ pub fn parse_log(log: &ReceiptLog) -> Result<ContractCallBase, StdError> {
     let abi_string = std::fs::read_to_string(abi_path).unwrap();
     let abi: JsonAbi = serde_json::from_str(&abi_string).unwrap();
     for item in abi.items() {
-        match item {
-            AbiItem::Event(e) => {
-                let hasher = HasherKeccak::new();
-                if log.topics.first().map_or(false, |t| {
-                    t.as_ref() == hasher.digest(e.signature().as_bytes())
-                }) {
-                    let topics: Vec<FixedBytes<32>> =
-                        log.topics.iter().map(FixedBytes::from).collect();
+        if let AbiItem::Event(e) = item {
+            let hasher = HasherKeccak::new();
+            if log.topics.first().map_or(false, |t| {
+                t.as_ref() == hasher.digest(e.signature().as_bytes())
+            }) {
+                let topics: Vec<FixedBytes<32>> = log.topics.iter().map(FixedBytes::from).collect();
 
-                    // TODO: unchecked -> checked
-                    // TODO: set validate = true
-                    let decoded = e
-                        .decode_log(
-                            &Log::new_unchecked(topics, Bytes::from(log.data.clone())),
-                            false,
-                        )
-                        .map_err(|e| StdError::GenericErr { msg: e.to_string() })?;
+                // TODO: unchecked -> checked
+                // TODO: set validate = true
+                let decoded = e
+                    .decode_log(
+                        &Log::new_unchecked(topics, Bytes::from(log.data.clone())),
+                        false,
+                    )
+                    .map_err(|e| StdError::GenericErr { msg: e.to_string() })?;
 
-                    let mut indexed_consumed = 0;
-                    let mut base = ContractCallBase {
-                        source_address: None,
-                        destination_chain: None,
-                        destination_address: None,
-                        payload_hash: None,
+                let mut indexed_consumed = 0;
+                let mut base = ContractCallBase {
+                    source_address: None,
+                    destination_chain: None,
+                    destination_address: None,
+                    payload_hash: None,
+                };
+                for (idx, param) in e.inputs.iter().enumerate() {
+                    let value = if param.indexed {
+                        decoded.indexed.get(indexed_consumed).cloned()
+                    } else {
+                        decoded.body.get(idx - indexed_consumed).cloned()
                     };
-                    for (idx, param) in e.inputs.iter().enumerate() {
-                        let value = if param.indexed {
-                            decoded.indexed.get(indexed_consumed).cloned()
-                        } else {
-                            decoded.body.get(idx - indexed_consumed).cloned()
-                        };
 
-                        if let Some(value) = value {
-                            match param.name.as_str() {
-                                "sender" => {
-                                    base.source_address =
-                                        Some(value.as_address().unwrap_or_default())
-                                }
-                                "destinationChain" => {
-                                    base.destination_chain =
-                                        Some(value.as_str().unwrap_or_default().to_string());
-                                }
-                                "destinationContractAddress" => {
-                                    base.destination_address =
-                                        Some(value.as_str().unwrap_or_default().to_string());
-                                }
-                                "payloadHash" => {
-                                    let payload: [u8; 32] = value
-                                        .as_fixed_bytes()
-                                        .unwrap_or_default()
-                                        .0
-                                        .try_into()
-                                        .map_err(|e| StdError::GenericErr {
-                                            msg: "Invalid conversion of payload to [u8; 32]"
-                                                .to_string(),
-                                        })?;
-                                    base.payload_hash = Some(payload);
-                                }
-                                _ => {}
+                    if let Some(value) = value {
+                        match param.name.as_str() {
+                            "sender" => {
+                                base.source_address = Some(value.as_address().unwrap_or_default())
                             }
-                        }
-
-                        if param.indexed {
-                            indexed_consumed += 1
+                            "destinationChain" => {
+                                base.destination_chain =
+                                    Some(value.as_str().unwrap_or_default().to_string());
+                            }
+                            "destinationContractAddress" => {
+                                base.destination_address =
+                                    Some(value.as_str().unwrap_or_default().to_string());
+                            }
+                            "payloadHash" => {
+                                let payload: [u8; 32] = value
+                                    .as_fixed_bytes()
+                                    .unwrap_or_default()
+                                    .0
+                                    .try_into()
+                                    .map_err(|_| StdError::GenericErr {
+                                        msg: "Invalid conversion of payload to [u8; 32]"
+                                            .to_string(),
+                                    })?;
+                                base.payload_hash = Some(payload);
+                            }
+                            _ => {}
                         }
                     }
-                    return Ok(base);
+
+                    if param.indexed {
+                        indexed_consumed += 1
+                    }
                 }
+                return Ok(base);
             }
-            _ => {}
         }
     }
-    return Err(StdError::GenericErr {
+    Err(StdError::GenericErr {
         msg: "Couldn't match an event to decode the log".to_string(),
-    });
+    })
 }
 
 pub fn verify_message(message: &Message, log: &ReceiptLog, transaction: &Vec<u8>) -> bool {
@@ -181,7 +173,7 @@ pub fn verify_message(message: &Message, log: &ReceiptLog, transaction: &Vec<u8>
     // println!("{:?}", log);
 
     // TODO: verify that values are not empty
-    return message_tx_hash == transaction_hash
+    message_tx_hash == transaction_hash
         && gateway_address == log.address
         && *message.source_address.to_string().to_lowercase()
             == event
@@ -193,7 +185,7 @@ pub fn verify_message(message: &Message, log: &ReceiptLog, transaction: &Vec<u8>
             == event.destination_chain.unwrap_or_default().to_lowercase()
         && *message.destination_address.to_string().to_lowercase()
             == event.destination_address.unwrap_or_default().to_lowercase()
-        && message.payload_hash == event.payload_hash.unwrap_or_default();
+        && message.payload_hash == event.payload_hash.unwrap_or_default()
 }
 
 pub fn branch_to_nodes(branch: Vec<Bytes32>) -> Result<Vec<Node>> {
