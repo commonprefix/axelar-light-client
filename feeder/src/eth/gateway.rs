@@ -3,12 +3,13 @@ use crate::eth::execution::ExecutionRPC;
 use crate::eth::utils::calc_slot_from_timestamp;
 use crate::types::InternalMessage;
 use consensus_types::lightclient::{CrossChainId, Message};
-use ethers::abi::{Bytes, RawLog};
+use ethers::abi::{AbiEncode, Bytes, RawLog};
 use ethers::prelude::{EthEvent, Http};
 use ethers::providers::{Middleware, Provider};
 use ethers::types::Filter;
 use ethers::types::{Address, Log, H256, U256};
 use eyre::Result;
+use hex::ToHex;
 use std::sync::Arc;
 
 pub struct Gateway {
@@ -58,13 +59,15 @@ impl Gateway {
                 let log_index = log.log_index.unwrap();
                 let cc_id = CrossChainId {
                     chain: "ethereum".parse().unwrap(),
-                    id: format!("{:x}:{}", tx_hash, log_index).parse().unwrap(),
+                    id: format!("{}:{}", format!("0x{:x}", tx_hash), log_index)
+                        .parse()
+                        .unwrap(),
                 };
 
                 InternalMessage {
                     message: Message {
                         cc_id,
-                        source_address: event.sender.to_string().parse().unwrap(),
+                        source_address: format!("0x{:x}", event.sender).parse().unwrap(),
                         destination_chain: event.destination_chain.parse().unwrap(),
                         destination_address: event.destination_contract_address.parse().unwrap(),
                         payload_hash: event.payload_hash.into(),
