@@ -71,21 +71,17 @@ pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, Contract
 
 mod execute {
     use cosmwasm_std::{to_json_binary, WasmMsg};
-    use ssz_rs::Merkleized;
+    use ssz_rs::{verify_merkle_proof, GeneralizedIndex, Merkleized};
     use sync_committee_rs::types::AncestryProof;
     use types::{
         common::Forks,
         consensus::Update,
-        execution::ReceiptLogs,
+        execution::{ReceiptLog, ReceiptLogs},
         lightclient::{BlockVerificationData, UpdateVariant},
     };
 
-    use crate::lightclient::{
-        helpers::{
-            verify_block_roots_branch, verify_block_roots_proof, verify_execution_payload_branch,
-            verify_trie_proof,
-        },
-        Verification,
+    use crate::lightclient::helpers::{
+        verify_block_roots_branch, verify_block_roots_proof, verify_message, verify_trie_proof,
     };
 
     use super::*;
@@ -144,22 +140,68 @@ mod execute {
         }
 
         // Verify receipt proof
-        let valid_receipt_proof = verify_trie_proof(
+        let receipt_option = verify_trie_proof(
             data.receipt_proof.receipts_root,
-            data.receipt_proof.receipt_index,
-            data.receipt_proof.receipt_branch,
+            data.receipt_proof.transaction_index,
+            data.receipt_proof.receipt_proof,
         );
 
-        if valid_receipt_proof.is_none() {
-            return Err(ContractError::InvalidReceiptProof);
+        let receipt = match receipt_option {
+            Some(s) => s,
+            None => return Err(ContractError::InvalidReceiptProof),
+        };
+
+        let valid_receipts_root = verify_merkle_proof(
+            &data.receipt_proof.receipts_root,
+            &data.receipt_proof.receipts_branch,
+            &GeneralizedIndex(19),
+            &data.receipt_proof.execution_payload_root,
+        );
+
+        if !valid_receipts_root {
+            return Err(ContractError::InvalidReceiptsBranchProof);
         }
 
-        // TODO: Verify receipt_root_branch
+        // Verify transaction proof
+        let transaction_option = verify_trie_proof(
+            data.receipt_proof.transactions_root,
+            data.receipt_proof.transaction_index,
+            data.receipt_proof.transaction_proof,
+        );
 
-        let valid_execution_branch = verify_execution_payload_branch(
-            &data.receipt_proof.execution_payload_branch,
+        let transaction = match transaction_option {
+            Some(tx) => tx,
+            None => return Err(ContractError::InvalidTransactionProof),
+        };
+
+        let valid_transactions_root = verify_merkle_proof(
+            &data.receipt_proof.transactions_root,
+            &data.receipt_proof.transactions_branch,
+            &GeneralizedIndex(29),
             &data.receipt_proof.execution_payload_root,
-            &data.target_block.state_root,
+        );
+
+        // TODO: fixme
+        if !valid_transactions_root && false {
+            return Err(ContractError::InvalidTransactionsBranchProof);
+        }
+
+        let logs: ReceiptLogs = alloy_rlp::Decodable::decode(&mut &receipt[..]).unwrap();
+        let mut verified_message = false;
+        for log in logs.0.iter() {
+            if verify_message(&data.message, &log, &transaction) {
+                verified_message = true;
+            }
+        }
+        if !verified_message {
+            return Err(ContractError::InvalidMessage);
+        }
+
+        let valid_execution_branch = verify_merkle_proof(
+            &data.receipt_proof.execution_payload_root,
+            &data.receipt_proof.execution_payload_branch,
+            &GeneralizedIndex(25),
+            &data.target_block.body_root,
         );
 
         if !valid_execution_branch {
@@ -292,9 +334,9 @@ mod tests {
 
     use crate::{
         contract::{execute, instantiate, query},
-        lightclient::helpers::hex_str_to_bytes,
         lightclient::helpers::test_helpers::*,
         lightclient::LightClient,
+        lightclient::{helpers::hex_str_to_bytes, tests::tests::init_lightclient},
         msg::ExecuteMsg,
     };
     use cosmwasm_std::{testing::mock_env, Addr, Timestamp};
@@ -337,6 +379,21 @@ mod tests {
             .unwrap();
 
         (app, addr)
+    }
+
+    #[test]
+    fn test_data() {
+        let lightclient = init_lightclient();
+        let data = get_event_verification_data();
+        let res = execute::process_verification_data(&lightclient, data.clone());
+        println!("{res:?}");
+        assert!(res.is_ok());
+        assert!(false);
+    }
+
+    #[test]
+    fn test_verify() {
+        assert!(false);
     }
 
     #[test]
