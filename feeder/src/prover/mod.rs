@@ -9,16 +9,14 @@ use crate::{
             generate_exec_payload_branch, generate_receipts_branch, generate_transactions_branch,
             prove_ancestry,
         },
-        execution::{generate_receipt_proof, generate_transaction_proof},
+        execution::{generate_receipt_proof, generate_transaction_proof, get_tx_index},
     },
     types::InternalMessage,
 };
-use consensus_types::lightclient::CrossChainId;
 use consensus_types::{
     consensus::to_beacon_header,
     lightclient::{EventVerificationData, ReceiptProof, UpdateVariant},
 };
-use ethers::types::TransactionReceipt;
 use eyre::{anyhow, Result};
 use ssz_rs::{Merkleized, Node};
 use sync_committee_rs::constants::Bytes32;
@@ -63,7 +61,7 @@ impl Prover {
             UpdateVariant::Optimistic(update) => update.attested_header.beacon,
         };
 
-        let tx_index = self.get_tx_index(&receipts, &message.message.cc_id)?;
+        let tx_index = get_tx_index(&receipts, &message.message.cc_id)?;
 
         // Execution Proofs
         let receipt_proof = generate_receipt_proof(&target_block, &receipts, tx_index)?;
@@ -111,20 +109,5 @@ impl Prover {
                     .hash_tree_root()?,
             },
         })
-    }
-
-    fn get_tx_index(
-        &self,
-        receipts: &Vec<TransactionReceipt>,
-        cc_id: &CrossChainId,
-    ) -> Result<u64> {
-        let tx_hash = cc_id.id.split_once(':').unwrap().0;
-
-        let tx_index = receipts
-            .iter()
-            .position(|r| r.transaction_hash.to_string() == tx_hash)
-            .unwrap();
-
-        Ok(tx_index as u64)
     }
 }

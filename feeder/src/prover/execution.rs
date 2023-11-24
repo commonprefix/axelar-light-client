@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use cita_trie::{MemoryDB, PatriciaTrie, Trie};
+use consensus_types::lightclient::CrossChainId;
 use ethers::{
     types::{Block, Transaction, TransactionReceipt, H256},
     utils::rlp::{encode, Encodable},
@@ -50,6 +51,18 @@ pub fn generate_receipt_proof(
         .map_err(|e| anyhow!("Failed to generate proof: {:?}", e))?;
 
     Ok(proof)
+}
+
+pub fn get_tx_index(receipts: &Vec<TransactionReceipt>, cc_id: &CrossChainId) -> Result<u64> {
+    let tx_hash = cc_id.id.split_once(':').unwrap().0;
+
+    let tx_index = receipts
+        .iter()
+        .position(|r| r.transaction_hash.to_string() == tx_hash)
+        .unwrap();
+    println!("tx_index: {}", tx_index);
+
+    Ok(tx_index as u64)
 }
 
 fn generate_trie<T>(
