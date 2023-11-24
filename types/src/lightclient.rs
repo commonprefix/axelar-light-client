@@ -1,12 +1,12 @@
 use crate::consensus::{FinalityUpdate, OptimisticUpdate};
 use crate::helpers::{from_hex_string, to_hex_string};
-use crate::proofs::AncestryProof;
 pub use connection_router::state::{Address as AddressType, ChainName, CrossChainId, Message};
 use ssz_rs::Node;
-use sync_committee_rs::constants::{Bytes32, Root, SYNC_COMMITTEE_SIZE};
+use sync_committee_rs::constants::Bytes32;
 use sync_committee_rs::{
-    consensus_types::{BeaconBlockHeader, SyncAggregate, SyncCommittee, Transaction},
-    constants::MAX_BYTES_PER_TRANSACTION,
+    consensus_types::{BeaconBlockHeader, SyncAggregate, SyncCommittee},
+    constants::{Root, MAX_BYTES_PER_TRANSACTION, SYNC_COMMITTEE_SIZE},
+    types::AncestryProof,
 };
 
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
