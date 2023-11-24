@@ -40,7 +40,9 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
-alloy-primitives = "0.4.2"
+alloy-dyn-abi = {package = "alloy-dyn-abi", git = "https://github.com/alloy-rs/core ", rev = "862f01e04191ba6146f6d63d66cf2e1035c136df"}
+alloy-json-abi = {package = "alloy-json-abi", git = "https://github.com/alloy-rs/core ", rev = "862f01e04191ba6146f6d63d66cf2e1035c136df"}
+alloy-primitives = {package = "alloy-primitives", git = "https://github.com/alloy-rs/core ", rev = "862f01e04191ba6146f6d63d66cf2e1035c136df"}
 alloy-rlp = {version = "0.3.3", features = ["derive", "arrayvec"]}
 cita_trie = "5.0.1"
 cosmwasm-schema = "1.1.3"
