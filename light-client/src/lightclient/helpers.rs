@@ -1,16 +1,27 @@
-use std::{fmt, sync::Arc};
+use std::{
+    error::Error,
+    fmt::{self},
+    ops::Deref,
+    sync::Arc,
+};
 
+use alloy_dyn_abi::EventExt;
+use alloy_json_abi::{AbiItem, JsonAbi};
+use alloy_primitives::{Bytes, FixedBytes, Log};
+use alloy_rlp::encode;
 use cita_trie::{MemoryDB, PatriciaTrie, Trie};
+use cosmwasm_std::StdError;
 use eyre::Result;
 
-use hasher::HasherKeccak;
+use hasher::{Hasher, HasherKeccak};
 use ssz_rs::{is_valid_merkle_branch, verify_merkle_proof, GeneralizedIndex, Merkleized, Node};
 use sync_committee_rs::{
-    constants::{
-        Bytes32, Root, BLOCK_ROOTS_INDEX, BLOCK_ROOTS_INDEX_LOG2, EXECUTION_PAYLOAD_INDEX,
-        EXECUTION_PAYLOAD_INDEX_LOG2,
-    },
+    constants::{Bytes32, Root, BLOCK_ROOTS_INDEX, BLOCK_ROOTS_INDEX_LOG2},
     types::BlockRootsProof,
+};
+use types::{
+    execution::{ContractCallBase, ReceiptLog, ReceiptLogs},
+    lightclient::Message,
 };
 
 pub fn is_proof_valid<L: Merkleized>(
@@ -62,31 +73,127 @@ pub fn verify_block_roots_branch(
     )
 }
 
-pub fn verify_execution_payload_branch(
-    execution_payload_branch: &Vec<Node>,
-    execution_payload_root: &Root,
-    state_root: &Root,
-) -> bool {
-    is_valid_merkle_branch(
-        execution_payload_root,
-        execution_payload_branch.iter(),
-        EXECUTION_PAYLOAD_INDEX_LOG2 as usize,
-        EXECUTION_PAYLOAD_INDEX as usize,
-        state_root,
-    )
-}
-
-pub fn verify_trie_proof(root: Root, key: u64, proof: Vec<Node>) -> Option<Vec<u8>> {
+pub fn verify_trie_proof(root: Root, key: u64, proof: Vec<Vec<u8>>) -> Option<Vec<u8>> {
     let memdb = Arc::new(MemoryDB::new(true));
     let hasher = Arc::new(HasherKeccak::new());
-    let proof_bytes = proof
-        .into_iter()
-        .map(|node| node.as_bytes().to_vec())
-        .collect::<Vec<Vec<u8>>>();
 
     let trie = PatriciaTrie::new(Arc::clone(&memdb), Arc::clone(&hasher));
-    trie.verify_proof(root.as_bytes(), key.to_ne_bytes().as_ref(), proof_bytes)
-        .unwrap()
+    let res = trie.verify_proof(root.as_bytes(), &encode(&key), proof);
+    if res.is_ok() {
+        return res.unwrap();
+    }
+    None
+}
+
+pub fn parse_log(log: &ReceiptLog) -> Result<ContractCallBase, StdError> {
+    let abi_path = "../abi.json";
+    let abi_string = std::fs::read_to_string(abi_path).unwrap();
+    let abi: JsonAbi = serde_json::from_str(&abi_string).unwrap();
+    for item in abi.items() {
+        match item {
+            AbiItem::Event(e) => {
+                let hasher = HasherKeccak::new();
+                if log.topics.first().map_or(false, |t| {
+                    t.as_ref() == hasher.digest(e.signature().as_bytes())
+                }) {
+                    let topics: Vec<FixedBytes<32>> =
+                        log.topics.iter().map(FixedBytes::from).collect();
+
+                    // TODO: unchecked -> checked
+                    // TODO: set validate = true
+                    let decoded = e
+                        .decode_log(
+                            &Log::new_unchecked(topics, Bytes::from(log.data.clone())),
+                            false,
+                        )
+                        .map_err(|e| StdError::GenericErr { msg: e.to_string() })?;
+
+                    let mut indexed_consumed = 0;
+                    let mut base = ContractCallBase {
+                        source_address: None,
+                        destination_chain: None,
+                        destination_address: None,
+                        payload_hash: None,
+                    };
+                    for (idx, param) in e.inputs.iter().enumerate() {
+                        let value = if param.indexed {
+                            decoded.indexed.get(indexed_consumed).cloned()
+                        } else {
+                            decoded.body.get(idx - indexed_consumed).cloned()
+                        };
+
+                        if let Some(value) = value {
+                            match param.name.as_str() {
+                                "sender" => {
+                                    base.source_address =
+                                        Some(value.as_address().unwrap_or_default())
+                                }
+                                "destinationChain" => {
+                                    base.destination_chain =
+                                        Some(value.as_str().unwrap_or_default().to_string());
+                                }
+                                "destinationContractAddress" => {
+                                    base.destination_address =
+                                        Some(value.as_str().unwrap_or_default().to_string());
+                                }
+                                "payloadHash" => {
+                                    let payload: [u8; 32] = value
+                                        .as_fixed_bytes()
+                                        .unwrap_or_default()
+                                        .0
+                                        .try_into()
+                                        .map_err(|e| StdError::GenericErr {
+                                            msg: "Invalid conversion of payload to [u8; 32]"
+                                                .to_string(),
+                                        })?;
+                                    base.payload_hash = Some(payload);
+                                }
+                                _ => {}
+                            }
+                        }
+
+                        if param.indexed {
+                            indexed_consumed += 1
+                        }
+                    }
+                    return Ok(base);
+                }
+            }
+            _ => {}
+        }
+    }
+    return Err(StdError::GenericErr {
+        msg: "Couldn't match an event to decode the log".to_string(),
+    });
+}
+
+pub fn verify_message(message: &Message, log: &ReceiptLog, transaction: &Vec<u8>) -> bool {
+    let hasher = HasherKeccak::new();
+    let transaction_hash = hex::encode(hasher.digest(transaction.as_slice()));
+
+    // TODO: don't hardcode
+    let gateway_address =
+        hex::decode("4f4495243837681061c4743b74b3eedf548d56a5").unwrap_or_default();
+    let message_id = message.cc_id.id.split(':').collect::<Vec<&str>>();
+    let message_tx_hash = message_id[0].strip_prefix("0x").unwrap_or_default();
+
+    let event = parse_log(log).unwrap_or_default();
+    // println!("{:?}", log);
+
+    // TODO: verify that values are not empty
+    return message_tx_hash == transaction_hash
+        && gateway_address == log.address
+        && *message.source_address.to_string().to_lowercase()
+            == event
+                .source_address
+                .unwrap_or_default()
+                .to_string()
+                .to_lowercase()
+        && String::from(message.destination_chain.clone()).to_lowercase()
+            == event.destination_chain.unwrap_or_default().to_lowercase()
+        && *message.destination_address.to_string().to_lowercase()
+            == event.destination_address.unwrap_or_default().to_lowercase()
+        && message.payload_hash == event.payload_hash.unwrap_or_default();
 }
 
 pub fn branch_to_nodes(branch: Vec<Bytes32>) -> Result<Vec<Node>> {
