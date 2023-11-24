@@ -30,11 +30,23 @@ pub enum ContractError {
     #[error("Invalid receipt proof")]
     InvalidReceiptProof,
 
+    #[error("Invalid receipts_root proof")]
+    InvalidReceiptsBranchProof,
+
+    #[error("Invalid transaction proof")]
+    InvalidTransactionProof,
+
+    #[error("Invalid transactions_root proof")]
+    InvalidTransactionsBranchProof,
+
     #[error("Invalid execution branch")]
     InvalidExecutionBranch,
 
     #[error("Invalid verification data")]
     InvalidVerificationData,
+
+    #[error("Invalid message")]
+    InvalidMessage,
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
 }
