@@ -6,3 +6,5 @@ pub mod lightclient;
 pub mod primitives;
 
 pub use alloy_primitives;
+
+pub mod proofs;

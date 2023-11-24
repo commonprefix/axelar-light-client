@@ -38,7 +38,7 @@ pub fn get_tx_index(receipts: &Vec<TransactionReceipt>, cc_id: &CrossChainId) ->
 
     let tx_index = receipts
         .iter()
-        .position(|r| format!("{:x}", r.transaction_hash) == tx_hash)
+        .position(|r| format!("0x{:x}", r.transaction_hash) == tx_hash)
         .unwrap();
 
     Ok(tx_index as u64)
