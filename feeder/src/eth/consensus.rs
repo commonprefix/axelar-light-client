@@ -77,7 +77,7 @@ impl ConsensusRPC {
 
         let res: BeaconBlockHeaderResponse = get(&req)
             .await
-            .map_err(|e| RpcError::new("beacon_header", e))?;
+            .map_err(|e| RpcError::new("latest_beacon_header", e))?;
 
         Ok(res.data.header.message)
     }
@@ -88,6 +88,16 @@ impl ConsensusRPC {
         let res: BeaconBlockResponse = get(&req)
             .await
             .map_err(|e| RpcError::new("beacon_block", e))?;
+
+        Ok(res.data.message)
+    }
+
+    pub async fn get_latest_beacon_block(&self) -> Result<BeaconBlockAlias> {
+        let req = format!("{}/eth/v1/beacon/blocks/7834081", self.rpc);
+
+        let res: BeaconBlockResponse = get(&req)
+            .await
+            .map_err(|e| RpcError::new("latest_beacon_block", e))?;
 
         Ok(res.data.message)
     }

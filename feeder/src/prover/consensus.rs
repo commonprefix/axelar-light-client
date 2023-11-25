@@ -1,47 +1,40 @@
 use crate::error::RpcError;
 use crate::eth::{constants::STATE_PROVER_RPC, utils::get};
 use crate::prover::types::ProofResponse;
-use consensus_types::{
-    consensus::{BeaconBlockAlias, BeaconStateType},
-    proofs::AncestryProof,
-};
+use consensus_types::{consensus::BeaconStateType, proofs::AncestryProof};
 use eyre::Result;
-use ssz_rs::{get_generalized_index, Node, SszVariableOrIndex};
+use ssz_rs::{get_generalized_index, SszVariableOrIndex};
 use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
 
 /**
- * Generates a merkle proof from the transactions to the execution payload of
- * the beacon block body.
+ * Generates a merkle proof from the transaction to the beacon block root.
 */
-pub fn generate_transactions_branch(beacon_block: &mut BeaconBlockAlias) -> Result<Vec<Node>> {
-    let path = vec![SszVariableOrIndex::Name("transactions")];
-    // println!("{:#?}", beacon_block.body.execution_payload);
-    let g_index = get_generalized_index(&beacon_block.body.execution_payload, &path);
-    let proof = ssz_rs::generate_proof(&mut beacon_block.body.execution_payload, &[g_index])?;
+pub async fn generate_transaction_branch(
+    block_id: &String,
+    tx_index: u64,
+) -> Result<ProofResponse> {
+    let path = vec![
+        SszVariableOrIndex::Name("body"),
+        SszVariableOrIndex::Name("execution_payload"),
+        SszVariableOrIndex::Name("transactions"),
+        SszVariableOrIndex::Index(tx_index as usize),
+    ];
 
+    let proof = get_block_proof(block_id, path).await?;
     Ok(proof)
 }
 
 /**
- * Generates a merkle proof from the receipts_root to the execution payload of
- * the beacon block body.
+ * Generates a merkle proof from the receipts_root to the beacon block root.
 */
-pub fn generate_receipts_branch(beacon_block: &mut BeaconBlockAlias) -> Result<Vec<Node>> {
-    let path = vec![SszVariableOrIndex::Name("receipts_root")];
-    let g_index = get_generalized_index(&beacon_block.body.execution_payload, &path);
-    let proof = ssz_rs::generate_proof(&mut beacon_block.body.execution_payload, &[g_index])?;
+pub async fn generate_receipts_root_branch(block_id: &String) -> Result<ProofResponse> {
+    let path = vec![
+        SszVariableOrIndex::Name("body"),
+        SszVariableOrIndex::Name("execution_payload"),
+        SszVariableOrIndex::Name("receipts_root"),
+    ];
 
-    Ok(proof)
-}
-
-/**
- * Generates a merkle proof from the execution payload to the beacon block body.
-*/
-pub fn generate_exec_payload_branch(beacon_block: &mut BeaconBlockAlias) -> Result<Vec<Node>> {
-    let path = vec![SszVariableOrIndex::Name("execution_payload")];
-    let g_index = get_generalized_index(&beacon_block.body, &path);
-    let proof = ssz_rs::generate_proof(&mut beacon_block.body, &[g_index])?;
-
+    let proof = get_block_proof(block_id, path).await?;
     Ok(proof)
 }
 
@@ -120,17 +113,44 @@ async fn get_state_proof(state_id: String, gindex: u64) -> Result<ProofResponse>
     Ok(res)
 }
 
+async fn get_block_proof(
+    block_id: &String,
+    path: Vec<SszVariableOrIndex>,
+) -> Result<ProofResponse> {
+    fn parse_path(path: Vec<SszVariableOrIndex>) -> String {
+        let mut path_str = String::new();
+        for p in path {
+            match p {
+                SszVariableOrIndex::Name(name) => path_str.push_str(&format!(",{}", name)),
+                SszVariableOrIndex::Index(index) => path_str.push_str(&format!(",{}", index)),
+            }
+        }
+        path_str[1..].to_string() // remove first comma
+    }
+
+    let path = parse_path(path);
+    let req = format!(
+        "{}/block_proof/?block_id={}&path={}",
+        STATE_PROVER_RPC, block_id, path
+    );
+    println!("{}", req);
+
+    let res: ProofResponse = get(&req)
+        .await
+        .map_err(|e| RpcError::new("get_block_proof", e))?;
+
+    Ok(res)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::eth::consensus::ConsensusRPC;
     use crate::eth::constants::CONSENSUS_RPC;
     use crate::prover::consensus::{
-        generate_exec_payload_branch, generate_receipts_branch, generate_transactions_branch,
-        prove_ancestry_with_block_roots,
+        generate_receipts_root_branch, generate_transaction_branch, prove_ancestry_with_block_roots,
     };
     use consensus_types::consensus::BeaconBlockAlias;
     use consensus_types::proofs::AncestryProof;
-    use core::panic;
     use ssz_rs::{GeneralizedIndex, Merkleized};
     use std::fs::File;
     use tokio::test as tokio_test;
@@ -140,83 +160,56 @@ mod tests {
         serde_json::from_reader(file).unwrap()
     }
 
-    // Execution payload to beacon block body
-    const EXECUTION_PAYLOAD_G_INDEX: usize = 25;
+    /**
+     * TESTS BELOW REQUIRE NETWORK REQUESTS
+     */
+    #[tokio_test]
+    async fn test_transactions_branch() {
+        let mut block = get_beacon_block();
+        let block_root = block.hash_tree_root().unwrap();
 
-    // Generalized indices to execution payload
-    const RECEIPTS_ROOT_G_INDEX: usize = 19;
-    const TRANSACTIONS_G_INDEX: usize = 29;
+        let tx_index = 15;
+        let transaction = &mut block.body.execution_payload.transactions[tx_index];
+        let node = transaction.hash_tree_root().unwrap();
 
-    #[test]
-    fn test_execution_payload_branch() {
-        let mut beacon_block = get_beacon_block();
-        let proof = generate_exec_payload_branch(&mut beacon_block).unwrap();
+        let proof = generate_transaction_branch(&block_root.to_string(), tx_index as u64)
+            .await
+            .unwrap();
 
         let is_proof_valid = ssz_rs::verify_merkle_proof(
-            &beacon_block
-                .body
-                .execution_payload
-                .hash_tree_root()
-                .unwrap(),
-            proof.as_slice(),
-            &GeneralizedIndex(EXECUTION_PAYLOAD_G_INDEX),
-            &beacon_block.body.hash_tree_root().unwrap(),
+            &node,
+            proof.witnesses.as_slice(),
+            &GeneralizedIndex(proof.gindex as usize),
+            &block_root,
         );
 
-        assert!(is_proof_valid);
+        assert!(is_proof_valid)
     }
 
-    #[test]
-    fn test_receipts_branch() {
-        let mut beacon_block = get_beacon_block();
-        let proof = generate_receipts_branch(&mut beacon_block).unwrap();
+    #[tokio_test]
+    async fn test_receipts_root_branch() {
+        let mut block = get_beacon_block();
+        let block_root = block.hash_tree_root().unwrap();
+
+        let proof = generate_receipts_root_branch(&block_root.to_string())
+            .await
+            .unwrap();
 
         let is_proof_valid = ssz_rs::verify_merkle_proof(
-            &beacon_block
+            &block
                 .body
                 .execution_payload
                 .receipts_root
                 .hash_tree_root()
                 .unwrap(),
-            proof.as_slice(),
-            &GeneralizedIndex(RECEIPTS_ROOT_G_INDEX),
-            &beacon_block
-                .body
-                .execution_payload
-                .hash_tree_root()
-                .unwrap(),
+            proof.witnesses.as_slice(),
+            &GeneralizedIndex(proof.gindex as usize),
+            &block_root,
         );
 
-        assert!(is_proof_valid);
+        assert!(is_proof_valid)
     }
 
-    #[test]
-    fn test_transactions_branch() {
-        let mut beacon_block = get_beacon_block();
-        let proof = generate_transactions_branch(&mut beacon_block).unwrap();
-
-        let is_proof_valid = ssz_rs::verify_merkle_proof(
-            &beacon_block
-                .body
-                .execution_payload
-                .transactions
-                .hash_tree_root()
-                .unwrap(),
-            proof.as_slice(),
-            &GeneralizedIndex(TRANSACTIONS_G_INDEX),
-            &beacon_block
-                .body
-                .execution_payload
-                .hash_tree_root()
-                .unwrap(),
-        );
-
-        assert!(is_proof_valid);
-    }
-
-    /**
-     * REQUIRES NETWORK REQUESTS
-     */
     #[tokio_test]
     async fn test_block_roots_proof() {
         let consensus = ConsensusRPC::new(CONSENSUS_RPC);

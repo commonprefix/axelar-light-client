@@ -10,26 +10,6 @@ use eyre::{anyhow, Result};
 use hasher::HasherKeccak;
 
 /**
- * Generates an MPT proof from a transaction to the transactions_root.
-*/
-pub fn generate_transaction_proof(block: &Block<Transaction>, index: u64) -> Result<Vec<Vec<u8>>> {
-    let mut trie = generate_trie(block.transactions.clone(), encode_transaction);
-    let trie_root = trie.root().unwrap();
-
-    // Reality check
-    if block.transactions_root != H256::from_slice(&trie_root[0..32]) {
-        return Err(anyhow!("Invalid transactions root from trie generation"));
-    }
-
-    let tx_index = encode(&index);
-    let proof = trie
-        .get_proof(tx_index.to_vec().as_slice())
-        .map_err(|e| anyhow!("Failed to generate proof: {:?}", e))?;
-
-    Ok(proof)
-}
-
-/**
  * Generates an MPT proof from a receipt to the receipts_root.
 */
 pub fn generate_receipt_proof(
@@ -45,9 +25,9 @@ pub fn generate_receipt_proof(
         return Err(anyhow!("Invalid receipts root from trie generation"));
     }
 
-    let log_index = encode(&index);
+    let receipt_index: cosmos_sdk_proto::prost::bytes::BytesMut = encode(&index);
     let proof = trie
-        .get_proof(log_index.to_vec().as_slice())
+        .get_proof(receipt_index.to_vec().as_slice())
         .map_err(|e| anyhow!("Failed to generate proof: {:?}", e))?;
 
     Ok(proof)
@@ -58,9 +38,8 @@ pub fn get_tx_index(receipts: &Vec<TransactionReceipt>, cc_id: &CrossChainId) ->
 
     let tx_index = receipts
         .iter()
-        .position(|r| r.transaction_hash.to_string() == tx_hash)
+        .position(|r| format!("{:x}", r.transaction_hash) == tx_hash)
         .unwrap();
-    println!("tx_index: {}", tx_index);
 
     Ok(tx_index as u64)
 }
@@ -79,10 +58,6 @@ fn generate_trie<T>(
     }
 
     trie
-}
-
-fn encode_transaction(transaction: &Transaction) -> Vec<u8> {
-    transaction.rlp().to_vec()
 }
 
 fn encode_receipt(receipt: &TransactionReceipt) -> Vec<u8> {
@@ -110,7 +85,7 @@ mod tests {
     use std::{fs::File, sync::Arc};
     use sync_committee_rs::constants::Root;
 
-    use crate::prover::execution::{generate_receipt_proof, generate_transaction_proof};
+    use crate::prover::execution::generate_receipt_proof;
 
     fn get_execution_block() -> Block<Transaction> {
         let file = File::open("./src/prover/testdata/execution_block.json").unwrap();
@@ -133,21 +108,6 @@ mod tests {
             proof_bytes,
         )
         .unwrap()
-    }
-
-    #[test]
-    fn test_transactions_proof() {
-        let mut execution_block = get_execution_block();
-
-        let proof = generate_transaction_proof(&mut execution_block, 1).unwrap();
-        let bytes: Result<[u8; 32], _> = execution_block.transactions_root[0..32].try_into();
-        let root = Root::from_bytes(bytes.unwrap());
-
-        let valid_proof = verify_trie_proof(root, 1, proof.clone());
-        let invalid_proof = verify_trie_proof(root, 2, proof);
-
-        assert!(valid_proof.is_some());
-        assert!(invalid_proof.is_none())
     }
 
     #[test]

@@ -3,8 +3,11 @@ use crate::helpers::{from_hex_string, to_hex_string};
 use crate::proofs::AncestryProof;
 pub use connection_router::state::{Address as AddressType, ChainName, CrossChainId, Message};
 use ssz_rs::Node;
-use sync_committee_rs::consensus_types::{BeaconBlockHeader, SyncAggregate, SyncCommittee};
 use sync_committee_rs::constants::{Bytes32, Root, SYNC_COMMITTEE_SIZE};
+use sync_committee_rs::{
+    consensus_types::{BeaconBlockHeader, SyncAggregate, SyncCommittee, Transaction},
+    constants::MAX_BYTES_PER_TRANSACTION,
+};
 
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct LightClientState {
@@ -51,21 +54,16 @@ pub struct EventVerificationData {
 pub struct ReceiptProof {
     // Same index of transaction to transaction trie and from receipt to receipt trie
     pub transaction_index: u64,
+    // Proof from beacon block to transaction
+    pub transaction_branch: Vec<Node>,
+    // Actual transaction to keccak and test against tx_hash of message
+    pub transaction: Transaction<MAX_BYTES_PER_TRANSACTION>,
 
-    // Proof from receipt to receipts root
-    pub receipt_proof: Vec<Vec<u8>>,
-    // Proof from receipts root to execution payload
+    // Proof from receipts root to beacon block
     pub receipts_branch: Vec<Node>,
-
-    // Proof from transaction to transactions root
-    pub transaction_proof: Vec<Vec<u8>>,
-    // Proof from transactions root to execution body
-    pub transactions_branch: Vec<Node>,
-
-    // Proof from execution payload to body_root
-    pub exec_payload_branch: Vec<Node>,
+    // Proof from receipt to receipts root (TRIE)
+    pub receipt_proof: Vec<Vec<u8>>,
 
     pub transactions_root: Bytes32,
     pub receipts_root: Bytes32,
-    pub execution_payload_root: Root,
 }
