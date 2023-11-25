@@ -99,7 +99,6 @@ impl Prover {
                 transaction_branch: transaction_branch.witnesses,
                 transaction,
                 transaction_index: tx_index,
-                transactions_root: Bytes32::try_from(target_block.transactions_root.as_bytes())?,
                 receipts_root: Bytes32::try_from(target_block.receipts_root.as_bytes())?,
             },
         })
