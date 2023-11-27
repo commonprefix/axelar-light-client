@@ -63,6 +63,20 @@ pub fn execute(
             VERIFIED_MESSAGES.save(deps.storage, payload.message.hash_id(), &payload.message)?;
             Ok(Response::new())
         }
+        VerifyMessages { messages } => {
+            let res = messages
+                .into_iter()
+                .map(|message| {
+                    let result = VERIFIED_MESSAGES.load(deps.storage, message.hash_id());
+                    (message, result.is_ok())
+                })
+                .collect::<Vec<(Message, bool)>>();
+
+            for item in res.iter() {
+                println!("{:?}", item);
+            }
+            Ok(Response::new())
+        }
     }
 }
 
