@@ -14,10 +14,8 @@ use consensus_types::{
     consensus::to_beacon_header,
     lightclient::{EventVerificationData, ReceiptProof, UpdateVariant},
 };
-use ethers::types::TransactionReceipt;
 use eyre::{anyhow, Result};
 use ssz_rs::{Merkleized, Node};
-use sync_committee_rs::constants::Bytes32;
 
 pub struct Prover {
     execution_rpc: ExecutionRPC,

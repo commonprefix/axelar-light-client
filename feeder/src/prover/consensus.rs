@@ -1,11 +1,11 @@
 use crate::error::RpcError;
 use crate::eth::{constants::STATE_PROVER_RPC, utils::get};
 use crate::prover::types::ProofResponse;
-use consensus_types::consensus::{BeaconBlockAlias, BeaconStateType, BlockRootsType};
+use consensus_types::consensus::BeaconStateType;
 use consensus_types::proofs::AncestryProof;
 use eyre::Result;
-use ssz_rs::{get_generalized_index, Node, SszVariableOrIndex};
-use sync_committee_rs::constants::{BLOCK_ROOTS_INDEX, SLOTS_PER_HISTORICAL_ROOT};
+use ssz_rs::{get_generalized_index, SszVariableOrIndex};
+use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
 
 /**
  * Generates a merkle proof from the transaction to the beacon block root.

@@ -110,7 +110,7 @@ mod execute {
             } => {
                 let valid_block_root_proof = verify_merkle_proof(
                     &data.target_block.hash_tree_root()?,
-                    &block_root_proof.as_slice(),
+                    block_root_proof.as_slice(),
                     &GeneralizedIndex(block_roots_index as usize),
                     &recent_block.state_root,
                 );

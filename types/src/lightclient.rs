@@ -4,7 +4,6 @@ use crate::proofs::AncestryProof;
 pub use connection_router::state::{Address as AddressType, ChainName, CrossChainId, Message};
 use ssz_rs::Node;
 use sync_committee_rs::consensus_types::Transaction;
-use sync_committee_rs::constants::Bytes32;
 use sync_committee_rs::{
     consensus_types::{BeaconBlockHeader, SyncAggregate, SyncCommittee},
     constants::{Root, MAX_BYTES_PER_TRANSACTION, SYNC_COMMITTEE_SIZE},

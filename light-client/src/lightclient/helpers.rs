@@ -12,11 +12,8 @@ use cosmwasm_std::StdError;
 use eyre::Result;
 
 use hasher::{Hasher, HasherKeccak};
-use ssz_rs::{is_valid_merkle_branch, verify_merkle_proof, GeneralizedIndex, Merkleized, Node};
-use sync_committee_rs::{
-    constants::{Bytes32, Root, BLOCK_ROOTS_INDEX, BLOCK_ROOTS_INDEX_LOG2},
-    types::BlockRootsProof,
-};
+use ssz_rs::{is_valid_merkle_branch, Merkleized, Node};
+use sync_committee_rs::constants::{Bytes32, Root};
 use types::{
     execution::{ContractCallBase, ReceiptLog},
     lightclient::Message,

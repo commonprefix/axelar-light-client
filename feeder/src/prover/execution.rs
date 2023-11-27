@@ -33,7 +33,7 @@ pub fn generate_receipt_proof(
     Ok(proof)
 }
 
-pub fn get_tx_index(receipts: &Vec<TransactionReceipt>, cc_id: &CrossChainId) -> Result<u64> {
+pub fn get_tx_index(receipts: &[TransactionReceipt], cc_id: &CrossChainId) -> Result<u64> {
     let tx_hash = cc_id.id.split_once(':').unwrap().0;
 
     let tx_index = receipts
