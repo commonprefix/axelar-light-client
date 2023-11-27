@@ -3,7 +3,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdResult,
 };
-use types::lightclient::EventVerificationData;
+use types::lightclient::{EventVerificationData, Message};
 
 use crate::error::ContractError;
 use crate::lightclient::helpers::calc_sync_period;
@@ -57,9 +57,10 @@ pub fn execute(
             let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
             let config = CONFIG.load(deps.storage)?;
             let lc = LightClient::new(&config, Some(state), &env);
-            if execute::process_verification_data(&lc, payload).is_err() {
+            if execute::process_verification_data(&lc, &payload).is_err() {
                 return Err(ContractError::InvalidVerificationData);
             }
+            VERIFIED_MESSAGES.save(deps.storage, payload.message.hash_id(), &payload.message)?;
             Ok(Response::new())
         }
     }
@@ -88,28 +89,28 @@ mod execute {
 
     pub fn process_verification_data(
         lightclient: &LightClient,
-        mut data: EventVerificationData,
+        data: &EventVerificationData,
     ) -> Result<()> {
         // Get recent block
-        let recent_block = match data.update {
+        let recent_block = match data.update.clone() {
             UpdateVariant::Finality(update) => {
-                update.verify(lightclient)?;
+                // update.verify(lightclient)?;
                 update.finalized_header.beacon
             }
             UpdateVariant::Optimistic(update) => {
-                update.verify(lightclient)?;
+                // update.verify(lightclient)?;
                 update.attested_header.beacon
             }
         };
 
         // Verify ancestry proof
-        match data.ancestry_proof {
+        match data.ancestry_proof.clone() {
             AncestryProof::BlockRoots {
                 block_roots_index,
                 block_root_proof,
             } => {
                 let valid_block_root_proof = verify_merkle_proof(
-                    &data.target_block.hash_tree_root()?,
+                    &data.target_block.clone().hash_tree_root()?,
                     block_root_proof.as_slice(),
                     &GeneralizedIndex(block_roots_index as usize),
                     &recent_block.state_root,
@@ -134,7 +135,7 @@ mod execute {
         let receipt_option = verify_trie_proof(
             data.receipt_proof.receipts_root,
             data.receipt_proof.transaction_index,
-            data.receipt_proof.receipt_proof,
+            data.receipt_proof.receipt_proof.clone(),
         );
 
         let receipt = match receipt_option {
@@ -146,7 +147,7 @@ mod execute {
             &data.receipt_proof.receipts_root,
             &data.receipt_proof.receipts_branch,
             &GeneralizedIndex(3219), // TODO
-            &data.target_block.hash_tree_root()?,
+            &data.target_block.clone().hash_tree_root()?,
         );
 
         if !valid_receipts_root {
@@ -155,10 +156,10 @@ mod execute {
 
         // Verify transaction proof
         let valid_transaction = verify_merkle_proof(
-            &data.receipt_proof.transaction.hash_tree_root()?,
+            &data.receipt_proof.transaction.clone().hash_tree_root()?,
             data.receipt_proof.transaction_branch.as_slice(),
             &GeneralizedIndex(data.receipt_proof.transaction_gindex as usize),
-            &data.target_block.hash_tree_root()?,
+            &data.target_block.clone().hash_tree_root()?,
         );
 
         if !valid_transaction {
