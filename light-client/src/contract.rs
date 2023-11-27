@@ -285,6 +285,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_json_binary(&sync_committee)
         }
         Version {} => to_json_binary(&VERSION.load(deps.storage)?),
+        IsVerified { messages } => to_json_binary(
+            &messages
+                .into_iter()
+                .map(|message| {
+                    let result = VERIFIED_MESSAGES.load(deps.storage, message.hash_id());
+                    (message, result.is_ok())
+                })
+                .collect::<Vec<(Message, bool)>>(),
+        ),
     }
 }
 
