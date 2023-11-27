@@ -101,7 +101,7 @@ impl Prover {
                 transaction_gindex: transaction_branch.gindex,
                 transaction,
                 transaction_index: tx_index,
-                receipts_root: Bytes32::try_from(target_block.receipts_root.as_bytes())?,
+                receipts_root: Node::from_bytes(target_block.receipts_root.as_bytes().try_into()?),
             },
         })
     }
