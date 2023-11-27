@@ -1,7 +1,9 @@
 use crate::consensus::{FinalityUpdate, OptimisticUpdate};
 use crate::helpers::{from_hex_string, to_hex_string};
 use crate::proofs::AncestryProof;
-pub use connection_router::state::{Address as AddressType, ChainName, CrossChainId, Message};
+pub use connection_router::state::{
+    Address as AddressType, ChainName, CrossChainId, Message, MessageHash,
+};
 use ssz_rs::Node;
 use sync_committee_rs::consensus_types::Transaction;
 use sync_committee_rs::{
