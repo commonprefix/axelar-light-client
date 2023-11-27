@@ -33,13 +33,16 @@ async fn main() {
 
     let now = Instant::now();
 
-    let _proof = prover
+    let proof = prover
         .prove_event(
             first_message.clone(),
             UpdateVariant::Finality(finality_update),
         )
         .await
         .unwrap();
+
+    let proof_json = serde_json::to_string(&proof).unwrap();
+    println!("{}", proof_json);
 
     println!(
         "Generated full proof in {} seconds",
