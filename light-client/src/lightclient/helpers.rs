@@ -44,33 +44,6 @@ pub fn is_proof_valid<L: Merkleized>(
     }
 }
 
-pub fn verify_block_roots_proof(
-    proof: &BlockRootsProof,
-    block: &Node,
-    block_roots_root: &Root,
-) -> bool {
-    verify_merkle_proof(
-        block,
-        &proof.block_header_branch[..],
-        &GeneralizedIndex(proof.block_header_index as usize),
-        block_roots_root,
-    )
-}
-
-pub fn verify_block_roots_branch(
-    block_roots_branch: &[Node],
-    block_roots_root: &Node,
-    state_root: &Root,
-) -> bool {
-    is_valid_merkle_branch(
-        block_roots_root,
-        block_roots_branch.iter(),
-        BLOCK_ROOTS_INDEX_LOG2 as usize,
-        BLOCK_ROOTS_INDEX as usize,
-        state_root,
-    )
-}
-
 pub fn verify_trie_proof(root: Root, key: u64, proof: Vec<Vec<u8>>) -> Option<Vec<u8>> {
     let memdb = Arc::new(MemoryDB::new(true));
     let hasher = Arc::new(HasherKeccak::new());

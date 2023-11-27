@@ -66,5 +66,5 @@ pub struct ReceiptProof {
     pub receipts_branch: Vec<Node>,
     // Proof from receipt to receipts root (TRIE)
     pub receipt_proof: Vec<Vec<u8>>,
-    pub receipts_root: Bytes32,
+    pub receipts_root: Root,
 }

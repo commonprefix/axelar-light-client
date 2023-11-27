@@ -36,12 +36,6 @@ pub enum ContractError {
     #[error("Invalid transaction proof")]
     InvalidTransactionProof,
 
-    #[error("Invalid transactions_root proof")]
-    InvalidTransactionsBranchProof,
-
-    #[error("Invalid execution branch")]
-    InvalidExecutionBranch,
-
     #[error("Invalid verification data")]
     InvalidVerificationData,
 
