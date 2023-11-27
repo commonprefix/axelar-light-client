@@ -97,6 +97,7 @@ impl Prover {
                 receipt_proof,
                 receipts_branch: receipts_branch.witnesses,
                 transaction_branch: transaction_branch.witnesses,
+                transaction_gindex: transaction_branch.gindex,
                 transaction,
                 transaction_index: tx_index,
                 receipts_root: Bytes32::try_from(target_block.receipts_root.as_bytes())?,

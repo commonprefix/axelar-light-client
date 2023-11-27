@@ -58,6 +58,8 @@ pub struct ReceiptProof {
     pub transaction_branch: Vec<Node>,
     // Actual transaction to keccak and test against tx_hash of message
     pub transaction: Transaction<MAX_BYTES_PER_TRANSACTION>,
+    // Generalized index of transaction in beacon block
+    pub transaction_gindex: u64,
 
     // Proof from receipts root to beacon block
     pub receipts_branch: Vec<Node>,
