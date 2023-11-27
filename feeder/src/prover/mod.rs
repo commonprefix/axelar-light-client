@@ -1,27 +1,21 @@
 mod consensus;
 mod execution;
-
-use std::time::Instant;
+mod types;
 
 use crate::{
     eth::{consensus::ConsensusRPC, execution::ExecutionRPC, utils::calc_slot_from_timestamp},
     prover::{
-        consensus::{
-            generate_exec_payload_branch, generate_receipts_branch, generate_transactions_branch,
-            prove_ancestry,
-        },
-        execution::{generate_receipt_proof, generate_transaction_proof},
+        consensus::{generate_receipts_root_branch, generate_transaction_branch, prove_ancestry},
+        execution::{generate_receipt_proof, get_tx_index},
     },
     types::InternalMessage,
 };
-use consensus_types::lightclient::CrossChainId;
 use consensus_types::{
     consensus::to_beacon_header,
     lightclient::{EventVerificationData, ReceiptProof, UpdateVariant},
 };
-use ethers::types::TransactionReceipt;
 use eyre::{anyhow, Result};
-use ssz_rs::Merkleized;
+use ssz_rs::{Merkleized, Node};
 use sync_committee_rs::constants::Bytes32;
 
 pub struct Prover {
@@ -53,6 +47,12 @@ impl Prover {
             .consensus_rpc
             .get_beacon_block(target_block_slot)
             .await?;
+        let block_id = target_beacon_block.hash_tree_root()?.to_string();
+
+        // let mut header = self
+        //     .consensus_rpc
+        //     .get_beacon_block_header(target_block_slot)
+        //     .await?;
 
         let receipts = self
             .execution_rpc
@@ -64,70 +64,44 @@ impl Prover {
             UpdateVariant::Optimistic(update) => update.attested_header.beacon,
         };
 
-        let mut recent_block_state = self.consensus_rpc.get_state(recent_block.slot).await?;
-        let tx_index = self.get_tx_index(&receipts, &message.message.cc_id)?;
-
-        let now = Instant::now();
+        let tx_index = get_tx_index(&receipts, &message.message.cc_id)?;
+        let transaction =
+            target_beacon_block.body.execution_payload.transactions[tx_index as usize].clone();
 
         // Execution Proofs
         let receipt_proof = generate_receipt_proof(&target_block, &receipts, tx_index)?;
-        println!(
-            "Got receipts proof: {:?} {}",
-            receipt_proof.len(),
-            now.elapsed().as_secs()
-        );
-
-        let transaction_proof = generate_transaction_proof(&target_block, tx_index)?;
-        println!("Got transactions proof: {}", now.elapsed().as_millis());
+        println!("Got receipts proof");
 
         // Consensus Proofs
-        let transactions_branch = generate_transactions_branch(&mut target_beacon_block)?;
-        println!("Got transactions branch: {}", now.elapsed().as_millis());
+        let transaction_branch = generate_transaction_branch(&block_id, tx_index).await?;
+        println!("Got transactions branch");
 
-        let receipts_branch = generate_receipts_branch(&mut target_beacon_block)?;
-        println!("Got receipts branch: {}", now.elapsed().as_millis());
+        let receipts_branch = generate_receipts_root_branch(&block_id).await?;
+        println!("Got receipts branch");
 
-        let exec_payload_branch = generate_exec_payload_branch(&mut target_beacon_block)?;
-        println!("Got exec_payload branch: {}", now.elapsed().as_millis());
-
-        let ancestry_proof = prove_ancestry(&mut recent_block_state, target_beacon_block.slot)?;
-        println!("Got ancestry proof {}", now.elapsed().as_millis());
+        let ancestry_proof = prove_ancestry(
+            target_beacon_block.slot,
+            recent_block.slot,
+            recent_block.state_root.to_string(),
+        )
+        .await?;
+        println!("Got ancestry proof");
 
         Ok(EventVerificationData {
             message: message.message,
             update: update.clone(),
             target_block: to_beacon_header(&target_beacon_block)?,
-            block_roots_root: recent_block_state.block_roots.hash_tree_root()?,
+            block_roots_root: Node::default(),
             ancestry_proof,
             receipt_proof: ReceiptProof {
-                transaction_index: tx_index,
                 receipt_proof,
-                receipts_branch,
-                transaction_proof,
-                transactions_branch,
-                exec_payload_branch,
-                transactions_root: Bytes32::try_from(target_block.transactions_root.as_bytes())?,
+                receipts_branch: receipts_branch.witnesses,
+                transaction_branch: transaction_branch.witnesses,
+                transaction_gindex: transaction_branch.gindex,
+                transaction,
+                transaction_index: tx_index,
                 receipts_root: Bytes32::try_from(target_block.receipts_root.as_bytes())?,
-                execution_payload_root: target_beacon_block
-                    .body
-                    .execution_payload
-                    .hash_tree_root()?,
             },
         })
-    }
-
-    fn get_tx_index(
-        &self,
-        receipts: &Vec<TransactionReceipt>,
-        cc_id: &CrossChainId,
-    ) -> Result<u64> {
-        let tx_hash = cc_id.id.split_once(':').unwrap().0;
-
-        let tx_index = receipts
-            .iter()
-            .position(|r| r.transaction_hash.to_string() == tx_hash)
-            .unwrap();
-
-        Ok(tx_index as u64)
     }
 }

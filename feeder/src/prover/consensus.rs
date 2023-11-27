@@ -1,44 +1,40 @@
-use consensus_types::{
-    consensus::{BeaconBlockAlias, BeaconStateType, BlockRootsType},
-    proofs::{AncestryProof, BlockRootsProof},
-};
+use crate::error::RpcError;
+use crate::eth::{constants::STATE_PROVER_RPC, utils::get};
+use crate::prover::types::ProofResponse;
+use consensus_types::{consensus::BeaconStateType, proofs::AncestryProof};
 use eyre::Result;
-use ssz_rs::{get_generalized_index, Node, SszVariableOrIndex};
-use sync_committee_rs::constants::{BLOCK_ROOTS_INDEX, SLOTS_PER_HISTORICAL_ROOT};
+use ssz_rs::{get_generalized_index, SszVariableOrIndex};
+use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
 
 /**
- * Generates a merkle proof from the transactions to the execution payload of
- * the beacon block body.
+ * Generates a merkle proof from the transaction to the beacon block root.
 */
-pub fn generate_transactions_branch(beacon_block: &mut BeaconBlockAlias) -> Result<Vec<Node>> {
-    let path = vec![SszVariableOrIndex::Name("transactions")];
-    // println!("{:#?}", beacon_block.body.execution_payload);
-    let g_index = get_generalized_index(&beacon_block.body.execution_payload, &path);
-    let proof = ssz_rs::generate_proof(&mut beacon_block.body.execution_payload, &[g_index])?;
+pub async fn generate_transaction_branch(
+    block_id: &String,
+    tx_index: u64,
+) -> Result<ProofResponse> {
+    let path = vec![
+        SszVariableOrIndex::Name("body"),
+        SszVariableOrIndex::Name("execution_payload"),
+        SszVariableOrIndex::Name("transactions"),
+        SszVariableOrIndex::Index(tx_index as usize),
+    ];
 
+    let proof = get_block_proof(block_id, path).await?;
     Ok(proof)
 }
 
 /**
- * Generates a merkle proof from the receipts_root to the execution payload of
- * the beacon block body.
+ * Generates a merkle proof from the receipts_root to the beacon block root.
 */
-pub fn generate_receipts_branch(beacon_block: &mut BeaconBlockAlias) -> Result<Vec<Node>> {
-    let path = vec![SszVariableOrIndex::Name("receipts_root")];
-    let g_index = get_generalized_index(&beacon_block.body.execution_payload, &path);
-    let proof = ssz_rs::generate_proof(&mut beacon_block.body.execution_payload, &[g_index])?;
+pub async fn generate_receipts_root_branch(block_id: &String) -> Result<ProofResponse> {
+    let path = vec![
+        SszVariableOrIndex::Name("body"),
+        SszVariableOrIndex::Name("execution_payload"),
+        SszVariableOrIndex::Name("receipts_root"),
+    ];
 
-    Ok(proof)
-}
-
-/**
- * Generates a merkle proof from the execution payload to the beacon block body.
-*/
-pub fn generate_exec_payload_branch(beacon_block: &mut BeaconBlockAlias) -> Result<Vec<Node>> {
-    let path = vec![SszVariableOrIndex::Name("execution_payload")];
-    let g_index = get_generalized_index(&beacon_block.body, &path);
-    let proof = ssz_rs::generate_proof(&mut beacon_block.body, &[g_index])?;
-
+    let proof = get_block_proof(block_id, path).await?;
     Ok(proof)
 }
 
@@ -46,73 +42,47 @@ pub fn generate_exec_payload_branch(beacon_block: &mut BeaconBlockAlias) -> Resu
  * Generates an ancestry proof from the recent block state to the target block
  * using either the block_roots or the historical_roots beacon state property.
 */
-pub fn prove_ancestry(
-    recent_block_state: &mut BeaconStateType,
+pub async fn prove_ancestry(
     target_block_slot: u64,
+    recent_block_slot: u64,
+    recent_block_state_id: String,
 ) -> Result<AncestryProof> {
-    let is_in_block_roots_range = target_block_slot < recent_block_state.slot
-        && recent_block_state.slot <= target_block_slot + SLOTS_PER_HISTORICAL_ROOT as u64;
+    let is_in_block_roots_range = target_block_slot < recent_block_slot
+        && recent_block_slot <= target_block_slot + SLOTS_PER_HISTORICAL_ROOT as u64;
 
     let proof = if is_in_block_roots_range {
-        prove_ancestry_with_block_roots(recent_block_state, target_block_slot)?
+        prove_ancestry_with_block_roots(target_block_slot, recent_block_state_id).await?
     } else {
-        prove_ancestry_with_historical_roots(recent_block_state, target_block_slot)?
+        unimplemented!()
     };
-
-    Ok(proof)
-}
-
-/**
- * Generates a proof from the block_roots_root to the beacon state root.
-*/
-pub fn generate_block_roots_branch(beacon_state: &mut BeaconStateType) -> Result<Vec<Node>> {
-    let path = &[BLOCK_ROOTS_INDEX as usize];
-    let proof = ssz_rs::generate_proof(beacon_state, path)?;
-
-    Ok(proof)
-}
-
-/**
- * Generates a proof from the interested block to the block_roots_root.
-*/
-pub fn generate_block_root_proof(
-    block_roots: &mut BlockRootsType,
-    g_index: usize,
-) -> Result<Vec<Node>> {
-    let proof = ssz_rs::generate_proof(block_roots, &[g_index])?;
 
     Ok(proof)
 }
 
 /**
  * Generates an ancestry proof from the recent block state to the target block
- * using the block_roots beacon state property. The target block must in
- * the range [recent_block_slot - SLOTS_PER_HISTORICAL_ROOT, recent_block_slot].
+ * using the block_roots beacon state property using the lodestar prover. The
+ * target block must in the range
+ * [recent_block_slot - SLOTS_PER_HISTORICAL_ROOT, recent_block_slot].
  */
-pub fn prove_ancestry_with_block_roots(
-    recent_block_state: &mut BeaconStateType,
+pub async fn prove_ancestry_with_block_roots(
     target_block_slot: u64,
+    recent_block_state_id: String,
 ) -> Result<AncestryProof> {
-    let block_index = get_generalized_index(
-        &recent_block_state.block_roots,
-        &[SszVariableOrIndex::Index(
-            target_block_slot as usize % SLOTS_PER_HISTORICAL_ROOT,
-        )],
-    );
+    let index = target_block_slot as usize % SLOTS_PER_HISTORICAL_ROOT;
+    let g_index_from_state_root = get_generalized_index(
+        &BeaconStateType::default(),
+        &[
+            SszVariableOrIndex::Name("block_roots"),
+            SszVariableOrIndex::Index(index),
+        ],
+    ) as u64;
 
-    let block_roots_proof = BlockRootsProof {
-        block_header_index: block_index as u64,
-        block_header_branch: generate_block_root_proof(
-            &mut recent_block_state.block_roots,
-            block_index,
-        )?,
-    };
-
-    let block_roots_branch = generate_block_roots_branch(recent_block_state)?;
+    let res = get_state_proof(recent_block_state_id, g_index_from_state_root).await?;
 
     let ancestry_proof = AncestryProof::BlockRoots {
-        block_roots_proof,
-        block_roots_branch,
+        block_roots_index: g_index_from_state_root as u64,
+        block_root_proof: res.witnesses,
     };
 
     Ok(ancestry_proof)
@@ -123,98 +93,151 @@ pub fn prove_ancestry_with_block_roots(
  * using the historical_roots beacon state property. The target block should be
  * in a slot less than recent_block_slot - SLOTS_PER_HISTORICAL_ROOT.
  */
-pub fn prove_ancestry_with_historical_roots(
+pub fn _prove_ancestry_with_historical_roots(
     _recent_block_state: &BeaconStateType,
     _target_block_slot: u64,
 ) -> Result<AncestryProof> {
     unimplemented!()
 }
 
+async fn get_state_proof(state_id: String, gindex: u64) -> Result<ProofResponse> {
+    let req = format!(
+        "{}/state_proof/?state_id={}&gindex={}",
+        STATE_PROVER_RPC, state_id, gindex
+    );
+
+    let res: ProofResponse = get(&req)
+        .await
+        .map_err(|e| RpcError::new("get_state_proof", e))?;
+
+    Ok(res)
+}
+
+async fn get_block_proof(
+    block_id: &String,
+    path: Vec<SszVariableOrIndex>,
+) -> Result<ProofResponse> {
+    fn parse_path(path: Vec<SszVariableOrIndex>) -> String {
+        let mut path_str = String::new();
+        for p in path {
+            match p {
+                SszVariableOrIndex::Name(name) => path_str.push_str(&format!(",{}", name)),
+                SszVariableOrIndex::Index(index) => path_str.push_str(&format!(",{}", index)),
+            }
+        }
+        path_str[1..].to_string() // remove first comma
+    }
+
+    let path = parse_path(path);
+    let req = format!(
+        "{}/block_proof/?block_id={}&path={}",
+        STATE_PROVER_RPC, block_id, path
+    );
+    println!("{}", req);
+
+    let res: ProofResponse = get(&req)
+        .await
+        .map_err(|e| RpcError::new("get_block_proof", e))?;
+
+    Ok(res)
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::eth::consensus::ConsensusRPC;
+    use crate::eth::constants::CONSENSUS_RPC;
     use crate::prover::consensus::{
-        generate_exec_payload_branch, generate_receipts_branch, generate_transactions_branch,
+        generate_receipts_root_branch, generate_transaction_branch, prove_ancestry_with_block_roots,
     };
     use consensus_types::consensus::BeaconBlockAlias;
+    use consensus_types::proofs::AncestryProof;
     use ssz_rs::{GeneralizedIndex, Merkleized};
     use std::fs::File;
+    use tokio::test as tokio_test;
 
     pub fn get_beacon_block() -> BeaconBlockAlias {
         let file = File::open("./src/prover/testdata/beacon_block.json").unwrap();
         serde_json::from_reader(file).unwrap()
     }
 
-    // Execution payload to beacon block body
-    const EXECUTION_PAYLOAD_G_INDEX: usize = 25;
+    /**
+     * TESTS BELOW REQUIRE NETWORK REQUESTS
+     */
+    #[tokio_test]
+    async fn test_transactions_branch() {
+        let mut block = get_beacon_block();
+        let block_root = block.hash_tree_root().unwrap();
 
-    // Generalized indices to execution payload
-    const RECEIPTS_ROOT_G_INDEX: usize = 19;
-    const TRANSACTIONS_G_INDEX: usize = 29;
+        let tx_index = 15;
+        let transaction = &mut block.body.execution_payload.transactions[tx_index];
+        let node = transaction.hash_tree_root().unwrap();
 
-    #[test]
-    fn test_execution_payload_branch() {
-        let mut beacon_block = get_beacon_block();
-        let proof = generate_exec_payload_branch(&mut beacon_block).unwrap();
+        let proof = generate_transaction_branch(&block_root.to_string(), tx_index as u64)
+            .await
+            .unwrap();
 
         let is_proof_valid = ssz_rs::verify_merkle_proof(
-            &beacon_block
-                .body
-                .execution_payload
-                .hash_tree_root()
-                .unwrap(),
-            proof.as_slice(),
-            &GeneralizedIndex(EXECUTION_PAYLOAD_G_INDEX),
-            &beacon_block.body.hash_tree_root().unwrap(),
+            &node,
+            proof.witnesses.as_slice(),
+            &GeneralizedIndex(proof.gindex as usize),
+            &block_root,
         );
 
-        assert!(is_proof_valid);
+        assert!(is_proof_valid)
     }
 
-    #[test]
-    fn test_receipts_branch() {
-        let mut beacon_block = get_beacon_block();
-        let proof = generate_receipts_branch(&mut beacon_block).unwrap();
+    #[tokio_test]
+    async fn test_receipts_root_branch() {
+        let mut block = get_beacon_block();
+        let block_root = block.hash_tree_root().unwrap();
+
+        let proof = generate_receipts_root_branch(&block_root.to_string())
+            .await
+            .unwrap();
 
         let is_proof_valid = ssz_rs::verify_merkle_proof(
-            &beacon_block
+            &block
                 .body
                 .execution_payload
                 .receipts_root
                 .hash_tree_root()
                 .unwrap(),
-            proof.as_slice(),
-            &GeneralizedIndex(RECEIPTS_ROOT_G_INDEX),
-            &beacon_block
-                .body
-                .execution_payload
-                .hash_tree_root()
-                .unwrap(),
+            proof.witnesses.as_slice(),
+            &GeneralizedIndex(proof.gindex as usize),
+            &block_root,
         );
 
-        assert!(is_proof_valid);
+        assert!(is_proof_valid)
     }
 
-    #[test]
-    fn test_transactions_branch() {
-        let mut beacon_block = get_beacon_block();
-        let proof = generate_transactions_branch(&mut beacon_block).unwrap();
+    #[tokio_test]
+    async fn test_block_roots_proof() {
+        let consensus = ConsensusRPC::new(CONSENSUS_RPC);
+        let latest_block = consensus.get_latest_beacon_block_header().await.unwrap();
+        let mut old_block = consensus
+            .get_beacon_block_header(latest_block.slot - 1000)
+            .await
+            .unwrap();
 
-        let is_proof_valid = ssz_rs::verify_merkle_proof(
-            &beacon_block
-                .body
-                .execution_payload
-                .transactions
-                .hash_tree_root()
-                .unwrap(),
-            proof.as_slice(),
-            &GeneralizedIndex(TRANSACTIONS_G_INDEX),
-            &beacon_block
-                .body
-                .execution_payload
-                .hash_tree_root()
-                .unwrap(),
-        );
+        let proof =
+            prove_ancestry_with_block_roots(old_block.slot, latest_block.state_root.to_string())
+                .await
+                .unwrap();
 
-        assert!(is_proof_valid);
+        match proof {
+            AncestryProof::BlockRoots {
+                block_roots_index,
+                block_root_proof,
+            } => {
+                let is_valid_proof = ssz_rs::verify_merkle_proof(
+                    &old_block.hash_tree_root().unwrap(),
+                    block_root_proof.as_slice(),
+                    &GeneralizedIndex(block_roots_index as usize),
+                    &latest_block.state_root,
+                );
+                assert!(is_valid_proof)
+            }
+            _ => panic!("Expected block roots proof"),
+        }
     }
 }
