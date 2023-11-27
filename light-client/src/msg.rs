@@ -1,5 +1,6 @@
 use cosmwasm_schema::cw_serde;
 
+use types::lightclient::Message;
 use types::{
     common::{ChainConfig, Forks},
     consensus::{Bootstrap, Update},
@@ -42,6 +43,9 @@ pub enum ExecuteMsg {
     EventVerificationData {
         payload: EventVerificationData,
     },
+    VerifyMessages {
+        messages: Vec<Message>,
+    },
 }
 
 #[cw_serde]
@@ -51,4 +55,5 @@ pub enum QueryMsg {
     LightClientState {},
     Config {},
     Version {},
+    IsVerified { messages: Vec<Message> },
 }
