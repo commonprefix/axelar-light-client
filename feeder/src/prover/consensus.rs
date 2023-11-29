@@ -113,7 +113,7 @@ pub async fn prove_ancestry_with_block_roots(
 async fn prove_historical_summaries_branch(
     target_block_slot: &u64,
     recent_block_state_id: &String,
-) -> Result<Vec<Node>> {
+) -> Result<ProofResponse> {
     let historical_summaries_index =
         (target_block_slot - CAPELLA_FORK_SLOT) / SLOTS_PER_HISTORICAL_ROOT as u64;
 
@@ -124,48 +124,67 @@ async fn prove_historical_summaries_branch(
     ];
 
     let res = get_state_proof(recent_block_state_id, &GindexOrPath::Path(path)).await?;
-    return Ok(res.witnesses);
+    return Ok(res);
 }
 
-async fn prove_block_root_to_block_summary_root(target_block_slot: &u64) -> Result<Vec<Node>> {
+async fn construct_historical_block_roots_tree(start_slot: u64) -> Result<Vector<Root, 8192>> {
     let consensus = ConsensusRPC::new(CONSENSUS_RPC);
-    let block_root_index = target_block_slot % SLOTS_PER_HISTORICAL_ROOT as u64;
-    let start_slot = target_block_slot - block_root_index;
+    const BATCH_SIZE: usize = 1000;
 
-    let mut futures = Vec::new();
+    let mut all_block_roots_vec = vec![];
 
-    for i in 0..SLOTS_PER_HISTORICAL_ROOT {
-        let future = consensus.get_block_root(start_slot + i as u64);
+    for batch_start in (0..SLOTS_PER_HISTORICAL_ROOT).step_by(BATCH_SIZE as usize) {
+        let batch_end = std::cmp::min(batch_start + BATCH_SIZE, SLOTS_PER_HISTORICAL_ROOT);
+        let mut futures = Vec::new();
 
-        futures.push(future);
-    }
-    println!("Pushed all futures");
+        for i in batch_start..batch_end {
+            let future = consensus.get_block_root(start_slot + i as u64);
+            futures.push(future);
+        }
+        println!("Pushed futures for batch {}", batch_start / BATCH_SIZE);
 
-    // Wait for all futures to resolve
-    let resolved = future::join_all(futures).await;
-    println!("Resolved all futures");
-    let mut block_roots_vec = vec![];
-    println!(
-        "Resolved all futures. Pushing to block_roots_vec: {:?}",
-        resolved.len()
-    );
+        // Wait for all futures in the batch to resolve
+        let resolved = future::join_all(futures).await;
+        println!("Resolved batch {}", batch_start / BATCH_SIZE);
 
-    for i in 0..resolved.len() {
-        match resolved[i] {
-            Ok(block_root) => block_roots_vec.push(block_root),
-            Err(_) => block_roots_vec.push(block_roots_vec[i - 1]),
+        // Process resolved futures and add to the main vector
+        for res in resolved {
+            match res {
+                Ok(block_root) => all_block_roots_vec.push(block_root),
+                Err(_) => all_block_roots_vec.push(all_block_roots_vec.last().unwrap().clone()),
+            }
         }
     }
-    println!("Pushed to block_roots_vec");
 
     let mut block_roots =
-        Vector::<Root, SLOTS_PER_HISTORICAL_ROOT>::try_from(block_roots_vec).unwrap();
+        Vector::<Root, SLOTS_PER_HISTORICAL_ROOT>::try_from(all_block_roots_vec).unwrap();
+
+    Ok(block_roots)
+}
+
+async fn prove_block_root_to_block_summary_root(
+    target_block_slot: &u64,
+    block_roots: Option<Vector<Node, SLOTS_PER_HISTORICAL_ROOT>>,
+) -> Result<Vec<Node>> {
+    let block_root_index = *target_block_slot as usize % SLOTS_PER_HISTORICAL_ROOT;
+    let start_slot = target_block_slot - block_root_index as u64;
+
+    let mut block_roots = match block_roots {
+        Some(block_roots) => block_roots,
+        None => construct_historical_block_roots_tree(start_slot)
+            .await
+            .unwrap(),
+    };
     println!(
-        "Built block_roots {:?}",
-        block_roots.hash_tree_root().unwrap(),
+        "Constructed block roots tree {:?}",
+        block_roots.hash_tree_root().unwrap()
     );
-    let proof = ssz_rs::generate_proof(&mut block_roots, &[block_root_index as usize])?;
-    println!("Generated proof");
+
+    let gindex = get_generalized_index(
+        &Vector::<Node, SLOTS_PER_HISTORICAL_ROOT>::default(),
+        &[SszVariableOrIndex::Index(block_root_index)],
+    );
+    let proof = ssz_rs::generate_proof(&mut block_roots, &[gindex])?;
 
     Ok(proof)
 }
@@ -178,6 +197,7 @@ async fn prove_block_root_to_block_summary_root(target_block_slot: &u64) -> Resu
 pub async fn prove_ancestry_with_historical_summaries(
     target_block_slot: &u64,
     recent_block_state_id: &String,
+    block_roots: Option<Vector<Node, SLOTS_PER_HISTORICAL_ROOT>>,
 ) -> Result<AncestryProof> {
     if *target_block_slot < CAPELLA_FORK_SLOT {
         return Err(anyhow!(
@@ -193,18 +213,20 @@ pub async fn prove_ancestry_with_historical_summaries(
     );
 
     let block_root_to_block_summary_root =
-        prove_block_root_to_block_summary_root(target_block_slot).await?;
+        prove_block_root_to_block_summary_root(target_block_slot, block_roots).await?;
 
     println!(
         "block_root_to_block_summary_root {:?}",
         block_root_to_block_summary_root
     );
-    // let state = consensus.get_state(recent_block_state_id.clone()).await?;
 
     let res = AncestryProof::HistoricalRoots {
         block_root_proof: block_root_to_block_summary_root,
-        historical_summaries_branch,
+        historical_summaries_branch: historical_summaries_branch.witnesses,
+        block_summary_root: historical_summaries_branch.leaf,
+        block_summary_root_gindex: historical_summaries_branch.gindex as usize,
     };
+
     Ok(res)
     // let historicalSummariesBranch = get_state_proof(state_id, )
 }
@@ -267,12 +289,21 @@ mod tests {
     };
     use consensus_types::consensus::BeaconBlockAlias;
     use consensus_types::proofs::AncestryProof;
-    use ssz_rs::{GeneralizedIndex, Merkleized};
+    use cosmrs::bip32::secp256k1::elliptic_curve::rand_core::block;
+    use ssz_rs::{
+        get_generalized_index, GeneralizedIndex, Merkleized, Node, SszVariableOrIndex, Vector,
+    };
     use std::fs::File;
+    use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
     use tokio::test as tokio_test;
 
     pub fn get_beacon_block() -> BeaconBlockAlias {
         let file = File::open("./src/prover/testdata/beacon_block.json").unwrap();
+        serde_json::from_reader(file).unwrap()
+    }
+
+    pub fn get_block_roots() -> Vector<Node, 8192> {
+        let file = File::open("./src/prover/testdata/block_roots.json").unwrap();
         serde_json::from_reader(file).unwrap()
     }
 
@@ -364,16 +395,51 @@ mod tests {
         let consensus = ConsensusRPC::new(CONSENSUS_RPC);
         let latest_block = consensus.get_latest_beacon_block_header().await.unwrap();
         let mut old_block = consensus
-            .get_beacon_block_header(latest_block.slot - 8196)
+            .get_beacon_block_header(7870916 - 8196)
             .await
             .unwrap();
+        let block_roots = get_block_roots();
 
         let proof = prove_ancestry_with_historical_summaries(
             &(old_block.slot),
             &latest_block.state_root.to_string(),
+            Some(block_roots),
         )
         .await
         .unwrap();
-        println!("{:?}", proof);
+
+        match proof {
+            AncestryProof::HistoricalRoots {
+                historical_summaries_branch,
+                block_root_proof,
+                block_summary_root_gindex,
+                block_summary_root,
+            } => {
+                // Proof from state root to the specific block_summary_root of the historical_summaries
+                let is_valid_proof = ssz_rs::verify_merkle_proof(
+                    &block_summary_root,
+                    &historical_summaries_branch,
+                    &GeneralizedIndex(block_summary_root_gindex),
+                    &latest_block.state_root,
+                );
+
+                // Proof from block_summary_root to the target block
+
+                let block_root_index = old_block.slot as usize % SLOTS_PER_HISTORICAL_ROOT;
+                let gindex = get_generalized_index(
+                    &Vector::<Node, SLOTS_PER_HISTORICAL_ROOT>::default(),
+                    &[SszVariableOrIndex::Index(block_root_index)],
+                );
+
+                let is_valid_proof = ssz_rs::verify_merkle_proof(
+                    &old_block.hash_tree_root().unwrap(),
+                    &block_root_proof,
+                    &GeneralizedIndex(gindex),
+                    &block_summary_root,
+                );
+                assert!(is_valid_proof)
+            }
+            _ => panic!("Expected block roots proof"),
+        }
     }
 }

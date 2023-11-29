@@ -1,4 +1,5 @@
 use ssz_rs::Node;
+use sync_committee_rs::constants::Root;
 
 /// The block header ancestry proof, this is an enum because the header may either exist in
 /// `state.block_roots` or `state.historical_roots`.
@@ -18,7 +19,9 @@ pub enum AncestryProof {
         block_root_proof: Vec<Node>,
         /// The proof for the `historical_batch.block_roots`, needed to reconstruct
         historical_summaries_branch: Vec<Node>,
+        // The hash of the specific block summary root that has the block
+        block_summary_root: Root,
         // The generalized index for the historical_batch in `state.historical_roots`.
-        // historical_roots_index: u64,
+        block_summary_root_gindex: usize,
     },
 }

@@ -138,6 +138,8 @@ impl ConsensusRPC {
             .await
             .map_err(|e| RpcError::new("latest_beacon_block", e))?;
 
+        println!("Got latest beacon block {:#?}", res);
+
         Ok(res.data.message)
     }
 }
