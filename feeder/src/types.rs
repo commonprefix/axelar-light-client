@@ -3,6 +3,7 @@ use consensus_types::{
     lightclient::Message,
 };
 use ethers::types::H256;
+use ssz_rs::Node;
 use sync_committee_rs::consensus_types::BeaconBlockHeader;
 
 #[derive(Clone, Debug)]
@@ -56,4 +57,14 @@ pub struct FinalityUpdateData {
 #[derive(serde::Deserialize, Debug)]
 pub struct OptimisticUpdateData {
     pub data: OptimisticUpdate,
+}
+
+#[derive(serde::Deserialize, Debug)]
+pub struct BlockRootResponse {
+    pub data: BlockRoot,
+}
+
+#[derive(serde::Deserialize, Debug)]
+pub struct BlockRoot {
+    pub root: Node,
 }

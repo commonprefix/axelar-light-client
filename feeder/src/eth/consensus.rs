@@ -1,13 +1,14 @@
-use std::cmp;
+use std::{cmp, time::Instant};
 
 use crate::error::RpcError;
 use crate::eth::utils::get;
 use crate::types::*;
 use consensus_types::consensus::{
-    BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update,
+    BeaconBlockAlias, BeaconStateType, Bootstrap, FinalityUpdate, OptimisticUpdate, Update,
 };
 use eyre::Result;
-use sync_committee_rs::consensus_types::BeaconBlockHeader;
+use ssz_rs::Node;
+use sync_committee_rs::{consensus_types::BeaconBlockHeader, constants::Root};
 
 #[derive(Debug)]
 pub struct ConsensusRPC {
@@ -20,6 +21,44 @@ impl ConsensusRPC {
         ConsensusRPC {
             rpc: rpc.to_string(),
         }
+    }
+
+    pub async fn get_state(&self, slot: u64) -> Result<BeaconStateType> {
+        let time = Instant::now();
+        println!("Getting state for slot {}", slot);
+
+        let req = format!("{}/eth/v2/debug/beacon/states/{}", self.rpc, slot);
+
+        // Setting the header for the request
+        let client = reqwest::Client::new();
+        let res = client
+            .get(&req)
+            .header("accept", "application/octet-stream")
+            .send()
+            .await
+            .map_err(|e| RpcError::new("get_state", e))?
+            .bytes()
+            .await?;
+
+        println!("Got state for slot {} in {:?}", slot, time.elapsed());
+        let time = Instant::now();
+
+        let state: BeaconStateType = ssz_rs::deserialize(&res)?;
+        println!("Deserialized state in {:?}", time.elapsed());
+
+        Ok(state)
+    }
+
+    pub async fn get_block_root(&self, slot: u64) -> Result<Root> {
+        let req = format!("{}/eth/v1/beacon/blocks/{}/root", self.rpc, slot);
+
+        let res: BlockRootResponse = get(&req)
+            .await
+            .map_err(|e| RpcError::new("block_root", e))?;
+
+        println!("Requesting for slot {}", slot);
+
+        Ok(res.data.root)
     }
 
     pub async fn get_bootstrap(&self, block_root: &'_ [u8]) -> Result<Bootstrap> {

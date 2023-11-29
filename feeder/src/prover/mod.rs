@@ -1,6 +1,7 @@
 mod consensus;
 mod execution;
 mod types;
+mod utils;
 
 use crate::{
     eth::{consensus::ConsensusRPC, execution::ExecutionRPC, utils::calc_slot_from_timestamp},
@@ -79,9 +80,9 @@ impl Prover {
         println!("Got receipts branch");
 
         let ancestry_proof = prove_ancestry(
-            target_beacon_block.slot,
-            recent_block.slot,
-            recent_block.state_root.to_string(),
+            target_beacon_block.slot as usize,
+            recent_block.slot as usize,
+            &recent_block.state_root.to_string(),
         )
         .await?;
         println!("Got ancestry proof");
