@@ -1,10 +1,16 @@
 mod consensus;
 mod execution;
-mod types;
+mod mocks;
+pub mod types;
 mod utils;
 
 use crate::{
-    eth::{consensus::ConsensusRPC, execution::ExecutionRPC, utils::calc_slot_from_timestamp},
+    eth::{
+        consensus::{ConsensusRPC, EthBeaconAPI},
+        execution::ExecutionRPC,
+        state_prover::{self, StateProver},
+        utils::calc_slot_from_timestamp,
+    },
     prover::{
         consensus::{generate_receipts_root_branch, generate_transaction_branch, prove_ancestry},
         execution::{generate_receipt_proof, get_tx_index},
@@ -21,13 +27,19 @@ use ssz_rs::{Merkleized, Node};
 pub struct Prover {
     execution_rpc: ExecutionRPC,
     consensus_rpc: ConsensusRPC,
+    state_prover: StateProver,
 }
 
 impl Prover {
-    pub fn new(execution_rpc: ExecutionRPC, consensus_rpc: ConsensusRPC) -> Self {
+    pub fn new(
+        execution_rpc: ExecutionRPC,
+        consensus_rpc: ConsensusRPC,
+        state_prover: StateProver,
+    ) -> Self {
         Prover {
             execution_rpc,
             consensus_rpc,
+            state_prover,
         }
     }
 
@@ -73,13 +85,15 @@ impl Prover {
         println!("Got receipts proof");
 
         // Consensus Proofs
-        let transaction_branch = generate_transaction_branch(&block_id, tx_index).await?;
+        let transaction_branch =
+            generate_transaction_branch(&self.state_prover, &block_id, tx_index).await?;
         println!("Got transactions branch");
 
-        let receipts_branch = generate_receipts_root_branch(&block_id).await?;
+        let receipts_branch = generate_receipts_root_branch(&self.state_prover, &block_id).await?;
         println!("Got receipts branch");
 
         let ancestry_proof = prove_ancestry(
+            &self.state_prover,
             target_beacon_block.slot as usize,
             recent_block.slot as usize,
             &recent_block.state_root.to_string(),

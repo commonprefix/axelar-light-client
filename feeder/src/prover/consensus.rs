@@ -1,14 +1,12 @@
 use crate::{
     error::RpcError,
     eth::{
-        consensus::ConsensusRPC,
-        constants::{CONSENSUS_RPC, STATE_PROVER_RPC},
+        consensus::{ConsensusRPC, CustomConsensusApi},
+        constants::STATE_PROVER_RPC,
+        state_prover::{self, StateProver, StateProverAPI},
         utils::get,
     },
-    prover::{
-        types::{GindexOrPath, ProofResponse},
-        utils::parse_path,
-    },
+    prover::types::{GindexOrPath, ProofResponse},
 };
 use consensus_types::{
     consensus::{self, BeaconStateType},
@@ -26,6 +24,7 @@ const CAPELLA_FORK_SLOT: u64 = CAPELLA_FORK_EPOCH * SLOTS_PER_EPOCH;
  * Generates a merkle proof from the transaction to the beacon block root.
 */
 pub async fn generate_transaction_branch(
+    state_prover: &StateProver,
     block_id: &String,
     tx_index: u64,
 ) -> Result<ProofResponse> {
@@ -36,21 +35,28 @@ pub async fn generate_transaction_branch(
         SszVariableOrIndex::Index(tx_index as usize),
     ];
 
-    let proof = get_block_proof(block_id, GindexOrPath::Path(path)).await?;
+    let proof = state_prover
+        .get_block_proof(block_id, GindexOrPath::Path(path))
+        .await?;
     Ok(proof)
 }
 
 /**
  * Generates a merkle proof from the receipts_root to the beacon block root.
 */
-pub async fn generate_receipts_root_branch(block_id: &String) -> Result<ProofResponse> {
+pub async fn generate_receipts_root_branch(
+    state_prover: &StateProver,
+    block_id: &String,
+) -> Result<ProofResponse> {
     let path = vec![
         SszVariableOrIndex::Name("body"),
         SszVariableOrIndex::Name("execution_payload"),
         SszVariableOrIndex::Name("receipts_root"),
     ];
 
-    let proof = get_block_proof(block_id, GindexOrPath::Path(path)).await?;
+    let proof = state_prover
+        .get_block_proof(block_id, GindexOrPath::Path(path))
+        .await?;
     Ok(proof)
 }
 
@@ -59,6 +65,7 @@ pub async fn generate_receipts_root_branch(block_id: &String) -> Result<ProofRes
  * using either the block_roots or the historical_roots beacon state property.
 */
 pub async fn prove_ancestry(
+    state_prover: &StateProver,
     target_block_slot: usize,
     recent_block_slot: usize,
     recent_block_state_id: &String,
@@ -67,7 +74,8 @@ pub async fn prove_ancestry(
         && recent_block_slot <= target_block_slot + SLOTS_PER_HISTORICAL_ROOT;
 
     let proof = if is_in_block_roots_range {
-        prove_ancestry_with_block_roots(&target_block_slot, recent_block_state_id).await?
+        prove_ancestry_with_block_roots(&state_prover, &target_block_slot, recent_block_state_id)
+            .await?
     } else {
         unimplemented!()
     };
@@ -82,6 +90,7 @@ pub async fn prove_ancestry(
  * [recent_block_slot - SLOTS_PER_HISTORICAL_ROOT, recent_block_slot].
  */
 pub async fn prove_ancestry_with_block_roots(
+    state_prover: &StateProver,
     target_block_slot: &usize,
     recent_block_state_id: &String,
 ) -> Result<AncestryProof> {
@@ -94,11 +103,12 @@ pub async fn prove_ancestry_with_block_roots(
         ],
     );
 
-    let res = get_state_proof(
-        recent_block_state_id,
-        &GindexOrPath::Gindex(g_index_from_state_root),
-    )
-    .await?;
+    let res = state_prover
+        .get_state_proof(
+            recent_block_state_id,
+            &GindexOrPath::Gindex(g_index_from_state_root),
+        )
+        .await?;
 
     let ancestry_proof = AncestryProof::BlockRoots {
         block_roots_index: g_index_from_state_root as u64,
@@ -109,6 +119,7 @@ pub async fn prove_ancestry_with_block_roots(
 }
 
 async fn prove_historical_summaries_branch(
+    state_prover: &StateProver,
     target_block_slot: &u64,
     recent_block_state_id: &String,
 ) -> Result<ProofResponse> {
@@ -121,49 +132,20 @@ async fn prove_historical_summaries_branch(
         SszVariableOrIndex::Name("block_summary_root"),
     ];
 
-    let res = get_state_proof(recent_block_state_id, &GindexOrPath::Path(path)).await?;
+    let res = state_prover
+        .get_state_proof(recent_block_state_id, &GindexOrPath::Path(path))
+        .await?;
     return Ok(res);
 }
 
-async fn construct_historical_block_roots_tree(start_slot: u64) -> Result<Vector<Root, 8192>> {
-    let consensus = ConsensusRPC::new(CONSENSUS_RPC);
-    const BATCH_SIZE: usize = 1000;
-
-    let block_roots_res = consensus
-        .fetch_block_roots(start_slot, SLOTS_PER_HISTORICAL_ROOT)
-        .await?;
-
-    let mut block_roots: Vec<Root> = vec![];
-
-    for block_root in block_roots_res.iter() {
-        match block_root {
-            Some(block_root) => block_roots.push(block_root.clone()),
-            None => block_roots.push(block_roots.last().unwrap().clone()),
-        }
-    }
-
-    let block_roots = Vector::<Root, SLOTS_PER_HISTORICAL_ROOT>::try_from(block_roots).unwrap();
-
-    Ok(block_roots)
-}
-
 async fn prove_block_root_to_block_summary_root(
+    consensus: &dyn CustomConsensusApi,
     target_block_slot: &u64,
-    block_roots: Option<Vector<Node, SLOTS_PER_HISTORICAL_ROOT>>,
 ) -> Result<Vec<Node>> {
     let block_root_index = *target_block_slot as usize % SLOTS_PER_HISTORICAL_ROOT;
     let start_slot = target_block_slot - block_root_index as u64;
 
-    let mut block_roots = match block_roots {
-        Some(block_roots) => block_roots,
-        None => construct_historical_block_roots_tree(start_slot)
-            .await
-            .unwrap(),
-    };
-    println!(
-        "Constructed block roots tree {:?}",
-        block_roots.hash_tree_root().unwrap()
-    );
+    let mut block_roots = consensus.get_block_roots_tree(start_slot).await?;
 
     let gindex = get_generalized_index(
         &Vector::<Node, SLOTS_PER_HISTORICAL_ROOT>::default(),
@@ -180,9 +162,10 @@ async fn prove_block_root_to_block_summary_root(
  * in a slot less than recent_block_slot - SLOTS_PER_HISTORICAL_ROOT.
  */
 pub async fn prove_ancestry_with_historical_summaries(
+    consensus: &dyn CustomConsensusApi,
+    state_prover: &StateProver,
     target_block_slot: &u64,
     recent_block_state_id: &String,
-    block_roots: Option<Vector<Node, SLOTS_PER_HISTORICAL_ROOT>>,
 ) -> Result<AncestryProof> {
     if *target_block_slot < CAPELLA_FORK_SLOT {
         return Err(anyhow!(
@@ -190,7 +173,8 @@ pub async fn prove_ancestry_with_historical_summaries(
         ));
     }
     let historical_summaries_branch =
-        prove_historical_summaries_branch(target_block_slot, recent_block_state_id).await?;
+        prove_historical_summaries_branch(&state_prover, target_block_slot, recent_block_state_id)
+            .await?;
 
     println!(
         "historical_summaries_branch {:?}",
@@ -198,7 +182,7 @@ pub async fn prove_ancestry_with_historical_summaries(
     );
 
     let block_root_to_block_summary_root =
-        prove_block_root_to_block_summary_root(target_block_slot, block_roots).await?;
+        prove_block_root_to_block_summary_root(consensus, target_block_slot).await?;
 
     println!(
         "block_root_to_block_summary_root {:?}",
@@ -213,68 +197,20 @@ pub async fn prove_ancestry_with_historical_summaries(
     };
 
     Ok(res)
-    // let historicalSummariesBranch = get_state_proof(state_id, )
-}
-
-async fn get_state_proof(
-    state_id: &String,
-    gindex_or_path: &GindexOrPath,
-) -> Result<ProofResponse> {
-    let req = match gindex_or_path {
-        GindexOrPath::Gindex(gindex) => format!(
-            "{}/state_proof/?state_id={}&gindex={}",
-            STATE_PROVER_RPC, state_id, gindex
-        ),
-        GindexOrPath::Path(path) => {
-            let path = parse_path(path);
-            format!(
-                "{}/state_proof/?state_id={}&path={}",
-                STATE_PROVER_RPC, state_id, path
-            )
-        }
-    };
-    println!("req {:?}", req);
-
-    let res: ProofResponse = get(&req)
-        .await
-        .map_err(|e| RpcError::new("get_state_proof", e))?;
-
-    Ok(res)
-}
-
-async fn get_block_proof(block_id: &String, gindex_or_path: GindexOrPath) -> Result<ProofResponse> {
-    let req = match gindex_or_path {
-        GindexOrPath::Gindex(gindex) => format!(
-            "{}/block_proof/?block_id={}&gindex={}",
-            STATE_PROVER_RPC, block_id, gindex
-        ),
-        GindexOrPath::Path(path) => {
-            let path = parse_path(&path);
-            format!(
-                "{}/block_proof/?block_id={}&path={}",
-                STATE_PROVER_RPC, block_id, path
-            )
-        }
-    };
-
-    let res: ProofResponse = get(&req)
-        .await
-        .map_err(|e| RpcError::new("get_block_proof", e))?;
-
-    Ok(res)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::eth::consensus::ConsensusRPC;
-    use crate::eth::constants::CONSENSUS_RPC;
+    use crate::eth::consensus::{ConsensusRPC, CustomConsensusApi, EthBeaconAPI};
+    use crate::eth::constants::{CONSENSUS_RPC, STATE_PROVER_RPC};
+    use crate::eth::state_prover::{self, StateProver};
     use crate::prover::consensus::{
         generate_receipts_root_branch, generate_transaction_branch,
         prove_ancestry_with_block_roots, prove_ancestry_with_historical_summaries,
     };
+    use crate::prover::mocks::MockCustomBeaconAPI;
     use consensus_types::consensus::BeaconBlockAlias;
     use consensus_types::proofs::AncestryProof;
-    use cosmrs::bip32::secp256k1::elliptic_curve::rand_core::block;
     use ssz_rs::{
         get_generalized_index, GeneralizedIndex, Merkleized, Node, SszVariableOrIndex, Vector,
     };
@@ -298,15 +234,17 @@ mod tests {
     #[tokio_test]
     async fn test_transactions_branch() {
         let mut block = get_beacon_block();
+        let state_prover = StateProver::new(STATE_PROVER_RPC);
         let block_root = block.hash_tree_root().unwrap();
 
         let tx_index = 15;
         let transaction = &mut block.body.execution_payload.transactions[tx_index];
         let node = transaction.hash_tree_root().unwrap();
 
-        let proof = generate_transaction_branch(&block_root.to_string(), tx_index as u64)
-            .await
-            .unwrap();
+        let proof =
+            generate_transaction_branch(&state_prover, &block_root.to_string(), tx_index as u64)
+                .await
+                .unwrap();
 
         let is_proof_valid = ssz_rs::verify_merkle_proof(
             &node,
@@ -320,10 +258,11 @@ mod tests {
 
     #[tokio_test]
     async fn test_receipts_root_branch() {
+        let state_prover = StateProver::new(STATE_PROVER_RPC);
         let mut block = get_beacon_block();
         let block_root = block.hash_tree_root().unwrap();
 
-        let proof = generate_receipts_root_branch(&block_root.to_string())
+        let proof = generate_receipts_root_branch(&state_prover, &block_root.to_string())
             .await
             .unwrap();
 
@@ -344,14 +283,16 @@ mod tests {
 
     #[tokio_test]
     async fn test_block_roots_proof() {
-        let consensus = ConsensusRPC::new(CONSENSUS_RPC);
+        let consensus = &ConsensusRPC::new(CONSENSUS_RPC);
         let latest_block = consensus.get_latest_beacon_block_header().await.unwrap();
+        let state_prover = StateProver::new(STATE_PROVER_RPC);
         let mut old_block = consensus
             .get_beacon_block_header(latest_block.slot - 1000)
             .await
             .unwrap();
 
         let proof = prove_ancestry_with_block_roots(
+            &state_prover,
             &(old_block.slot as usize),
             &latest_block.state_root.to_string(),
         )
@@ -377,18 +318,21 @@ mod tests {
 
     #[tokio_test]
     async fn test_historical_proof() {
-        let consensus = ConsensusRPC::new(CONSENSUS_RPC);
+        let mock_consensus = MockCustomBeaconAPI::new();
+        let consensus = &ConsensusRPC::new(CONSENSUS_RPC);
+        let state_prover = StateProver::new(STATE_PROVER_RPC);
+
         let latest_block = consensus.get_latest_beacon_block_header().await.unwrap();
         let mut old_block = consensus
             .get_beacon_block_header(7870916 - 8196)
             .await
             .unwrap();
-        let block_roots = get_block_roots();
 
         let proof = prove_ancestry_with_historical_summaries(
+            &mock_consensus,
+            &state_prover,
             &(old_block.slot),
             &latest_block.state_root.to_string(),
-            Some(block_roots),
         )
         .await
         .unwrap();

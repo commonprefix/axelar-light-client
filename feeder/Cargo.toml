@@ -17,9 +17,7 @@ serde_json = "1.0.108"
 ssz-rs = {git = "https://github.com/commonprefix/ssz-rs", branch = "main"}
 sync-committee-rs = {package = "sync-committee-primitives", git = "https://github.com/commonprefix/sync-committee-rs", branch = "cp_changes", default-features = false, features = ["serialize"]}
 thiserror = "1.0.50"
-
-# async/futures
-async-trait = "0.1.57"
+async-trait = "0.1.74"
 cosmos-sdk-proto = {version = "0.20.0", features = ["cosmwasm"]}
 cosmrs = "0.15.0"
 futures = "0.3.23"

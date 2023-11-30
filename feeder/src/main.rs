@@ -11,13 +11,16 @@ use eth::{consensus::ConsensusRPC, constants::*, execution::ExecutionRPC, gatewa
 use prover::Prover;
 use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
 
+use crate::eth::{consensus::EthBeaconAPI, state_prover::StateProver};
+
 #[tokio::main]
 async fn main() {
     let consensus: ConsensusRPC = ConsensusRPC::new(CONSENSUS_RPC);
     let execution: ExecutionRPC = ExecutionRPC::new(EXECUTION_RPC);
+    let state_prover = StateProver::new(STATE_PROVER_RPC);
 
     let gateway: Gateway = Gateway::new(EXECUTION_RPC, GATEWAY_ADDR);
-    let prover = Prover::new(execution, consensus);
+    let prover = Prover::new(execution, consensus, state_prover);
 
     let consensus: ConsensusRPC = ConsensusRPC::new(CONSENSUS_RPC);
 
