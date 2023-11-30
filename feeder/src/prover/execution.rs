@@ -78,11 +78,10 @@ fn encode_receipt(receipt: &TransactionReceipt) -> Vec<u8> {
 mod tests {
     use cita_trie::{MemoryDB, PatriciaTrie, Trie};
     use ethers::{
-        types::{Block, Transaction, TransactionReceipt},
         utils::rlp::encode,
     };
     use hasher::HasherKeccak;
-    use std::{fs::File, sync::Arc};
+    use std::{sync::Arc};
     use sync_committee_rs::constants::Root;
     use tokio::test as tokio_test;
 

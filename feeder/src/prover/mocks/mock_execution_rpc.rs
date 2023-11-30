@@ -37,31 +37,31 @@ impl ExecutionAPI for MockExecutionRPC {
         Ok(res)
     }
 
-    async fn get_block(&self, block_number: u64) -> Result<Option<Block<H256>>> {
+    async fn get_block(&self, _block_number: u64) -> Result<Option<Block<H256>>> {
         unimplemented!();
     }
-    async fn get_transaction_receipt(&self, tx_hash: &H256) -> Result<Option<TransactionReceipt>> {
+    async fn get_transaction_receipt(&self, _tx_hash: &H256) -> Result<Option<TransactionReceipt>> {
         unimplemented!();
     }
-    async fn get_blocks(&self, block_numbers: &[u64]) -> Result<Vec<Option<Block<H256>>>> {
+    async fn get_blocks(&self, _block_numbers: &[u64]) -> Result<Vec<Option<Block<H256>>>> {
         unimplemented!();
     }
     async fn get_latest_block_number(&self) -> Result<U64> {
         unimplemented!();
     }
-    async fn get_transaction(&self, tx_hash: &H256) -> Result<Option<Transaction>> {
+    async fn get_transaction(&self, _tx_hash: &H256) -> Result<Option<Transaction>> {
         unimplemented!();
     }
-    async fn get_logs(&self, filter: &Filter) -> Result<Vec<Log>> {
+    async fn get_logs(&self, _filter: &Filter) -> Result<Vec<Log>> {
         unimplemented!();
     }
-    async fn get_filter_changes(&self, filter_id: &U256) -> Result<Vec<Log>> {
+    async fn get_filter_changes(&self, _filter_id: &U256) -> Result<Vec<Log>> {
         unimplemented!();
     }
-    async fn uninstall_filter(&self, filter_id: &U256) -> Result<bool> {
+    async fn uninstall_filter(&self, _filter_id: &U256) -> Result<bool> {
         unimplemented!();
     }
-    async fn get_new_filter(&self, filter: &Filter) -> Result<U256> {
+    async fn get_new_filter(&self, _filter: &Filter) -> Result<U256> {
         unimplemented!();
     }
     async fn chain_id(&self) -> Result<u64> {
