@@ -7,8 +7,8 @@ mod utils;
 use crate::{
     eth::{
         consensus::{ConsensusRPC, EthBeaconAPI},
-        execution::ExecutionRPC,
-        state_prover::{StateProver},
+        execution::{ExecutionAPI, ExecutionRPC},
+        state_prover::StateProver,
         utils::calc_slot_from_timestamp,
     },
     prover::{

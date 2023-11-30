@@ -1,5 +1,5 @@
 use crate::eth::constants::EXECUTION_RPC;
-use crate::eth::execution::ExecutionRPC;
+use crate::eth::execution::{ExecutionAPI, ExecutionRPC};
 use crate::eth::utils::calc_slot_from_timestamp;
 use crate::types::InternalMessage;
 use consensus_types::lightclient::{CrossChainId, Message};
