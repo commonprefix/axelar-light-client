@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use ssz_rs::{prelude::SimpleSerialize, Node, SszVariableOrIndex};
+use ssz_rs::{Node, SszVariableOrIndex};
 
 #[derive(Deserialize, Debug, Serialize, Default)]
 pub struct ProofResponse {

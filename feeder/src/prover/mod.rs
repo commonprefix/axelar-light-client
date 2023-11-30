@@ -8,7 +8,7 @@ use crate::{
     eth::{
         consensus::{ConsensusRPC, EthBeaconAPI},
         execution::ExecutionRPC,
-        state_prover::{self, StateProver},
+        state_prover::{StateProver},
         utils::calc_slot_from_timestamp,
     },
     prover::{

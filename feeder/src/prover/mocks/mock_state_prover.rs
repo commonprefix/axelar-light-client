@@ -5,7 +5,7 @@ use crate::{
     prover::types::{GindexOrPath, ProofResponse},
 };
 use async_trait::async_trait;
-use cosmrs::tendermint::merkle::proof;
+
 use eyre::Result;
 use ssz_rs::SszVariableOrIndex;
 

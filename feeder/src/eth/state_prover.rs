@@ -50,7 +50,7 @@ impl StateProverAPI for StateProver {
                 "{}/state_proof/?state_id={}&path={}",
                 self.rpc,
                 state_id,
-                parse_path(&path)
+                parse_path(path)
             ),
         };
 

@@ -168,8 +168,8 @@ impl CustomConsensusApi for ConsensusRPC {
             // Block root tree includes the last block root if no block was minted in the slot
             for block_root in resolved.iter() {
                 match block_root {
-                    Ok(block_root) => block_roots.push(block_root.clone()),
-                    Err(_) => block_roots.push(block_roots.last().unwrap().clone()),
+                    Ok(block_root) => block_roots.push(*block_root),
+                    Err(_) => block_roots.push(*block_roots.last().unwrap()),
                 }
             }
         }

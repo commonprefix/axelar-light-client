@@ -1,21 +1,18 @@
 use crate::{
-    error::RpcError,
     eth::{
-        consensus::{ConsensusRPC, CustomConsensusApi},
-        constants::STATE_PROVER_RPC,
-        state_prover::{self, StateProver, StateProverAPI},
-        utils::get,
+        consensus::{CustomConsensusApi},
+        state_prover::{StateProverAPI},
     },
     prover::types::{GindexOrPath, ProofResponse},
 };
 use consensus_types::{
-    consensus::{self, BeaconStateType},
+    consensus::{BeaconStateType},
     proofs::AncestryProof,
 };
 use eyre::{anyhow, Result};
-use ssz_rs::{get_generalized_index, Merkleized, Node, SszVariableOrIndex, Vector};
+use ssz_rs::{get_generalized_index, Node, SszVariableOrIndex, Vector};
 use sync_committee_rs::constants::{
-    Root, CAPELLA_FORK_EPOCH, SLOTS_PER_EPOCH, SLOTS_PER_HISTORICAL_ROOT,
+    CAPELLA_FORK_EPOCH, SLOTS_PER_EPOCH, SLOTS_PER_HISTORICAL_ROOT,
 };
 
 const CAPELLA_FORK_SLOT: u64 = CAPELLA_FORK_EPOCH * SLOTS_PER_EPOCH;
@@ -135,7 +132,7 @@ async fn prove_historical_summaries_branch(
     let res = state_prover
         .get_state_proof(recent_block_state_id, &GindexOrPath::Path(path))
         .await?;
-    return Ok(res);
+    Ok(res)
 }
 
 async fn prove_block_root_to_block_summary_root(
@@ -196,15 +193,15 @@ mod tests {
         generate_receipts_root_branch, generate_transaction_branch,
         prove_ancestry_with_block_roots, prove_ancestry_with_historical_summaries,
     };
-    use crate::prover::mocks::mock_consensus_rpc::{self, MockConsensusRPC};
-    use crate::prover::mocks::mock_state_prover::{self, MockStateProver};
+    use crate::prover::mocks::mock_consensus_rpc::{MockConsensusRPC};
+    use crate::prover::mocks::mock_state_prover::{MockStateProver};
 
-    use consensus_types::consensus::BeaconBlockAlias;
+    
     use consensus_types::proofs::AncestryProof;
     use ssz_rs::{
         get_generalized_index, GeneralizedIndex, Merkleized, Node, SszVariableOrIndex, Vector,
     };
-    use std::fs::File;
+    
     use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
     use tokio::test as tokio_test;
 

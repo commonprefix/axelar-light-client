@@ -1,6 +1,5 @@
 use crate::{
     eth::consensus::{CustomConsensusApi, EthBeaconAPI},
-    types::BeaconBlockResponse,
 };
 use async_trait::async_trait;
 use consensus_types::consensus::{
@@ -27,7 +26,7 @@ impl MockConsensusRPC {
 impl CustomConsensusApi for MockConsensusRPC {
     async fn get_block_roots_tree(
         &self,
-        start_slot: u64,
+        _start_slot: u64,
     ) -> Result<Vector<Root, SLOTS_PER_HISTORICAL_ROOT>> {
         let file = File::open("./src/prover/testdata/block_roots.json").unwrap();
         let tree: Vector<Root, SLOTS_PER_HISTORICAL_ROOT> = serde_json::from_reader(file).unwrap();
@@ -45,15 +44,15 @@ impl CustomConsensusApi for MockConsensusRPC {
 
 #[async_trait]
 impl EthBeaconAPI for MockConsensusRPC {
-    async fn get_block_root(&self, slot: u64) -> Result<Root> {
+    async fn get_block_root(&self, _slot: u64) -> Result<Root> {
         unimplemented!();
     }
 
-    async fn get_bootstrap(&self, block_root: &'_ [u8]) -> Result<Bootstrap> {
+    async fn get_bootstrap(&self, _block_root: &'_ [u8]) -> Result<Bootstrap> {
         unimplemented!();
     }
 
-    async fn get_updates(&self, period: u64, count: u8) -> Result<Vec<Update>> {
+    async fn get_updates(&self, _period: u64, _count: u8) -> Result<Vec<Update>> {
         unimplemented!();
     }
 
