@@ -14,12 +14,10 @@ use consensus_types::{
     consensus::{self, BeaconStateType},
     proofs::AncestryProof,
 };
-use cosmos_sdk_proto::tendermint::v0_34::version::Consensus;
 use eyre::{anyhow, Result};
-use futures::{future, TryFutureExt};
 use ssz_rs::{get_generalized_index, Merkleized, Node, SszVariableOrIndex, Vector};
 use sync_committee_rs::constants::{
-    Root, ALTAIR_FORK_EPOCH, CAPELLA_FORK_EPOCH, SLOTS_PER_EPOCH, SLOTS_PER_HISTORICAL_ROOT,
+    Root, CAPELLA_FORK_EPOCH, SLOTS_PER_EPOCH, SLOTS_PER_HISTORICAL_ROOT,
 };
 
 const CAPELLA_FORK_SLOT: u64 = CAPELLA_FORK_EPOCH * SLOTS_PER_EPOCH;
@@ -409,6 +407,7 @@ mod tests {
                     &GeneralizedIndex(block_summary_root_gindex),
                     &latest_block.state_root,
                 );
+                assert!(is_valid_proof);
 
                 // Proof from block_summary_root to the target block
 
