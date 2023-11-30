@@ -131,33 +131,20 @@ async fn construct_historical_block_roots_tree(start_slot: u64) -> Result<Vector
     let consensus = ConsensusRPC::new(CONSENSUS_RPC);
     const BATCH_SIZE: usize = 1000;
 
-    let mut all_block_roots_vec = vec![];
+    let block_roots_res = consensus
+        .fetch_block_roots(start_slot, SLOTS_PER_HISTORICAL_ROOT)
+        .await?;
 
-    for batch_start in (0..SLOTS_PER_HISTORICAL_ROOT).step_by(BATCH_SIZE as usize) {
-        let batch_end = std::cmp::min(batch_start + BATCH_SIZE, SLOTS_PER_HISTORICAL_ROOT);
-        let mut futures = Vec::new();
+    let mut block_roots: Vec<Root> = vec![];
 
-        for i in batch_start..batch_end {
-            let future = consensus.get_block_root(start_slot + i as u64);
-            futures.push(future);
-        }
-        println!("Pushed futures for batch {}", batch_start / BATCH_SIZE);
-
-        // Wait for all futures in the batch to resolve
-        let resolved = future::join_all(futures).await;
-        println!("Resolved batch {}", batch_start / BATCH_SIZE);
-
-        // Process resolved futures and add to the main vector
-        for res in resolved {
-            match res {
-                Ok(block_root) => all_block_roots_vec.push(block_root),
-                Err(_) => all_block_roots_vec.push(all_block_roots_vec.last().unwrap().clone()),
-            }
+    for block_root in block_roots_res.iter() {
+        match block_root {
+            Some(block_root) => block_roots.push(block_root.clone()),
+            None => block_roots.push(block_roots.last().unwrap().clone()),
         }
     }
 
-    let mut block_roots =
-        Vector::<Root, SLOTS_PER_HISTORICAL_ROOT>::try_from(all_block_roots_vec).unwrap();
+    let block_roots = Vector::<Root, SLOTS_PER_HISTORICAL_ROOT>::try_from(block_roots).unwrap();
 
     Ok(block_roots)
 }

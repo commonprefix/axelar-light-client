@@ -4,9 +4,10 @@ use crate::error::RpcError;
 use crate::eth::utils::get;
 use crate::types::*;
 use consensus_types::consensus::{
-    BeaconBlockAlias, BeaconStateType, Bootstrap, FinalityUpdate, OptimisticUpdate, Update,
+    BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update,
 };
 use eyre::Result;
+use futures::future;
 use ssz_rs::Node;
 use sync_committee_rs::{consensus_types::BeaconBlockHeader, constants::Root};
 
@@ -23,30 +24,38 @@ impl ConsensusRPC {
         }
     }
 
-    pub async fn get_state(&self, slot: u64) -> Result<BeaconStateType> {
-        let time = Instant::now();
-        println!("Getting state for slot {}", slot);
+    pub async fn fetch_block_roots(
+        &self,
+        start_slot: u64,
+        count: usize,
+    ) -> Result<Vec<Option<Root>>> {
+        const BATCH_SIZE: usize = 1000;
 
-        let req = format!("{}/eth/v2/debug/beacon/states/{}", self.rpc, slot);
+        let mut block_roots = vec![];
 
-        // Setting the header for the request
-        let client = reqwest::Client::new();
-        let res = client
-            .get(&req)
-            .header("accept", "application/octet-stream")
-            .send()
-            .await
-            .map_err(|e| RpcError::new("get_state", e))?
-            .bytes()
-            .await?;
+        for batch_start in (0..count).step_by(BATCH_SIZE) {
+            let batch_end = std::cmp::min(batch_start + BATCH_SIZE, count);
+            let mut futures = Vec::new();
 
-        println!("Got state for slot {} in {:?}", slot, time.elapsed());
-        let time = Instant::now();
+            for i in batch_start..batch_end {
+                let future = self.get_block_root(start_slot + i as u64);
+                futures.push(future);
+            }
 
-        let state: BeaconStateType = ssz_rs::deserialize(&res)?;
-        println!("Deserialized state in {:?}", time.elapsed());
+            // Wait for all futures in the batch to resolve
+            let resolved = future::join_all(futures).await;
+            println!("Resolved batch {}", batch_start / BATCH_SIZE);
 
-        Ok(state)
+            // Process resolved futures and add to the main vector
+            for res in resolved {
+                match res {
+                    Ok(block_root) => block_roots.push(Some(block_root)),
+                    Err(_) => block_roots.push(None),
+                }
+            }
+        }
+
+        Ok(block_roots)
     }
 
     pub async fn get_block_root(&self, slot: u64) -> Result<Root> {
