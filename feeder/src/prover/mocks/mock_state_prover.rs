@@ -5,12 +5,12 @@ use crate::{
     prover::types::{GindexOrPath, ProofResponse},
 };
 use async_trait::async_trait;
-
 use eyre::Result;
 use ssz_rs::SszVariableOrIndex;
 
 pub struct MockStateProver;
 
+#[allow(dead_code)]
 impl MockStateProver {
     pub fn new() -> Self {
         MockStateProver {}

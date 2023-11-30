@@ -1,6 +1,4 @@
-use crate::{
-    eth::consensus::{CustomConsensusApi, EthBeaconAPI},
-};
+use crate::eth::consensus::{CustomConsensusApi, EthBeaconAPI};
 use async_trait::async_trait;
 use consensus_types::consensus::{
     BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update,
@@ -16,6 +14,7 @@ use sync_committee_rs::{
 
 pub struct MockConsensusRPC;
 
+#[allow(dead_code)]
 impl MockConsensusRPC {
     pub fn new() -> Self {
         MockConsensusRPC {}
@@ -44,6 +43,20 @@ impl CustomConsensusApi for MockConsensusRPC {
 
 #[async_trait]
 impl EthBeaconAPI for MockConsensusRPC {
+    async fn get_beacon_block_header(&self, slot: u64) -> Result<BeaconBlockHeader> {
+        let filename = format!("./src/prover/testdata/beacon_block_headers/{}.json", slot);
+        let file = File::open(filename).unwrap();
+        let res: BeaconBlockHeader = serde_json::from_reader(file).unwrap();
+        Ok(res)
+    }
+
+    async fn get_beacon_block(&self, slot: u64) -> Result<BeaconBlockAlias> {
+        let filename = format!("./src/prover/testdata/beacon_blocks/{}.json", slot);
+        let file = File::open(filename).unwrap();
+        let res: BeaconBlockAlias = serde_json::from_reader(file).unwrap();
+        Ok(res)
+    }
+
     async fn get_block_root(&self, _slot: u64) -> Result<Root> {
         unimplemented!();
     }
@@ -62,19 +75,5 @@ impl EthBeaconAPI for MockConsensusRPC {
 
     async fn get_optimistic_update(&self) -> Result<OptimisticUpdate> {
         unimplemented!();
-    }
-
-    async fn get_beacon_block_header(&self, slot: u64) -> Result<BeaconBlockHeader> {
-        let filename = format!("./src/prover/testdata/beacon_block_headers/{}.json", slot);
-        let file = File::open(filename).unwrap();
-        let res: BeaconBlockHeader = serde_json::from_reader(file).unwrap();
-        Ok(res)
-    }
-
-    async fn get_beacon_block(&self, slot: u64) -> Result<BeaconBlockAlias> {
-        let filename = format!("./src/prover/testdata/beacon_blocks/{}.json", slot);
-        let file = File::open(filename).unwrap();
-        let res: BeaconBlockAlias = serde_json::from_reader(file).unwrap();
-        Ok(res)
     }
 }
