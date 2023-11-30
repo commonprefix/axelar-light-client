@@ -58,8 +58,6 @@ impl EthBeaconAPI for ConsensusRPC {
             .await
             .map_err(|e| RpcError::new("block_root", e))?;
 
-        println!("Requesting for slot {}", slot);
-
         Ok(res.data.root)
     }
 

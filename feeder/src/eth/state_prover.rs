@@ -46,15 +46,13 @@ impl StateProverAPI for StateProver {
                 "{}/state_proof/?state_id={}&gindex={}",
                 self.rpc, state_id, gindex
             ),
-            GindexOrPath::Path(path) => {
-                let path = parse_path(path);
-                format!(
-                    "{}/state_proof/?state_id={}&path={}",
-                    self.rpc, state_id, path
-                )
-            }
+            GindexOrPath::Path(path) => format!(
+                "{}/state_proof/?state_id={}&path={}",
+                self.rpc,
+                state_id,
+                parse_path(&path)
+            ),
         };
-        println!("req {:?}", req);
 
         let res: ProofResponse = get(&req)
             .await
@@ -73,13 +71,12 @@ impl StateProverAPI for StateProver {
                 "{}/block_proof/?block_id={}&gindex={}",
                 self.rpc, block_id, gindex
             ),
-            GindexOrPath::Path(path) => {
-                let path = parse_path(&path);
-                format!(
-                    "{}/block_proof/?block_id={}&path={}",
-                    self.rpc, block_id, path
-                )
-            }
+            GindexOrPath::Path(path) => format!(
+                "{}/block_proof/?block_id={}&path={}",
+                self.rpc,
+                block_id,
+                parse_path(&path)
+            ),
         };
 
         let res: ProofResponse = get(&req)

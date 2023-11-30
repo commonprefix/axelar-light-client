@@ -24,7 +24,7 @@ const CAPELLA_FORK_SLOT: u64 = CAPELLA_FORK_EPOCH * SLOTS_PER_EPOCH;
  * Generates a merkle proof from the transaction to the beacon block root.
 */
 pub async fn generate_transaction_branch(
-    state_prover: &StateProver,
+    state_prover: &dyn StateProverAPI,
     block_id: &String,
     tx_index: u64,
 ) -> Result<ProofResponse> {
@@ -45,7 +45,7 @@ pub async fn generate_transaction_branch(
  * Generates a merkle proof from the receipts_root to the beacon block root.
 */
 pub async fn generate_receipts_root_branch(
-    state_prover: &StateProver,
+    state_prover: &dyn StateProverAPI,
     block_id: &String,
 ) -> Result<ProofResponse> {
     let path = vec![
@@ -65,7 +65,7 @@ pub async fn generate_receipts_root_branch(
  * using either the block_roots or the historical_roots beacon state property.
 */
 pub async fn prove_ancestry(
-    state_prover: &StateProver,
+    state_prover: &dyn StateProverAPI,
     target_block_slot: usize,
     recent_block_slot: usize,
     recent_block_state_id: &String,
@@ -74,7 +74,7 @@ pub async fn prove_ancestry(
         && recent_block_slot <= target_block_slot + SLOTS_PER_HISTORICAL_ROOT;
 
     let proof = if is_in_block_roots_range {
-        prove_ancestry_with_block_roots(&state_prover, &target_block_slot, recent_block_state_id)
+        prove_ancestry_with_block_roots(state_prover, &target_block_slot, recent_block_state_id)
             .await?
     } else {
         unimplemented!()
@@ -90,7 +90,7 @@ pub async fn prove_ancestry(
  * [recent_block_slot - SLOTS_PER_HISTORICAL_ROOT, recent_block_slot].
  */
 pub async fn prove_ancestry_with_block_roots(
-    state_prover: &StateProver,
+    state_prover: &dyn StateProverAPI,
     target_block_slot: &usize,
     recent_block_state_id: &String,
 ) -> Result<AncestryProof> {
@@ -119,7 +119,7 @@ pub async fn prove_ancestry_with_block_roots(
 }
 
 async fn prove_historical_summaries_branch(
-    state_prover: &StateProver,
+    state_prover: &dyn StateProverAPI,
     target_block_slot: &u64,
     recent_block_state_id: &String,
 ) -> Result<ProofResponse> {
@@ -163,7 +163,7 @@ async fn prove_block_root_to_block_summary_root(
  */
 pub async fn prove_ancestry_with_historical_summaries(
     consensus: &dyn CustomConsensusApi,
-    state_prover: &StateProver,
+    state_prover: &dyn StateProverAPI,
     target_block_slot: &u64,
     recent_block_state_id: &String,
 ) -> Result<AncestryProof> {
@@ -173,21 +173,11 @@ pub async fn prove_ancestry_with_historical_summaries(
         ));
     }
     let historical_summaries_branch =
-        prove_historical_summaries_branch(&state_prover, target_block_slot, recent_block_state_id)
+        prove_historical_summaries_branch(state_prover, target_block_slot, recent_block_state_id)
             .await?;
-
-    println!(
-        "historical_summaries_branch {:?}",
-        historical_summaries_branch
-    );
 
     let block_root_to_block_summary_root =
         prove_block_root_to_block_summary_root(consensus, target_block_slot).await?;
-
-    println!(
-        "block_root_to_block_summary_root {:?}",
-        block_root_to_block_summary_root
-    );
 
     let res = AncestryProof::HistoricalRoots {
         block_root_proof: block_root_to_block_summary_root,
@@ -201,14 +191,14 @@ pub async fn prove_ancestry_with_historical_summaries(
 
 #[cfg(test)]
 mod tests {
-    use crate::eth::consensus::{ConsensusRPC, CustomConsensusApi, EthBeaconAPI};
-    use crate::eth::constants::{CONSENSUS_RPC, STATE_PROVER_RPC};
-    use crate::eth::state_prover::{self, StateProver};
+    use crate::eth::consensus::EthBeaconAPI;
     use crate::prover::consensus::{
         generate_receipts_root_branch, generate_transaction_branch,
         prove_ancestry_with_block_roots, prove_ancestry_with_historical_summaries,
     };
-    use crate::prover::mocks::MockCustomBeaconAPI;
+    use crate::prover::mocks::mock_consensus_rpc::{self, MockConsensusRPC};
+    use crate::prover::mocks::mock_state_prover::{self, MockStateProver};
+
     use consensus_types::consensus::BeaconBlockAlias;
     use consensus_types::proofs::AncestryProof;
     use ssz_rs::{
@@ -218,23 +208,14 @@ mod tests {
     use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
     use tokio::test as tokio_test;
 
-    pub fn get_beacon_block() -> BeaconBlockAlias {
-        let file = File::open("./src/prover/testdata/beacon_block.json").unwrap();
-        serde_json::from_reader(file).unwrap()
-    }
-
-    pub fn get_block_roots() -> Vector<Node, 8192> {
-        let file = File::open("./src/prover/testdata/block_roots.json").unwrap();
-        serde_json::from_reader(file).unwrap()
-    }
-
     /**
      * TESTS BELOW REQUIRE NETWORK REQUESTS
      */
     #[tokio_test]
     async fn test_transactions_branch() {
-        let mut block = get_beacon_block();
-        let state_prover = StateProver::new(STATE_PROVER_RPC);
+        let consensus = &MockConsensusRPC::new();
+        let state_prover = MockStateProver::new();
+        let mut block = consensus.get_beacon_block(7807119).await.unwrap();
         let block_root = block.hash_tree_root().unwrap();
 
         let tx_index = 15;
@@ -258,8 +239,9 @@ mod tests {
 
     #[tokio_test]
     async fn test_receipts_root_branch() {
-        let state_prover = StateProver::new(STATE_PROVER_RPC);
-        let mut block = get_beacon_block();
+        let consensus = &MockConsensusRPC::new();
+        let state_prover = MockStateProver::new();
+        let mut block = consensus.get_beacon_block(7807119).await.unwrap();
         let block_root = block.hash_tree_root().unwrap();
 
         let proof = generate_receipts_root_branch(&state_prover, &block_root.to_string())
@@ -283,11 +265,11 @@ mod tests {
 
     #[tokio_test]
     async fn test_block_roots_proof() {
-        let consensus = &ConsensusRPC::new(CONSENSUS_RPC);
-        let latest_block = consensus.get_latest_beacon_block_header().await.unwrap();
-        let state_prover = StateProver::new(STATE_PROVER_RPC);
+        let consensus = &MockConsensusRPC::new();
+        let latest_block = consensus.get_beacon_block_header(7878867).await.unwrap();
+        let state_prover = MockStateProver::new();
         let mut old_block = consensus
-            .get_beacon_block_header(latest_block.slot - 1000)
+            .get_beacon_block_header(7878867 - 1000)
             .await
             .unwrap();
 
@@ -318,18 +300,17 @@ mod tests {
 
     #[tokio_test]
     async fn test_historical_proof() {
-        let mock_consensus = MockCustomBeaconAPI::new();
-        let consensus = &ConsensusRPC::new(CONSENSUS_RPC);
-        let state_prover = StateProver::new(STATE_PROVER_RPC);
+        let consensus = MockConsensusRPC::new();
+        let state_prover = MockStateProver::new();
 
-        let latest_block = consensus.get_latest_beacon_block_header().await.unwrap();
+        let latest_block = consensus.get_beacon_block_header(7879376).await.unwrap();
         let mut old_block = consensus
             .get_beacon_block_header(7870916 - 8196)
             .await
             .unwrap();
 
         let proof = prove_ancestry_with_historical_summaries(
-            &mock_consensus,
+            &consensus,
             &state_prover,
             &(old_block.slot),
             &latest_block.state_root.to_string(),
