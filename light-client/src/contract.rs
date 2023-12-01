@@ -76,7 +76,11 @@ pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, Contract
 
 mod execute {
     use cosmwasm_std::{to_json_binary, StdResult, WasmMsg};
-    use ssz_rs::{verify_merkle_proof, GeneralizedIndex, Merkleized};
+    use ssz_rs::{
+        get_generalized_index, verify_merkle_proof, GeneralizedIndex, Merkleized, Node,
+        SszVariableOrIndex, Vector,
+    };
+    use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
     use types::proofs::AncestryProof;
     use types::{
         common::Forks,
@@ -126,13 +130,38 @@ mod execute {
                 }
             }
             AncestryProof::HistoricalRoots {
-                block_roots_proof: _,
-                historical_batch_proof: _,
-                historical_roots_proof: _,
-                historical_roots_index: _,
-                historical_roots_branch: _,
+                block_root_proof,
+                block_summary_root_proof,
+                block_summary_root,
+                block_summary_root_gindex,
             } => {
-                todo!()
+                let block_root_index = data.target_block.slot as usize % SLOTS_PER_HISTORICAL_ROOT;
+                let block_root_gindex = get_generalized_index(
+                    &Vector::<Node, SLOTS_PER_HISTORICAL_ROOT>::default(),
+                    &[SszVariableOrIndex::Index(block_root_index)],
+                );
+
+                let valid_block_root_proof = verify_merkle_proof(
+                    &target_block_root,
+                    block_root_proof.as_slice(),
+                    &GeneralizedIndex(block_root_gindex as usize),
+                    &block_summary_root,
+                );
+
+                if !valid_block_root_proof {
+                    return Err(ContractError::InvalidBlockRootsProof.into());
+                }
+
+                let valid_block_summary_root_proof = verify_merkle_proof(
+                    &block_summary_root,
+                    block_summary_root_proof.as_slice(),
+                    &GeneralizedIndex(block_summary_root_gindex as usize),
+                    &recent_block.state_root,
+                );
+
+                if !valid_block_summary_root_proof {
+                    return Err(ContractError::InvalidBlockSummaryRootProof.into());
+                }
             }
         }
 
