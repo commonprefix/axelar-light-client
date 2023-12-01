@@ -14,10 +14,10 @@ use hasher::HasherKeccak;
 */
 pub fn generate_receipt_proof(
     block: &Block<Transaction>,
-    receipts: &Vec<TransactionReceipt>,
+    receipts: &[TransactionReceipt],
     index: u64,
 ) -> Result<Vec<Vec<u8>>> {
-    let mut trie = generate_trie(receipts.clone(), encode_receipt);
+    let mut trie = generate_trie(receipts.to_owned(), encode_receipt);
     let trie_root = trie.root().unwrap();
 
     // Reality check
@@ -33,12 +33,12 @@ pub fn generate_receipt_proof(
     Ok(proof)
 }
 
-pub fn get_tx_index(receipts: &Vec<TransactionReceipt>, cc_id: &CrossChainId) -> Result<u64> {
+pub fn get_tx_index(receipts: &[TransactionReceipt], cc_id: &CrossChainId) -> Result<u64> {
     let tx_hash = cc_id.id.split_once(':').unwrap().0;
 
     let tx_index = receipts
         .iter()
-        .position(|r| format!("{:x}", r.transaction_hash) == tx_hash)
+        .position(|r| format!("0x{:x}", r.transaction_hash) == tx_hash)
         .unwrap();
 
     Ok(tx_index as u64)

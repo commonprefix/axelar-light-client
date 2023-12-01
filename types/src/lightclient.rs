@@ -1,12 +1,14 @@
 use crate::consensus::{FinalityUpdate, OptimisticUpdate};
 use crate::helpers::{from_hex_string, to_hex_string};
 use crate::proofs::AncestryProof;
-pub use connection_router::state::{Address as AddressType, ChainName, CrossChainId, Message};
+pub use connection_router::state::{
+    Address as AddressType, ChainName, CrossChainId, Message, MessageHash,
+};
 use ssz_rs::Node;
-use sync_committee_rs::constants::{Bytes32, Root, SYNC_COMMITTEE_SIZE};
+use sync_committee_rs::consensus_types::Transaction;
 use sync_committee_rs::{
-    consensus_types::{BeaconBlockHeader, SyncAggregate, SyncCommittee, Transaction},
-    constants::MAX_BYTES_PER_TRANSACTION,
+    consensus_types::{BeaconBlockHeader, SyncAggregate, SyncCommittee},
+    constants::{Root, MAX_BYTES_PER_TRANSACTION, SYNC_COMMITTEE_SIZE},
 };
 
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
@@ -65,5 +67,5 @@ pub struct ReceiptProof {
     pub receipts_branch: Vec<Node>,
     // Proof from receipt to receipts root (TRIE)
     pub receipt_proof: Vec<Vec<u8>>,
-    pub receipts_root: Bytes32,
+    pub receipts_root: Root,
 }

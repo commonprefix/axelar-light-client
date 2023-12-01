@@ -3,11 +3,13 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdResult,
 };
+use types::lightclient::{EventVerificationData, Message};
 
 use crate::error::ContractError;
 use crate::lightclient::helpers::calc_sync_period;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::{lightclient::LightClient, state::*};
+use eyre::Result;
 
 use cw2::{self, set_contract_version};
 
@@ -24,7 +26,7 @@ pub fn instantiate(
     LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
     CONFIG.save(deps.storage, &msg.config)?;
 
-    let period = calc_sync_period(msg.bootstrap.header.beacon.slot.into());
+    let period = calc_sync_period(msg.bootstrap.header.beacon.slot);
     SYNC_COMMITTEES.save(deps.storage, period, &msg.bootstrap.current_sync_committee)?;
 
     // TODO: Use commit hash or something else
@@ -51,6 +53,19 @@ pub fn execute(
         VerifyBlock { verification_data } => execute::verify_block(&deps, &env, verification_data),
         verification_request @ VerifyProof { .. } => execute::verify_proof(verification_request),
         VerifyTopicInclusion { receipt, topic } => execute::verify_topic_inclusion(receipt, topic),
+        EventVerificationData { payload } => {
+            let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
+            let config = CONFIG.load(deps.storage)?;
+            let lc = LightClient::new(&config, Some(state), &env);
+            if execute::process_verification_data(&lc, &payload).is_err() {
+                return Err(ContractError::InvalidVerificationData);
+            }
+            VERIFIED_MESSAGES.save(deps.storage, payload.message.hash_id(), &payload.message)?;
+            Ok(Response::new())
+        }
+        VerifyMessages {
+            messages: _messages,
+        } => Ok(Response::new()),
     }
 }
 
@@ -60,13 +75,110 @@ pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, Contract
 }
 
 mod execute {
-    use cosmwasm_std::{to_json_binary, WasmMsg};
+    use cosmwasm_std::{to_json_binary, StdResult, WasmMsg};
+    use ssz_rs::{verify_merkle_proof, GeneralizedIndex, Merkleized};
+    use types::proofs::AncestryProof;
     use types::{
-        common::Forks, consensus::Update, execution::ReceiptLogs,
-        lightclient::BlockVerificationData,
+        common::Forks,
+        consensus::Update,
+        execution::ReceiptLogs,
+        lightclient::{BlockVerificationData, UpdateVariant},
     };
 
+    use crate::lightclient::helpers::{verify_message, verify_trie_proof};
+    use crate::lightclient::Verification;
+
     use super::*;
+
+    pub fn process_verification_data(
+        lightclient: &LightClient,
+        data: &EventVerificationData,
+    ) -> Result<()> {
+        // Get recent block
+        let recent_block = match data.update.clone() {
+            UpdateVariant::Finality(update) => {
+                update.verify(lightclient)?;
+                update.finalized_header.beacon
+            }
+            UpdateVariant::Optimistic(update) => {
+                update.verify(lightclient)?;
+                update.attested_header.beacon
+            }
+        };
+
+        let target_block_root = data.target_block.clone().hash_tree_root()?;
+
+        // Verify ancestry proof
+        match data.ancestry_proof.clone() {
+            AncestryProof::BlockRoots {
+                block_roots_index,
+                block_root_proof,
+            } => {
+                let valid_block_root_proof = verify_merkle_proof(
+                    &target_block_root,
+                    block_root_proof.as_slice(),
+                    &GeneralizedIndex(block_roots_index as usize),
+                    &recent_block.state_root,
+                );
+
+                if !valid_block_root_proof {
+                    return Err(ContractError::InvalidBlockRootsProof.into());
+                }
+            }
+            AncestryProof::HistoricalRoots {
+                block_roots_proof: _,
+                historical_batch_proof: _,
+                historical_roots_proof: _,
+                historical_roots_index: _,
+                historical_roots_branch: _,
+            } => {
+                todo!()
+            }
+        }
+
+        // Verify receipt proof
+        let receipt_option = verify_trie_proof(
+            data.receipt_proof.receipts_root,
+            data.receipt_proof.transaction_index,
+            data.receipt_proof.receipt_proof.clone(),
+        );
+
+        let receipt = match receipt_option {
+            Some(s) => s,
+            None => return Err(ContractError::InvalidReceiptProof.into()),
+        };
+
+        let valid_receipts_root = verify_merkle_proof(
+            &data.receipt_proof.receipts_root,
+            &data.receipt_proof.receipts_branch,
+            &GeneralizedIndex(3219), // TODO
+            &target_block_root,
+        );
+
+        if !valid_receipts_root {
+            return Err(ContractError::InvalidReceiptsBranchProof.into());
+        }
+
+        // Verify transaction proof
+        let valid_transaction = verify_merkle_proof(
+            &data.receipt_proof.transaction.clone().hash_tree_root()?,
+            data.receipt_proof.transaction_branch.as_slice(),
+            &GeneralizedIndex(data.receipt_proof.transaction_gindex as usize),
+            &target_block_root,
+        );
+
+        if !valid_transaction {
+            return Err(ContractError::InvalidTransactionProof.into());
+        }
+
+        let logs: ReceiptLogs = alloy_rlp::Decodable::decode(&mut &receipt[..]).unwrap();
+        for log in logs.0.iter() {
+            if verify_message(&data.message, log, &data.receipt_proof.transaction) {
+                return Ok(());
+            }
+        }
+        Err(ContractError::InvalidMessage.into())
+    }
 
     pub fn verify_proof(msg: ExecuteMsg) -> Result<Response, ContractError> {
         let message = WasmMsg::Execute {
@@ -128,10 +240,10 @@ mod execute {
         let lc = LightClient::new(&config, Some(state), env);
 
         let sync_committee =
-            SYNC_COMMITTEES.load(deps.storage, calc_sync_period(ver_data.sig_slot.into()));
+            SYNC_COMMITTEES.load(deps.storage, calc_sync_period(ver_data.sig_slot));
         if sync_committee.is_err() {
             return Err(ContractError::NoSyncCommittee {
-                period: calc_sync_period(ver_data.sig_slot.into()),
+                period: calc_sync_period(ver_data.sig_slot),
             });
         }
 
@@ -140,7 +252,7 @@ mod execute {
             &ver_data.target_block,
             &ver_data.intermediate_chain,
             &ver_data.sync_aggregate,
-            ver_data.sig_slot.into(),
+            ver_data.sig_slot,
         );
 
         if res {
@@ -164,6 +276,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_json_binary(&sync_committee)
         }
         Version {} => to_json_binary(&VERSION.load(deps.storage)?),
+        IsVerified { messages } => to_json_binary(
+            &messages
+                .into_iter()
+                .map(|message| {
+                    let result = VERIFIED_MESSAGES.load(deps.storage, message.hash_id());
+                    (message, result.is_ok())
+                })
+                .collect::<Vec<(Message, bool)>>(),
+        ),
     }
 }
 
@@ -192,13 +313,14 @@ mod tests {
 
     use crate::{
         contract::{execute, instantiate, query},
-        lightclient::helpers::hex_str_to_bytes,
         lightclient::helpers::test_helpers::*,
         lightclient::LightClient,
+        lightclient::{helpers::hex_str_to_bytes, tests::tests::init_lightclient},
         msg::ExecuteMsg,
     };
     use cosmwasm_std::{testing::mock_env, Addr, Timestamp};
     use cw_multi_test::{App, ContractWrapper, Executor};
+    use serde::Serialize;
     use sync_committee_rs::constants::BlsSignature;
     use types::{
         common::{ChainConfig, Fork, Forks},
@@ -237,6 +359,20 @@ mod tests {
             .unwrap();
 
         (app, addr)
+    }
+
+    #[test]
+    fn test_data() {
+        let lightclient = init_lightclient();
+        let data = get_event_verification_data();
+        let res = execute::process_verification_data(&lightclient, &data);
+        println!("{res:?}");
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_verify() {
+        assert!(false);
     }
 
     #[test]

@@ -87,7 +87,7 @@ impl Verification for OptimisticUpdate {
             return Err(ConsensusError::InvalidTimestamp);
         }
 
-        let store_period = calc_sync_period(lightclient.state.finalized_header.slot.into());
+        let store_period = calc_sync_period(lightclient.state.finalized_header.slot);
         let update_sig_period = calc_sync_period(self.signature_slot);
 
         let valid_period = if lightclient.state.next_sync_committee.is_some() {
@@ -102,7 +102,7 @@ impl Verification for OptimisticUpdate {
 
         // Calculate the period for the attested header and check its relevance.
         // Ensure the attested header isn't already finalized unless the update introduces a new sync committee.
-        let update_attested_period = calc_sync_period(self.attested_header.beacon.slot.into());
+        let update_attested_period = calc_sync_period(self.attested_header.beacon.slot);
         let update_has_next_committee = lightclient.state.next_sync_committee.is_none()
             && update_attested_period == store_period;
 
@@ -324,16 +324,10 @@ impl LightClient {
         let epoch = slot / 32;
 
         match epoch {
-            e if e >= self.config.forks.capella.epoch => {
-                self.config.forks.capella.fork_version.clone()
-            }
-            e if e >= self.config.forks.bellatrix.epoch => {
-                self.config.forks.bellatrix.fork_version.clone()
-            }
-            e if e >= self.config.forks.altair.epoch => {
-                self.config.forks.altair.fork_version.clone()
-            }
-            _ => self.config.forks.genesis.fork_version.clone(),
+            e if e >= self.config.forks.capella.epoch => self.config.forks.capella.fork_version,
+            e if e >= self.config.forks.bellatrix.epoch => self.config.forks.bellatrix.fork_version,
+            e if e >= self.config.forks.altair.epoch => self.config.forks.altair.fork_version,
+            _ => self.config.forks.genesis.fork_version,
         }
     }
 
@@ -426,7 +420,7 @@ impl LightClient {
             }
         }
 
-        return interested_block.clone().hash_tree_root().unwrap() == chain[0].parent_root;
+        interested_block.clone().hash_tree_root().unwrap() == chain[0].parent_root
     }
 
     pub fn is_aggregate_valid(
@@ -497,7 +491,7 @@ impl LightClient {
     }
 
     pub fn log_state(&self) {
-        let period = calc_sync_period(self.state.finalized_header.slot.into());
+        let period = calc_sync_period(self.state.finalized_header.slot);
         let body_root = &self.state.finalized_header.body_root.as_ref();
         println!(
             "client: slot: {:?} period: {:?}, finalized_block_hash: {:?}",

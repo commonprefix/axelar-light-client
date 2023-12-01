@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use std::{
         fs::File,
         time::{SystemTime, UNIX_EPOCH},
@@ -23,7 +23,7 @@ mod tests {
     };
     use types::lightclient::{BlockVerificationData, LightClientState};
 
-    fn init_lightclient() -> LightClient {
+    pub fn init_lightclient() -> LightClient {
         let bootstrap = get_bootstrap();
         let config = get_config();
         let mut env = mock_env();

@@ -1,3 +1,4 @@
+use alloy_primitives::Address;
 use alloy_rlp::{Buf, Decodable};
 use ssz_rs::prelude::*;
 use std::cmp::Ordering;
@@ -6,10 +7,19 @@ use std::cmp::Ordering;
 pub struct ReceiptLog {
     pub address: [u8; 20],
     pub topics: Vec<[u8; 32]>,
+    pub data: Vec<u8>,
 }
 
-#[derive(Default)]
-pub struct ReceiptLogs(Vec<ReceiptLog>);
+#[derive(Default, Debug)]
+pub struct ContractCallBase {
+    pub source_address: Option<Address>,
+    pub destination_chain: Option<String>,
+    pub destination_address: Option<String>,
+    pub payload_hash: Option<[u8; 32]>,
+}
+
+#[derive(Default, Debug)]
+pub struct ReceiptLogs(pub Vec<ReceiptLog>);
 
 impl ReceiptLogs {
     pub fn contains_topic(&self, topic: &[u8]) -> bool {
@@ -78,9 +88,7 @@ impl Decodable for ReceiptLogs {
                         log.topics.push(alloy_rlp::Decodable::decode(b)?);
                     }
 
-                    // skip receipt data
-                    let data_head = alloy_rlp::Header::decode(b)?;
-                    b.advance(data_head.payload_length);
+                    log.data = Vec::from(alloy_rlp::Header::decode_bytes(b, false)?);
 
                     logs_list.0.push(log);
                 }

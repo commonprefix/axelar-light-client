@@ -58,13 +58,13 @@ impl Gateway {
                 let log_index = log.log_index.unwrap();
                 let cc_id = CrossChainId {
                     chain: "ethereum".parse().unwrap(),
-                    id: format!("{:x}:{}", tx_hash, log_index).parse().unwrap(),
+                    id: format!("0x{:x}:{}", tx_hash, log_index).parse().unwrap(),
                 };
 
                 InternalMessage {
                     message: Message {
                         cc_id,
-                        source_address: event.sender.to_string().parse().unwrap(),
+                        source_address: format!("0x{:x}", event.sender).parse().unwrap(),
                         destination_chain: event.destination_chain.parse().unwrap(),
                         destination_address: event.destination_contract_address.parse().unwrap(),
                         payload_hash: event.payload_hash.into(),

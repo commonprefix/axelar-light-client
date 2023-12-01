@@ -52,9 +52,9 @@ pub type BlockRootsType = Vector<Node, SLOTS_PER_HISTORICAL_ROOT>;
 pub fn to_beacon_header(block: &BeaconBlockAlias) -> eyre::Result<BeaconBlockHeader> {
     Ok(BeaconBlockHeader {
         slot: block.slot,
-        parent_root: block.parent_root.clone(),
+        parent_root: block.parent_root,
         proposer_index: block.proposer_index,
-        state_root: block.state_root.clone(),
+        state_root: block.state_root,
         body_root: (block.body.clone()).hash_tree_root()?,
     })
 }

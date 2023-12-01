@@ -1,9 +1,10 @@
 use cosmwasm_schema::cw_serde;
 
+use types::lightclient::Message;
 use types::{
     common::{ChainConfig, Forks},
     consensus::{Bootstrap, Update},
-    lightclient::BlockVerificationData,
+    lightclient::{BlockVerificationData, EventVerificationData},
 };
 
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
@@ -39,6 +40,12 @@ pub enum ExecuteMsg {
         // #[serde(deserialize_with = "from_hex_string", serialize_with = "to_hex_string")]
         topic: Vec<u8>,
     },
+    EventVerificationData {
+        payload: EventVerificationData,
+    },
+    VerifyMessages {
+        messages: Vec<Message>,
+    },
 }
 
 #[cw_serde]
@@ -48,4 +55,5 @@ pub enum QueryMsg {
     LightClientState {},
     Config {},
     Version {},
+    IsVerified { messages: Vec<Message> },
 }
