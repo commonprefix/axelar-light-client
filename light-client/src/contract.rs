@@ -12,6 +12,7 @@ use crate::{lightclient::LightClient, state::*};
 use eyre::Result;
 
 use cw2::{self, set_contract_version};
+use types::common::ChainConfig;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -106,6 +107,8 @@ mod execute {
             }
         };
 
+        let target_block_root = data.target_block.clone().hash_tree_root()?;
+
         // Verify ancestry proof
         match data.ancestry_proof.clone() {
             AncestryProof::BlockRoots {
@@ -113,7 +116,7 @@ mod execute {
                 block_root_proof,
             } => {
                 let valid_block_root_proof = verify_merkle_proof(
-                    &data.target_block.clone().hash_tree_root()?,
+                    &target_block_root,
                     block_root_proof.as_slice(),
                     &GeneralizedIndex(block_roots_index as usize),
                     &recent_block.state_root,
@@ -150,7 +153,7 @@ mod execute {
             &data.receipt_proof.receipts_root,
             &data.receipt_proof.receipts_branch,
             &GeneralizedIndex(3219), // TODO
-            &data.target_block.clone().hash_tree_root()?,
+            &target_block_root,
         );
 
         if !valid_receipts_root {
@@ -162,7 +165,7 @@ mod execute {
             &data.receipt_proof.transaction.clone().hash_tree_root()?,
             data.receipt_proof.transaction_branch.as_slice(),
             &GeneralizedIndex(data.receipt_proof.transaction_gindex as usize),
-            &data.target_block.clone().hash_tree_root()?,
+            &target_block_root,
         );
 
         if !valid_transaction {
@@ -318,6 +321,7 @@ mod tests {
     };
     use cosmwasm_std::{testing::mock_env, Addr, Timestamp};
     use cw_multi_test::{App, ContractWrapper, Executor};
+    use serde::Serialize;
     use sync_committee_rs::constants::BlsSignature;
     use types::{
         common::{ChainConfig, Fork, Forks},
@@ -362,7 +366,7 @@ mod tests {
     fn test_data() {
         let lightclient = init_lightclient();
         let data = get_event_verification_data();
-        let res = execute::process_verification_data(&lightclient, data.clone());
+        let res = execute::process_verification_data(&lightclient, &data);
         println!("{res:?}");
         assert!(res.is_ok());
     }
