@@ -12,7 +12,6 @@ use crate::{lightclient::LightClient, state::*};
 use eyre::Result;
 
 use cw2::{self, set_contract_version};
-use types::common::ChainConfig;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -98,11 +97,11 @@ mod execute {
         // Get recent block
         let recent_block = match data.update.clone() {
             UpdateVariant::Finality(update) => {
-                // update.verify(lightclient)?;
+                update.verify(lightclient)?;
                 update.finalized_header.beacon
             }
             UpdateVariant::Optimistic(update) => {
-                // update.verify(lightclient)?;
+                update.verify(lightclient)?;
                 update.attested_header.beacon
             }
         };
