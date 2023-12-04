@@ -1,14 +1,8 @@
 use crate::{
-    eth::{
-        consensus::{CustomConsensusApi},
-        state_prover::{StateProverAPI},
-    },
+    eth::{consensus::CustomConsensusApi, state_prover::StateProverAPI},
     prover::types::{GindexOrPath, ProofResponse},
 };
-use consensus_types::{
-    consensus::{BeaconStateType},
-    proofs::AncestryProof,
-};
+use consensus_types::{consensus::BeaconStateType, proofs::AncestryProof};
 use eyre::{anyhow, Result};
 use ssz_rs::{get_generalized_index, Node, SszVariableOrIndex, Vector};
 use sync_committee_rs::constants::{
@@ -62,6 +56,7 @@ pub async fn generate_receipts_root_branch(
  * using either the block_roots or the historical_roots beacon state property.
 */
 pub async fn prove_ancestry(
+    consensus: &dyn CustomConsensusApi,
     state_prover: &dyn StateProverAPI,
     target_block_slot: usize,
     recent_block_slot: usize,
@@ -74,7 +69,13 @@ pub async fn prove_ancestry(
         prove_ancestry_with_block_roots(state_prover, &target_block_slot, recent_block_state_id)
             .await?
     } else {
-        unimplemented!()
+        prove_ancestry_with_historical_summaries(
+            consensus,
+            state_prover,
+            &(target_block_slot as u64),
+            recent_block_state_id,
+        )
+        .await?
     };
 
     Ok(proof)
@@ -193,15 +194,14 @@ mod tests {
         generate_receipts_root_branch, generate_transaction_branch,
         prove_ancestry_with_block_roots, prove_ancestry_with_historical_summaries,
     };
-    use crate::prover::mocks::mock_consensus_rpc::{MockConsensusRPC};
-    use crate::prover::mocks::mock_state_prover::{MockStateProver};
+    use crate::prover::mocks::mock_consensus_rpc::MockConsensusRPC;
+    use crate::prover::mocks::mock_state_prover::MockStateProver;
 
-    
     use consensus_types::proofs::AncestryProof;
     use ssz_rs::{
         get_generalized_index, GeneralizedIndex, Merkleized, Node, SszVariableOrIndex, Vector,
     };
-    
+
     use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
     use tokio::test as tokio_test;
 

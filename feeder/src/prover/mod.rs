@@ -93,6 +93,7 @@ impl Prover {
         println!("Got receipts branch");
 
         let ancestry_proof = prove_ancestry(
+            &self.consensus_rpc,
             &self.state_prover,
             target_beacon_block.slot as usize,
             recent_block.slot as usize,
