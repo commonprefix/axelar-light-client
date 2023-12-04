@@ -2,7 +2,7 @@ use crate::{
     eth::{consensus::CustomConsensusApi, state_prover::StateProverAPI},
     prover::types::{GindexOrPath, ProofResponse},
 };
-use consensus_types::{consensus::BeaconStateType, proofs::AncestryProof};
+use consensus_types::{consensus::BeaconStateType, lightclient::AncestryProof};
 use eyre::{anyhow, Result};
 use ssz_rs::{get_generalized_index, Node, SszVariableOrIndex, Vector};
 use sync_committee_rs::constants::{
@@ -179,7 +179,7 @@ pub async fn prove_ancestry_with_historical_summaries(
 
     let res = AncestryProof::HistoricalRoots {
         block_root_proof: block_root_to_block_summary_root,
-        historical_summaries_branch: historical_summaries_branch.witnesses,
+        block_summary_root_proof: historical_summaries_branch.witnesses,
         block_summary_root: historical_summaries_branch.leaf,
         block_summary_root_gindex: historical_summaries_branch.gindex as usize,
     };
@@ -197,7 +197,7 @@ mod tests {
     use crate::prover::mocks::mock_consensus_rpc::MockConsensusRPC;
     use crate::prover::mocks::mock_state_prover::MockStateProver;
 
-    use consensus_types::proofs::AncestryProof;
+    use consensus_types::lightclient::AncestryProof;
     use ssz_rs::{
         get_generalized_index, GeneralizedIndex, Merkleized, Node, SszVariableOrIndex, Vector,
     };
@@ -317,7 +317,7 @@ mod tests {
 
         match proof {
             AncestryProof::HistoricalRoots {
-                historical_summaries_branch,
+                block_summary_root_proof,
                 block_root_proof,
                 block_summary_root_gindex,
                 block_summary_root,
@@ -325,7 +325,7 @@ mod tests {
                 // Proof from state root to the specific block_summary_root of the historical_summaries
                 let is_valid_proof = ssz_rs::verify_merkle_proof(
                     &block_summary_root,
-                    &historical_summaries_branch,
+                    &block_summary_root_proof,
                     &GeneralizedIndex(block_summary_root_gindex),
                     &latest_block.state_root,
                 );

@@ -19,7 +19,7 @@ use crate::{
 };
 use consensus_types::{
     consensus::to_beacon_header,
-    lightclient::{EventVerificationData, ReceiptProof, UpdateVariant},
+    lightclient::{MessageProof, ReceiptProof, TransactionProof, UpdateVariant},
 };
 use eyre::{anyhow, Result};
 use ssz_rs::{Merkleized, Node};
@@ -47,7 +47,7 @@ impl Prover {
         &self,
         message: InternalMessage,
         update: UpdateVariant,
-    ) -> Result<EventVerificationData> {
+    ) -> Result<MessageProof> {
         let target_block = self
             .execution_rpc
             .get_block_with_txs(message.block_number)
@@ -102,19 +102,19 @@ impl Prover {
         .await?;
         println!("Got ancestry proof");
 
-        Ok(EventVerificationData {
-            message: message.message,
+        Ok(MessageProof {
             update: update.clone(),
             target_block: to_beacon_header(&target_beacon_block)?,
-            block_roots_root: Node::default(),
             ancestry_proof,
+            transaction_proof: TransactionProof {
+                transaction_index: tx_index,
+                transaction_gindex: transaction_branch.gindex,
+                transaction_branch: transaction_branch.witnesses,
+                transaction,
+            },
             receipt_proof: ReceiptProof {
                 receipt_proof,
-                receipts_branch: receipts_branch.witnesses,
-                transaction_branch: transaction_branch.witnesses,
-                transaction_gindex: transaction_branch.gindex,
-                transaction,
-                transaction_index: tx_index,
+                receipts_root_proof: receipts_branch.witnesses,
                 receipts_root: Node::from_bytes(target_block.receipts_root.as_bytes().try_into()?),
             },
         })
