@@ -12,7 +12,7 @@ use crate::{
         utils::calc_slot_from_timestamp,
     },
     prover::{
-        consensus::{generate_receipts_root_branch, generate_transaction_branch, prove_ancestry},
+        consensus::{generate_receipts_root_proof, generate_transaction_proof, prove_ancestry},
         execution::{generate_receipt_proof, get_tx_index},
     },
     types::InternalMessage,
@@ -85,12 +85,13 @@ impl Prover {
         println!("Got receipts proof");
 
         // Consensus Proofs
-        let transaction_branch =
-            generate_transaction_branch(&self.state_prover, &block_id, tx_index).await?;
-        println!("Got transactions branch");
+        let transaction_proof =
+            generate_transaction_proof(&self.state_prover, &block_id, tx_index).await?;
+        println!("Got transactions proof");
 
-        let receipts_branch = generate_receipts_root_branch(&self.state_prover, &block_id).await?;
-        println!("Got receipts branch");
+        let receipts_root_proof =
+            generate_receipts_root_proof(&self.state_prover, &block_id).await?;
+        println!("Got receipts root proof");
 
         let ancestry_proof = prove_ancestry(
             &self.consensus_rpc,
@@ -108,13 +109,13 @@ impl Prover {
             ancestry_proof,
             transaction_proof: TransactionProof {
                 transaction_index: tx_index,
-                transaction_gindex: transaction_branch.gindex,
-                transaction_branch: transaction_branch.witnesses,
+                transaction_gindex: transaction_proof.gindex,
+                transaction_proof: transaction_proof.witnesses,
                 transaction,
             },
             receipt_proof: ReceiptProof {
                 receipt_proof,
-                receipts_root_proof: receipts_branch.witnesses,
+                receipts_root_proof: receipts_root_proof.witnesses,
                 receipts_root: Node::from_bytes(target_block.receipts_root.as_bytes().try_into()?),
             },
         })

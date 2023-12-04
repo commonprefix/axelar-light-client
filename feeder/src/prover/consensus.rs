@@ -14,7 +14,7 @@ const CAPELLA_FORK_SLOT: u64 = CAPELLA_FORK_EPOCH * SLOTS_PER_EPOCH;
 /**
  * Generates a merkle proof from the transaction to the beacon block root.
 */
-pub async fn generate_transaction_branch(
+pub async fn generate_transaction_proof(
     state_prover: &dyn StateProverAPI,
     block_id: &String,
     tx_index: u64,
@@ -35,7 +35,7 @@ pub async fn generate_transaction_branch(
 /**
  * Generates a merkle proof from the receipts_root to the beacon block root.
 */
-pub async fn generate_receipts_root_branch(
+pub async fn generate_receipts_root_proof(
     state_prover: &dyn StateProverAPI,
     block_id: &String,
 ) -> Result<ProofResponse> {
@@ -116,7 +116,7 @@ pub async fn prove_ancestry_with_block_roots(
     Ok(ancestry_proof)
 }
 
-async fn prove_historical_summaries_branch(
+async fn prove_historical_summaries_proof(
     state_prover: &dyn StateProverAPI,
     target_block_slot: &u64,
     recent_block_state_id: &String,
@@ -170,8 +170,8 @@ pub async fn prove_ancestry_with_historical_summaries(
             "Target block epoch is less than CAPELLA_FORK_EPOCH"
         ));
     }
-    let historical_summaries_branch =
-        prove_historical_summaries_branch(state_prover, target_block_slot, recent_block_state_id)
+    let historical_summaries_proof =
+        prove_historical_summaries_proof(state_prover, target_block_slot, recent_block_state_id)
             .await?;
 
     let block_root_to_block_summary_root =
@@ -179,9 +179,9 @@ pub async fn prove_ancestry_with_historical_summaries(
 
     let res = AncestryProof::HistoricalRoots {
         block_root_proof: block_root_to_block_summary_root,
-        block_summary_root_proof: historical_summaries_branch.witnesses,
-        block_summary_root: historical_summaries_branch.leaf,
-        block_summary_root_gindex: historical_summaries_branch.gindex as usize,
+        block_summary_root_proof: historical_summaries_proof.witnesses,
+        block_summary_root: historical_summaries_proof.leaf,
+        block_summary_root_gindex: historical_summaries_proof.gindex as usize,
     };
 
     Ok(res)
@@ -191,8 +191,8 @@ pub async fn prove_ancestry_with_historical_summaries(
 mod tests {
     use crate::eth::consensus::EthBeaconAPI;
     use crate::prover::consensus::{
-        generate_receipts_root_branch, generate_transaction_branch,
-        prove_ancestry_with_block_roots, prove_ancestry_with_historical_summaries,
+        generate_receipts_root_proof, generate_transaction_proof, prove_ancestry_with_block_roots,
+        prove_ancestry_with_historical_summaries,
     };
     use crate::prover::mocks::mock_consensus_rpc::MockConsensusRPC;
     use crate::prover::mocks::mock_state_prover::MockStateProver;
@@ -209,7 +209,7 @@ mod tests {
      * TESTS BELOW REQUIRE NETWORK REQUESTS
      */
     #[tokio_test]
-    async fn test_transactions_branch() {
+    async fn test_transactions_proof() {
         let consensus = &MockConsensusRPC::new();
         let state_prover = MockStateProver::new();
         let mut block = consensus.get_beacon_block(7807119).await.unwrap();
@@ -220,7 +220,7 @@ mod tests {
         let node = transaction.hash_tree_root().unwrap();
 
         let proof =
-            generate_transaction_branch(&state_prover, &block_root.to_string(), tx_index as u64)
+            generate_transaction_proof(&state_prover, &block_root.to_string(), tx_index as u64)
                 .await
                 .unwrap();
 
@@ -235,13 +235,13 @@ mod tests {
     }
 
     #[tokio_test]
-    async fn test_receipts_root_branch() {
+    async fn test_receipts_root_proof() {
         let consensus = &MockConsensusRPC::new();
         let state_prover = MockStateProver::new();
         let mut block = consensus.get_beacon_block(7807119).await.unwrap();
         let block_root = block.hash_tree_root().unwrap();
 
-        let proof = generate_receipts_root_branch(&state_prover, &block_root.to_string())
+        let proof = generate_receipts_root_proof(&state_prover, &block_root.to_string())
             .await
             .unwrap();
 
