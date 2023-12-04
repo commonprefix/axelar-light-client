@@ -1,5 +1,5 @@
 use crate::eth::constants::EXECUTION_RPC;
-use crate::eth::execution::ExecutionRPC;
+use crate::eth::execution::{ExecutionAPI, ExecutionRPC};
 use crate::eth::utils::calc_slot_from_timestamp;
 use crate::types::InternalMessage;
 use consensus_types::lightclient::{CrossChainId, Message};
@@ -54,7 +54,6 @@ impl Gateway {
             .zip(events)
             .map(|(log, event)| {
                 let tx_hash = log.transaction_hash.unwrap();
-                println!("tx_hash: {}", tx_hash);
                 let log_index = log.log_index.unwrap();
                 let cc_id = CrossChainId {
                     chain: "ethereum".parse().unwrap(),

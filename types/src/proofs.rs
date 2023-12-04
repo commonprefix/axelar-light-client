@@ -1,4 +1,5 @@
 use ssz_rs::Node;
+use sync_committee_rs::constants::Root;
 
 /// The block header ancestry proof, this is an enum because the header may either exist in
 /// `state.block_roots` or `state.historical_roots`.
@@ -14,17 +15,13 @@ pub enum AncestryProof {
     /// This variant defines the neccessary proofs for a beacon chain header in the
     /// `state.historical_roots`.
     HistoricalRoots {
-        /// Proof for the header in `historical_batch.block_roots`
-        block_roots_proof: Vec<Node>,
+        /// Proof for the target_block root in `historical_summaries.block_summary_root`
+        block_root_proof: Vec<Node>,
         /// The proof for the `historical_batch.block_roots`, needed to reconstruct
-        /// `hash_tree_root(historical_batch)`
-        historical_batch_proof: Vec<Node>,
-        /// The proof for the `hash_tree_root(historical_batch)` in `state.historical_roots`
-        historical_roots_proof: Vec<Node>,
-        /// The generalized index for the historical_batch in `state.historical_roots`.
-        historical_roots_index: u64,
-        /// The proof for the reconstructed `hash_tree_root(state.historical_roots)` in
-        /// [`BeaconState`]
-        historical_roots_branch: Vec<Node>,
+        historical_summaries_branch: Vec<Node>,
+        // The hash of the specific block summary root that has the block
+        block_summary_root: Root,
+        // The generalized index for the historical_batch in `state.historical_roots`.
+        block_summary_root_gindex: usize,
     },
 }

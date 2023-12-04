@@ -78,24 +78,17 @@ fn encode_receipt(receipt: &TransactionReceipt) -> Vec<u8> {
 mod tests {
     use cita_trie::{MemoryDB, PatriciaTrie, Trie};
     use ethers::{
-        types::{Block, Transaction, TransactionReceipt},
         utils::rlp::encode,
     };
     use hasher::HasherKeccak;
-    use std::{fs::File, sync::Arc};
+    use std::{sync::Arc};
     use sync_committee_rs::constants::Root;
+    use tokio::test as tokio_test;
 
-    use crate::prover::execution::generate_receipt_proof;
-
-    fn get_execution_block() -> Block<Transaction> {
-        let file = File::open("./src/prover/testdata/execution_block.json").unwrap();
-        serde_json::from_reader(file).unwrap()
-    }
-
-    fn get_receipts() -> Vec<TransactionReceipt> {
-        let file = File::open("./src/prover/testdata/receipts.json").unwrap();
-        serde_json::from_reader(file).unwrap()
-    }
+    use crate::{
+        eth::execution::ExecutionAPI,
+        prover::{execution::generate_receipt_proof, mocks::mock_execution_rpc::MockExecutionRPC},
+    };
 
     fn verify_trie_proof(root: Root, key: u64, proof_bytes: Vec<Vec<u8>>) -> Option<Vec<u8>> {
         let memdb = Arc::new(MemoryDB::new(true));
@@ -110,12 +103,17 @@ mod tests {
         .unwrap()
     }
 
-    #[test]
-    fn test_receipts_proof() {
-        let mut execution_block = get_execution_block();
-        let receipts = &get_receipts();
+    #[tokio_test]
+    async fn test_receipts_proof() {
+        let execution_rpc = MockExecutionRPC::new();
+        let mut execution_block = execution_rpc
+            .get_block_with_txs(18615160)
+            .await
+            .unwrap()
+            .unwrap();
+        let receipts = execution_rpc.get_block_receipts(18615160).await.unwrap();
 
-        let proof = generate_receipt_proof(&mut execution_block, receipts, 1).unwrap();
+        let proof = generate_receipt_proof(&mut execution_block, &receipts, 1).unwrap();
         let bytes: Result<[u8; 32], _> = execution_block.receipts_root[0..32].try_into();
         let root = Root::from_bytes(bytes.unwrap());
 
