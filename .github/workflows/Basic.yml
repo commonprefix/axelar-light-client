@@ -72,3 +72,34 @@ jobs:
       - name: Schema Changes
         # fails if any changes not committed
         run: git diff --exit-code
+
+  cosmwasm-check:
+    name: Wasm Compatibility Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          override: true
+
+      - name: Install cosmwasm-check from crates.io
+        uses: baptiste0928/cargo-install@v2
+        with:
+          crate: cosmwasm-check
+
+      - name: Compile WASM contract
+        uses: actions-rs/cargo@v1
+        with:
+          command: wasm
+          args: --locked
+        env:
+          RUSTFLAGS: "-C link-arg=-s"
+
+      - name: Run cosmwasm-check
+        run: cosmwasm-check target/wasm32-unknown-unknown/release/light_client.wasm
