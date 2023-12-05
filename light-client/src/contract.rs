@@ -11,6 +11,7 @@ use crate::{lightclient::LightClient, state::*};
 use eyre::Result;
 
 use cw2::{self, set_contract_version};
+use types::lightclient::Message;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -49,7 +50,6 @@ pub fn execute(
         }
         // TODO: only admin should do that
         UpdateForks { forks } => execute::update_forks(deps, forks),
-        VerifyBlock { verification_data } => execute::verify_block(&deps, &env, verification_data),
         verification_request @ VerifyProof { .. } => execute::verify_proof(verification_request),
         VerifyTopicInclusion { receipt, topic } => execute::verify_topic_inclusion(receipt, topic),
         EventVerificationData { payload } => {
@@ -82,10 +82,7 @@ mod execute {
     use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
     use types::lightclient::MessageVerification;
     use types::proofs::{AncestryProof, UpdateVariant};
-    use types::{
-        common::Forks, consensus::Update, execution::ReceiptLogs,
-        lightclient::BlockVerificationData,
-    };
+    use types::{common::Forks, consensus::Update, execution::ReceiptLogs};
 
     use crate::lightclient::helpers::{verify_message, verify_trie_proof};
     use crate::lightclient::Verification;
@@ -263,38 +260,6 @@ mod execute {
             Ok(config)
         })?;
         Ok(Response::new())
-    }
-
-    pub fn verify_block(
-        deps: &DepsMut,
-        env: &Env,
-        ver_data: BlockVerificationData,
-    ) -> Result<Response, ContractError> {
-        let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
-        let config = CONFIG.load(deps.storage)?;
-        let lc = LightClient::new(&config, Some(state), env);
-
-        let sync_committee =
-            SYNC_COMMITTEES.load(deps.storage, calc_sync_period(ver_data.sig_slot));
-        if sync_committee.is_err() {
-            return Err(ContractError::NoSyncCommittee {
-                period: calc_sync_period(ver_data.sig_slot),
-            });
-        }
-
-        let res = lc.verify_block(
-            &sync_committee.unwrap(),
-            &ver_data.target_block,
-            &ver_data.intermediate_chain,
-            &ver_data.sync_aggregate,
-            ver_data.sig_slot,
-        );
-
-        if res {
-            Ok(Response::new().add_attribute("result", "ok"))
-        } else {
-            Ok(Response::new().add_attribute("result", "err"))
-        }
     }
 }
 
