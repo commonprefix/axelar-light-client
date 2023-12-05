@@ -3,7 +3,6 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdResult,
 };
-use types::lightclient::{EventVerificationData, Message};
 
 use crate::error::ContractError;
 use crate::lightclient::helpers::calc_sync_period;
@@ -81,12 +80,11 @@ mod execute {
         SszVariableOrIndex, Vector,
     };
     use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
-    use types::proofs::AncestryProof;
+    use types::lightclient::MessageVerification;
+    use types::proofs::{AncestryProof, UpdateVariant};
     use types::{
-        common::Forks,
-        consensus::Update,
-        execution::ReceiptLogs,
-        lightclient::{BlockVerificationData, UpdateVariant},
+        common::Forks, consensus::Update, execution::ReceiptLogs,
+        lightclient::BlockVerificationData,
     };
 
     use crate::lightclient::helpers::{verify_message, verify_trie_proof};
@@ -96,10 +94,13 @@ mod execute {
 
     pub fn process_verification_data(
         lightclient: &LightClient,
-        data: &EventVerificationData,
+        data: &MessageVerification,
     ) -> Result<()> {
+        let message = &data.message;
+        let proofs = &data.proofs;
+
         // Get recent block
-        let recent_block = match data.update.clone() {
+        let recent_block = match proofs.update.clone() {
             UpdateVariant::Finality(update) => {
                 update.verify(lightclient)?;
                 update.finalized_header.beacon
@@ -110,10 +111,10 @@ mod execute {
             }
         };
 
-        let target_block_root = data.target_block.clone().hash_tree_root()?;
+        let target_block_root = proofs.target_block.clone().hash_tree_root()?;
 
         // Verify ancestry proof
-        match data.ancestry_proof.clone() {
+        match proofs.ancestry_proof.clone() {
             AncestryProof::BlockRoots {
                 block_roots_index,
                 block_root_proof,
@@ -135,7 +136,8 @@ mod execute {
                 block_summary_root,
                 block_summary_root_gindex,
             } => {
-                let block_root_index = data.target_block.slot as usize % SLOTS_PER_HISTORICAL_ROOT;
+                let block_root_index =
+                    proofs.target_block.slot as usize % SLOTS_PER_HISTORICAL_ROOT;
                 let block_root_gindex = get_generalized_index(
                     &Vector::<Node, SLOTS_PER_HISTORICAL_ROOT>::default(),
                     &[SszVariableOrIndex::Index(block_root_index)],
@@ -167,9 +169,9 @@ mod execute {
 
         // Verify receipt proof
         let receipt_option = verify_trie_proof(
-            data.receipt_proof.receipts_root,
-            data.receipt_proof.transaction_index,
-            data.receipt_proof.receipt_proof.clone(),
+            proofs.receipt_proof.receipts_root,
+            proofs.transaction_proof.transaction_index,
+            proofs.receipt_proof.receipt_proof.clone(),
         );
 
         let receipt = match receipt_option {
@@ -178,8 +180,8 @@ mod execute {
         };
 
         let valid_receipts_root = verify_merkle_proof(
-            &data.receipt_proof.receipts_root,
-            &data.receipt_proof.receipts_branch,
+            &proofs.receipt_proof.receipts_root,
+            &proofs.receipt_proof.receipts_root_proof,
             &GeneralizedIndex(3219), // TODO
             &target_block_root,
         );
@@ -190,9 +192,13 @@ mod execute {
 
         // Verify transaction proof
         let valid_transaction = verify_merkle_proof(
-            &data.receipt_proof.transaction.clone().hash_tree_root()?,
-            data.receipt_proof.transaction_branch.as_slice(),
-            &GeneralizedIndex(data.receipt_proof.transaction_gindex as usize),
+            &proofs
+                .transaction_proof
+                .transaction
+                .clone()
+                .hash_tree_root()?,
+            proofs.transaction_proof.transaction_proof.as_slice(),
+            &GeneralizedIndex(proofs.transaction_proof.transaction_gindex as usize),
             &target_block_root,
         );
 
@@ -202,7 +208,7 @@ mod execute {
 
         let logs: ReceiptLogs = alloy_rlp::Decodable::decode(&mut &receipt[..]).unwrap();
         for log in logs.0.iter() {
-            if verify_message(&data.message, log, &data.receipt_proof.transaction) {
+            if verify_message(&message, log, &proofs.transaction_proof.transaction) {
                 return Ok(());
             }
         }
