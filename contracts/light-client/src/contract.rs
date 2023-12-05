@@ -203,7 +203,7 @@ mod execute {
 
         let logs: ReceiptLogs = alloy_rlp::Decodable::decode(&mut &receipt[..]).unwrap();
         for log in logs.0.iter() {
-            if verify_message(&message, log, &proofs.transaction_proof.transaction) {
+            if verify_message(message, log, &proofs.transaction_proof.transaction) {
                 return Ok(());
             }
         }
