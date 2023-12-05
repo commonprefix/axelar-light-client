@@ -9,7 +9,7 @@ use helpers::is_proof_valid;
 use milagro_bls::{AggregateSignature, PublicKey};
 use ssz_rs::prelude::*;
 use sync_committee_rs::{
-    consensus_types::{BeaconBlockHeader, ForkData, SyncAggregate, SyncCommittee},
+    consensus_types::{BeaconBlockHeader, ForkData, SyncCommittee},
     constants::{BlsSignature, Bytes32, SYNC_COMMITTEE_SIZE},
     util::SigningData,
 };
@@ -276,48 +276,6 @@ impl LightClient {
     }
 
     /**
-     * Accepts a chain of blocks [T, .., L, SigBlock] where
-     *      SigBlock: The block that contains the sync aggregate signature of L
-     *      L: A block that can be attested with enough participation by the sync commmittee
-     *      T: The block that we want to verify.
-     *    
-     * Given those blocks, this function verifies that:
-     *      1. SigBlock contains a valid signature to L
-     *      2. The chain of blocks from T to L is valid. ie the hash_tree root
-     *         of n block equals the parent root of n + 1 block
-     *
-     * Note that the chain of blocks from T..L should contain blocks that are
-     * subsequent to each other but the sigBlock just need to be more recent
-     * than the L block
-     *
-     * TODO: Accept block headers instead of full blocks
-     * TODO: Make sure that the SigBlock is finalized
-     * TODO: Change input structure from an array of blocks to a meaningful struct
-     */
-    pub fn verify_block(
-        &self,
-        sync_committee: &SyncCommittee<SYNC_COMMITTEE_SIZE>,
-        target_block: &BeaconBlockHeader,
-        intermediate_chain: &[BeaconBlockHeader],
-        sync_aggregate: &SyncAggregate<SYNC_COMMITTEE_SIZE>,
-        sig_slot: u64,
-    ) -> bool {
-        if intermediate_chain.is_empty() {
-            return self.verify_attestation(target_block, sync_aggregate, sync_committee, sig_slot);
-        }
-
-        let is_valid_chain = self.verify_chain_of_blocks(target_block, intermediate_chain);
-        let is_valid_attestation = self.verify_attestation(
-            &intermediate_chain[intermediate_chain.len() - 1],
-            sync_aggregate,
-            sync_committee,
-            sig_slot,
-        );
-
-        is_valid_chain && is_valid_attestation
-    }
-
-    /**
      * Returns the fork version for a given slot.
      */
     fn get_fork_version(&self, slot: u64) -> [u8; 4] {
@@ -348,32 +306,6 @@ impl LightClient {
         pks
     }
 
-    pub fn verify_attestation<T>(
-        &self,
-        attest_block: &T,
-        sync_aggregate: &SyncAggregate<SYNC_COMMITTEE_SIZE>,
-        sync_committee: &SyncCommittee<SYNC_COMMITTEE_SIZE>,
-        sig_slot: u64,
-    ) -> bool
-    where
-        T: ssz_rs::Merkleized + Clone,
-    {
-        let pks = self.get_participating_keys(sync_committee, &sync_aggregate.sync_committee_bits);
-
-        if (pks.len() as u64) * 3 < 512 * 2 {
-            // Not enough participation
-            return false;
-        }
-
-        self.verify_sync_committee_signature(
-            &self.config,
-            &pks,
-            attest_block,
-            &sync_aggregate.sync_committee_signature,
-            sig_slot,
-        )
-    }
-
     fn verify_sync_committee_signature<T>(
         &self,
         config: &ChainConfig,
@@ -399,28 +331,6 @@ impl LightClient {
         } else {
             false
         }
-    }
-
-    pub fn verify_chain_of_blocks(
-        &self,
-        interested_block: &BeaconBlockHeader,
-        chain: &[BeaconBlockHeader],
-    ) -> bool {
-        if chain.is_empty() {
-            return true;
-        }
-
-        for window in chain.windows(2) {
-            if let [prev, next] = window {
-                let hash = prev.clone().hash_tree_root().unwrap();
-                let next_hash = next.parent_root;
-                if hash != next_hash {
-                    return false;
-                }
-            }
-        }
-
-        interested_block.clone().hash_tree_root().unwrap() == chain[0].parent_root
     }
 
     pub fn is_aggregate_valid(

@@ -50,8 +50,6 @@ pub fn execute(
         }
         // TODO: only admin should do that
         UpdateForks { forks } => execute::update_forks(deps, forks),
-        verification_request @ VerifyProof { .. } => execute::verify_proof(verification_request),
-        VerifyTopicInclusion { receipt, topic } => execute::verify_topic_inclusion(receipt, topic),
         EventVerificationData { payload } => {
             let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
             let config = CONFIG.load(deps.storage)?;
@@ -74,7 +72,7 @@ pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, Contract
 }
 
 mod execute {
-    use cosmwasm_std::{to_json_binary, StdResult, WasmMsg};
+    use cosmwasm_std::StdResult;
     use ssz_rs::{
         get_generalized_index, verify_merkle_proof, GeneralizedIndex, Merkleized, Node,
         SszVariableOrIndex, Vector,
@@ -212,27 +210,6 @@ mod execute {
         Err(ContractError::InvalidMessage.into())
     }
 
-    pub fn verify_proof(msg: ExecuteMsg) -> Result<Response, ContractError> {
-        let message = WasmMsg::Execute {
-            contract_addr: String::from(
-                "axelar1awkf64kxnu07z0rljnryfajh5yl78c6cn2jzhwlgcw699ux6rfpsksuasf",
-            ),
-            msg: to_json_binary(&msg)?,
-            funds: vec![],
-        };
-        Ok(Response::new().add_message(message))
-    }
-
-    pub fn verify_topic_inclusion(
-        receipt: Vec<u8>,
-        topic: Vec<u8>,
-    ) -> Result<Response, ContractError> {
-        let logs: ReceiptLogs = alloy_rlp::Decodable::decode(&mut &receipt[..]).unwrap();
-
-        let is_included = logs.contains_topic(&topic[..]);
-        Ok(Response::new().add_attribute("result", is_included.to_string()))
-    }
-
     pub fn light_client_update(
         deps: DepsMut,
         env: &Env,
@@ -268,7 +245,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     use QueryMsg::*;
 
     match msg {
-        Greet {} => to_json_binary(&query::greet()?),
         LightClientState {} => to_json_binary(&LIGHT_CLIENT_STATE.load(deps.storage)?),
         Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
         SyncCommittee { period } => {
@@ -285,14 +261,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 })
                 .collect::<Vec<(Message, bool)>>(),
         ),
-    }
-}
-
-mod query {
-    use super::*;
-
-    pub fn greet() -> StdResult<String> {
-        Ok("Hello, world!".to_string())
     }
 }
 
