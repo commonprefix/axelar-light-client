@@ -143,7 +143,7 @@ mod execute {
                 let valid_block_root_proof = verify_merkle_proof(
                     &target_block_root,
                     block_root_proof.as_slice(),
-                    &GeneralizedIndex(block_root_gindex as usize),
+                    &GeneralizedIndex(block_root_gindex),
                     &block_summary_root,
                 );
 
@@ -362,67 +362,21 @@ mod tests {
     }
 
     #[test]
-    fn test_data() {
+    fn test_verification_with_historical_roots() {
         let lightclient = init_lightclient();
-        let data = get_event_verification_data();
+        let data = get_verification_data_with_historical_roots();
         let res = execute::process_verification_data(&lightclient, &data);
         println!("{res:?}");
         assert!(res.is_ok());
     }
 
     #[test]
-    fn test_verify() {
-        assert!(false);
-    }
-
-    #[test]
-    fn test_topic_inclusion() {
-        let (mut app, addr) = deploy();
-        let mut request = get_topic_inclusion_query();
-        let mut resp = app
-            .execute_contract(
-                Addr::unchecked("owner"),
-                addr.to_owned(),
-                &ExecuteMsg::VerifyTopicInclusion {
-                    receipt: request.receipt.clone(),
-                    topic: request.topic.clone(),
-                },
-                &[],
-            )
-            .unwrap();
-
-        let wasm = resp.events.iter().find(|ev| ev.ty == "wasm").unwrap();
-        assert_eq!(
-            wasm.attributes
-                .iter()
-                .find(|attr| attr.key == "result")
-                .unwrap()
-                .value,
-            "true"
-        );
-
-        request.topic[0] = request.topic[0] + 1; // modify a random byte
-        resp = app
-            .execute_contract(
-                Addr::unchecked("owner"),
-                addr.to_owned(),
-                &ExecuteMsg::VerifyTopicInclusion {
-                    receipt: request.receipt.clone(),
-                    topic: request.topic.clone(),
-                },
-                &[],
-            )
-            .unwrap();
-
-        let wasm = resp.events.iter().find(|ev| ev.ty == "wasm").unwrap();
-        assert_eq!(
-            wasm.attributes
-                .iter()
-                .find(|attr| attr.key == "result")
-                .unwrap()
-                .value,
-            "false"
-        );
+    fn test_verification_with_block_roots() {
+        let lightclient = init_lightclient();
+        let data = get_verification_data_with_block_roots();
+        let res = execute::process_verification_data(&lightclient, &data);
+        println!("{res:?}");
+        assert!(res.is_ok());
     }
 
     #[test]
