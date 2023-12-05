@@ -1,10 +1,7 @@
 use crate::error::RpcError;
-use crate::eth::utils::get;
 use crate::types::*;
+use crate::utils::get;
 use async_trait::async_trait;
-use consensus_types::consensus::{
-    BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update,
-};
 use eyre::Result;
 use futures::future;
 use ssz_rs::Vector;
@@ -13,6 +10,7 @@ use sync_committee_rs::{
     consensus_types::BeaconBlockHeader,
     constants::{Root, SLOTS_PER_HISTORICAL_ROOT},
 };
+use types::consensus::{BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update};
 
 #[async_trait]
 pub trait EthBeaconAPI {

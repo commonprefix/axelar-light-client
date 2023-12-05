@@ -76,19 +76,16 @@ fn encode_receipt(receipt: &TransactionReceipt) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use cita_trie::{MemoryDB, PatriciaTrie, Trie};
-    use ethers::{
-        utils::rlp::encode,
+    use crate::prover::{
+        execution::generate_receipt_proof, mocks::mock_execution_rpc::MockExecutionRPC,
     };
+    use cita_trie::{MemoryDB, PatriciaTrie, Trie};
+    use eth::execution::ExecutionAPI;
+    use ethers::utils::rlp::encode;
     use hasher::HasherKeccak;
-    use std::{sync::Arc};
+    use std::sync::Arc;
     use sync_committee_rs::constants::Root;
     use tokio::test as tokio_test;
-
-    use crate::{
-        eth::execution::ExecutionAPI,
-        prover::{execution::generate_receipt_proof, mocks::mock_execution_rpc::MockExecutionRPC},
-    };
 
     fn verify_trie_proof(root: Root, key: u64, proof_bytes: Vec<Vec<u8>>) -> Option<Vec<u8>> {
         let memdb = Arc::new(MemoryDB::new(true));

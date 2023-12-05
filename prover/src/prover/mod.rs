@@ -1,6 +1,7 @@
 mod consensus;
 mod execution;
 mod mocks;
+pub mod state_prover;
 pub mod types;
 mod utils;
 
@@ -20,6 +21,12 @@ use crate::{
 use consensus_types::{
     consensus::to_beacon_header,
     lightclient::{MessageProof, ReceiptProof, TransactionProof, UpdateVariant},
+};
+use eth::{
+    consensus::{ConsensusRPC, EthBeaconAPI},
+    execution::{ExecutionAPI, ExecutionRPC},
+    types::InternalMessage,
+    utils::calc_slot_from_timestamp,
 };
 use eyre::{anyhow, Result};
 use ssz_rs::{Merkleized, Node};

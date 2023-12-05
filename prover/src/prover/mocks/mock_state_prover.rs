@@ -1,8 +1,8 @@
 use std::fs::File;
 
-use crate::{
-    eth::state_prover::StateProverAPI,
-    prover::types::{GindexOrPath, ProofResponse},
+use crate::prover::{
+    state_prover::StateProverAPI,
+    types::{GindexOrPath, ProofResponse},
 };
 use async_trait::async_trait;
 use eyre::Result;

@@ -1,7 +1,8 @@
 pub mod consensus;
+pub mod error;
 pub mod execution;
 pub mod gateway;
-pub mod state_prover;
+pub mod types;
 pub mod utils;
 
 pub mod constants {

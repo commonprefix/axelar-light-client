@@ -1,17 +1,14 @@
-mod error;
-mod eth;
 mod prover;
 mod types;
 mod wasm;
 
-use std::time::Instant;
-
-use consensus_types::proofs::UpdateVariant;
+use crate::prover::state_prover::StateProver;
+use crate::prover::Prover;
+use consensus_types::lightclient::UpdateVariant;
+use eth::consensus::EthBeaconAPI;
 use eth::{consensus::ConsensusRPC, constants::*, execution::ExecutionRPC, gateway::Gateway};
-use prover::Prover;
+use std::time::Instant;
 use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
-
-use crate::eth::{consensus::EthBeaconAPI, state_prover::StateProver};
 
 #[tokio::main]
 async fn main() {

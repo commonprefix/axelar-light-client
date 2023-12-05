@@ -1,8 +1,8 @@
-use crate::eth::consensus::{CustomConsensusApi, EthBeaconAPI};
 use async_trait::async_trait;
 use consensus_types::consensus::{
     BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update,
 };
+use eth::consensus::{CustomConsensusApi, EthBeaconAPI};
 use eyre::Result;
 use serde_json;
 use ssz_rs::Vector;

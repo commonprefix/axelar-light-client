@@ -1,8 +1,7 @@
-use crate::eth::constants::EXECUTION_RPC;
-use crate::eth::execution::{ExecutionAPI, ExecutionRPC};
-use crate::eth::utils::calc_slot_from_timestamp;
+use crate::constants::EXECUTION_RPC;
+use crate::execution::{ExecutionAPI, ExecutionRPC};
 use crate::types::InternalMessage;
-use consensus_types::lightclient::{CrossChainId, Message};
+use crate::utils::calc_slot_from_timestamp;
 use ethers::abi::{Bytes, RawLog};
 use ethers::prelude::{EthEvent, Http};
 use ethers::providers::{Middleware, Provider};
@@ -10,6 +9,7 @@ use ethers::types::Filter;
 use ethers::types::{Address, Log, H256, U256};
 use eyre::Result;
 use std::sync::Arc;
+use types::lightclient::{CrossChainId, Message};
 
 pub struct Gateway {
     client: Arc<Provider<Http>>,

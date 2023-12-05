@@ -1,8 +1,9 @@
-use crate::{
-    eth::{consensus::CustomConsensusApi, state_prover::StateProverAPI},
-    prover::types::{GindexOrPath, ProofResponse},
+use crate::prover::{
+    state_prover::StateProverAPI,
+    types::{GindexOrPath, ProofResponse},
 };
 use consensus_types::{consensus::BeaconStateType, lightclient::AncestryProof};
+use eth::consensus::CustomConsensusApi;
 use eyre::{anyhow, Result};
 use ssz_rs::{get_generalized_index, Node, SszVariableOrIndex, Vector};
 use sync_committee_rs::constants::{
@@ -190,13 +191,13 @@ pub async fn prove_ancestry_with_historical_summaries(
 
 #[cfg(test)]
 mod tests {
-    use crate::eth::consensus::EthBeaconAPI;
     use crate::prover::consensus::{
         generate_receipts_root_proof, generate_transaction_proof, prove_ancestry_with_block_roots,
         prove_ancestry_with_historical_summaries,
     };
     use crate::prover::mocks::mock_consensus_rpc::MockConsensusRPC;
     use crate::prover::mocks::mock_state_prover::MockStateProver;
+    use eth::consensus::EthBeaconAPI;
 
     use consensus_types::lightclient::AncestryProof;
     use ssz_rs::{

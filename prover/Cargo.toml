@@ -7,6 +7,7 @@ version = "0.1.0"
 
 [dependencies]
 consensus_types = {path = "../types", package = "types"}
+eth = {path = "../eth", package = "eth"}
 ethers = "2.0.10"
 eyre = "0.6.8"
 hex = "0.4.3"

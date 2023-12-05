@@ -1,12 +1,20 @@
-use crate::{
-    error::RpcError,
-    prover::types::{GindexOrPath, ProofResponse},
-};
+use crate::prover::types::{GindexOrPath, ProofResponse};
 use async_trait::async_trait;
+use eth::error::RpcError;
 use eyre::Result;
+use retri::{retry, BackoffSettings};
+use serde::de::DeserializeOwned;
 use ssz_rs::SszVariableOrIndex;
 
-use super::utils::get;
+pub async fn get<R: DeserializeOwned>(req: &str) -> Result<R> {
+    let bytes = retry(
+        || async { Ok::<_, eyre::Report>(reqwest::get(req).await?.bytes().await?) },
+        BackoffSettings::default(),
+    )
+    .await?;
+
+    Ok(serde_json::from_slice::<R>(&bytes)?)
+}
 
 #[async_trait]
 pub trait StateProverAPI {
