@@ -28,4 +28,5 @@ pub enum QueryMsg {
     Config {},
     Version {},
     IsVerified { messages: Vec<Message> },
+    CI { foo: f32 },
 }

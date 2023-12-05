@@ -261,6 +261,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 })
                 .collect::<Vec<(Message, bool)>>(),
         ),
+        CI { foo } => to_json_binary(&foo),
     }
 }
 

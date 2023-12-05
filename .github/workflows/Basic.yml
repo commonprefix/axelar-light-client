@@ -88,10 +88,8 @@ jobs:
           target: wasm32-unknown-unknown
           override: true
 
-      - name: Install cosmwasm-check from crates.io
-        uses: baptiste0928/cargo-install@v2
-        with:
-          crate: cosmwasm-check
+      - name: Install cosmwasm-check
+        run: cargo install cosmwasm-check
 
       - name: Compile WASM contract
         uses: actions-rs/cargo@v1
