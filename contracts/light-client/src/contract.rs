@@ -330,7 +330,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_verification_with_historical_roots() {
         let data = get_verification_data_with_historical_roots();
         let lightclient = init_lightclient(Some(data.0));

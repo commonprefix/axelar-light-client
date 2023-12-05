@@ -311,10 +311,8 @@ pub mod test_helpers {
         let verification_data: MessageVerification =
             serde_json::from_reader(verification_file).unwrap();
 
-        let bootstrap_file = File::open(format!(
-            "testdata/verification/bootstrap_historical_roots.json"
-        ))
-        .unwrap();
+        let bootstrap_file =
+            File::open(format!("testdata/verification/bootstrap_block_roots.json")).unwrap();
         let bootstrap: Bootstrap = serde_json::from_reader(bootstrap_file).unwrap();
         (bootstrap, verification_data)
     }
