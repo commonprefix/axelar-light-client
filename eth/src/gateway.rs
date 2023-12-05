@@ -7,6 +7,7 @@ use ethers::prelude::{EthEvent, Http};
 use ethers::providers::{Middleware, Provider};
 use ethers::types::Filter;
 use ethers::types::{Address, Log, H256, U256};
+use eyre::eyre;
 use eyre::Result;
 use std::sync::Arc;
 use types::lightclient::{CrossChainId, Message};
@@ -53,14 +54,23 @@ impl Gateway {
             .iter()
             .zip(events)
             .map(|(log, event)| {
+                if log.transaction_hash.is_none()
+                    || log.log_index.is_none()
+                    || log.block_hash.is_none()
+                    || log.block_number.is_none()
+                {
+                    return Err(eyre!("Missing field on log/event: {:?}, {:?}", log, event));
+                }
+
                 let tx_hash = log.transaction_hash.unwrap();
                 let log_index = log.log_index.unwrap();
+
                 let cc_id = CrossChainId {
                     chain: "ethereum".parse().unwrap(),
                     id: format!("0x{:x}:{}", tx_hash, log_index).parse().unwrap(),
                 };
 
-                InternalMessage {
+                let msg = InternalMessage {
                     message: Message {
                         cc_id,
                         source_address: format!("0x{:x}", event.sender).parse().unwrap(),
@@ -70,10 +80,22 @@ impl Gateway {
                     },
                     block_hash: log.block_hash.unwrap(),
                     block_number: log.block_number.unwrap().as_u64(),
-                }
-            })
-            .collect::<Vec<InternalMessage>>();
+                };
 
+                Ok(msg)
+            })
+            .collect::<Vec<Result<InternalMessage>>>();
+
+        for message in &messages {
+            if message.is_err() {
+                println!("Failed to decode message: {:?}", message);
+            }
+        }
+
+        let messages = messages
+            .into_iter()
+            .filter_map(|message| message.ok())
+            .collect::<Vec<InternalMessage>>();
         Ok(messages)
     }
 
@@ -131,7 +153,7 @@ impl Gateway {
             .map(|message| message.block_number)
             .collect::<Vec<u64>>();
 
-        let blocks = execution.get_blocks(&block_heights).await.unwrap();
+        let blocks = execution.get_blocks(&block_heights).await?;
 
         let filtered_messages = messages
             .into_iter()

@@ -326,7 +326,7 @@ mod tests {
                 let is_valid_proof = ssz_rs::verify_merkle_proof(
                     &block_summary_root,
                     &block_summary_root_proof,
-                    &GeneralizedIndex(block_summary_root_gindex),
+                    &GeneralizedIndex(block_summary_root_gindex as usize),
                     &latest_block.state_root,
                 );
                 assert!(is_valid_proof);

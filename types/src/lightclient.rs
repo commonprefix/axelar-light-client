@@ -63,7 +63,7 @@ pub enum AncestryProof {
         // Proof that historical_summaries[index].block_summary_root is in recent block state
         block_summary_root_proof: Vec<Node>,
         // The generalized index for the historical_batch in state.historical_roots.
-        block_summary_root_gindex: usize,
+        block_summary_root_gindex: u64,
     },
 }
 

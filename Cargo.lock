@@ -1571,6 +1571,7 @@ dependencies = [
  "ssz-rs",
  "sync-committee-primitives",
  "thiserror",
+ "tokio",
  "types",
 ]
 

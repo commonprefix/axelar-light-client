@@ -37,11 +37,7 @@ impl ExecutionRPC {
 #[async_trait]
 impl ExecutionAPI for ExecutionRPC {
     async fn get_block_receipts(&self, block_number: u64) -> Result<Vec<TransactionReceipt>> {
-        let block_receipts = self
-            .provider
-            .get_block_receipts(block_number)
-            .await
-            .map_err(|e| RpcError::new("get_block_receipts", e))?;
+        let block_receipts = self.provider.get_block_receipts(block_number).await?;
 
         Ok(block_receipts)
     }
