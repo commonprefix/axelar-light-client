@@ -60,7 +60,7 @@ serde_json = "1.0.105"
 ssz-rs = {git = "https://github.com/commonprefix/ssz-rs", branch = "main"}
 sync-committee-rs = {package = "sync-committee-primitives", git = "https://github.com/commonprefix/sync-committee-rs", branch = "cp_changes", default-features = false, features = ["serialize"]}
 thiserror = {version = "1.0.31"}
-types = {path = "../types"}
+types = {path = "../../types"}
 
 [dev-dependencies]
 cw-multi-test = "0.16.2"

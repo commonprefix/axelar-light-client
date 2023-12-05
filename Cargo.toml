@@ -2,7 +2,7 @@
 resolver = "2"
 
 members = [
-  "light-client",
+  "contracts/light-client",
   "trie-verifier",
   "types",
   "feeder"
