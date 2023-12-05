@@ -291,16 +291,32 @@ pub mod test_helpers {
         update
     }
 
-    pub fn get_verification_data_with_block_roots() -> MessageVerification {
-        let path = format!("testdata/message_verification_block_roots.json");
-        let file = File::open(path).unwrap();
-        serde_json::from_reader(file).unwrap()
+    pub fn get_verification_data_with_block_roots() -> (Bootstrap, MessageVerification) {
+        let verification_file =
+            File::open(format!("testdata/verification/finality_block_roots.json")).unwrap();
+        let verification_data: MessageVerification =
+            serde_json::from_reader(verification_file).unwrap();
+
+        let bootstrap_file =
+            File::open(format!("testdata/verification/bootstrap_block_roots.json")).unwrap();
+        let bootstrap: Bootstrap = serde_json::from_reader(bootstrap_file).unwrap();
+        (bootstrap, verification_data)
     }
 
-    pub fn get_verification_data_with_historical_roots() -> MessageVerification {
-        let path = format!("testdata/message_verification_historical_roots.json");
-        let file = File::open(path).unwrap();
-        serde_json::from_reader(file).unwrap()
+    pub fn get_verification_data_with_historical_roots() -> (Bootstrap, MessageVerification) {
+        let verification_file = File::open(format!(
+            "testdata/verification/finality_historical_roots.json"
+        ))
+        .unwrap();
+        let verification_data: MessageVerification =
+            serde_json::from_reader(verification_file).unwrap();
+
+        let bootstrap_file = File::open(format!(
+            "testdata/verification/bootstrap_historical_roots.json"
+        ))
+        .unwrap();
+        let bootstrap: Bootstrap = serde_json::from_reader(bootstrap_file).unwrap();
+        (bootstrap, verification_data)
     }
 
     pub fn get_config() -> ChainConfig {

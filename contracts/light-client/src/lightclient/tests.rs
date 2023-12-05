@@ -21,10 +21,15 @@ pub mod tests {
         consensus_types::BeaconBlockHeader,
         constants::{BlsPublicKey, BlsSignature},
     };
+    use types::consensus::Bootstrap;
     use types::lightclient::LightClientState;
 
-    pub fn init_lightclient() -> LightClient {
-        let bootstrap = get_bootstrap();
+    pub fn init_lightclient(bootstrap: Option<Bootstrap>) -> LightClient {
+        let bootstrap = if bootstrap.is_some() {
+            bootstrap.unwrap()
+        } else {
+            get_bootstrap()
+        };
         let config = get_config();
         let mut env = mock_env();
         env.block.time = Timestamp::from_seconds(
@@ -45,7 +50,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_update_participation() {
-        let lightclient = init_lightclient();
+        let lightclient = init_lightclient(None);
 
         let mut update = get_update(862);
         update.sync_aggregate.sync_committee_bits = Bitvector::default();
@@ -60,7 +65,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_update_time() {
-        let lightclient = init_lightclient();
+        let lightclient = init_lightclient(None);
 
         let mut update = get_update(862);
         update.signature_slot = SystemTime::now()
@@ -96,7 +101,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_update_period() {
-        let mut lightclient = init_lightclient();
+        let mut lightclient = init_lightclient(None);
         // current period is 862, without a sync committee
         let mut update = get_update(863);
 
@@ -126,7 +131,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_update_relevance() {
-        let mut lightclient = init_lightclient();
+        let mut lightclient = init_lightclient(None);
         let mut update = get_update(862);
         lightclient.apply_update(&update).unwrap();
 
@@ -153,7 +158,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_update_finality_proof() {
-        let lightclient = init_lightclient();
+        let lightclient = init_lightclient(None);
         let mut update = get_update(862);
 
         update.finality_branch = vec![];
@@ -174,7 +179,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_update_invalid_committee() {
-        let lightclient = init_lightclient();
+        let lightclient = init_lightclient(None);
 
         let mut update = get_update(862);
         update.next_sync_committee.public_keys[0] = BlsPublicKey::default();
@@ -188,7 +193,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_update_invalid_sig() {
-        let lightclient = init_lightclient();
+        let lightclient = init_lightclient(None);
 
         let mut update = get_update(862);
         update.sync_aggregate.sync_committee_signature = BlsSignature::default();
@@ -202,7 +207,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_update() {
-        let lightclient = init_lightclient();
+        let lightclient = init_lightclient(None);
 
         let update = get_update(862);
         let res = update.verify(&lightclient);
@@ -211,7 +216,7 @@ pub mod tests {
 
     #[test]
     fn test_bootstrap_state() {
-        let lightclient = init_lightclient();
+        let lightclient = init_lightclient(None);
         let bootstrap = get_bootstrap();
 
         let mut update = get_update(862);
@@ -234,7 +239,7 @@ pub mod tests {
 
     #[test]
     fn test_apply_first_update() {
-        let mut lightclient = init_lightclient();
+        let mut lightclient = init_lightclient(None);
         let update = get_update(862);
         let bootstrap = get_bootstrap();
         let res = update.verify(&lightclient);
@@ -267,7 +272,7 @@ pub mod tests {
 
     #[test]
     fn test_apply_next_period_update() {
-        let mut lightclient = init_lightclient();
+        let mut lightclient = init_lightclient(None);
 
         let mut res;
         res = lightclient.apply_update(&get_update(862));
@@ -309,7 +314,7 @@ pub mod tests {
     #[test]
     #[ignore]
     fn test_apply_same_period_update() {
-        let mut lightclient = init_lightclient();
+        let mut lightclient = init_lightclient(None);
         let mut update = get_update(862);
 
         let mut res;
@@ -353,7 +358,7 @@ pub mod tests {
 
     #[test]
     fn test_multiple_updates() {
-        let mut lightclient = init_lightclient();
+        let mut lightclient = init_lightclient(None);
         let update = get_update(862);
         let res = lightclient.apply_update(&update);
         assert!(res.is_ok());

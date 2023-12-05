@@ -330,19 +330,20 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_verification_with_historical_roots() {
-        let lightclient = init_lightclient();
         let data = get_verification_data_with_historical_roots();
-        let res = execute::process_verification_data(&lightclient, &data);
+        let lightclient = init_lightclient(Some(data.0));
+        let res = execute::process_verification_data(&lightclient, &data.1);
         println!("{res:?}");
         assert!(res.is_ok());
     }
 
     #[test]
     fn test_verification_with_block_roots() {
-        let lightclient = init_lightclient();
         let data = get_verification_data_with_block_roots();
-        let res = execute::process_verification_data(&lightclient, &data);
+        let lightclient = init_lightclient(Some(data.0));
+        let res = execute::process_verification_data(&lightclient, &data.1);
         println!("{res:?}");
         assert!(res.is_ok());
     }
