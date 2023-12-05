@@ -133,6 +133,7 @@ async fn prove_historical_summaries_proof(
     let res = state_prover
         .get_state_proof(recent_block_state_id, &GindexOrPath::Path(path))
         .await?;
+
     Ok(res)
 }
 

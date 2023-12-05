@@ -5,5 +5,5 @@ members = [
   "contracts/light-client",
   "trie-verifier",
   "types",
-  "feeder"
+  "prover"
 ]
