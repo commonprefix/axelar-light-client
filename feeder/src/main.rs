@@ -6,7 +6,7 @@ mod wasm;
 
 use std::time::Instant;
 
-use consensus_types::lightclient::UpdateVariant;
+use consensus_types::proofs::UpdateVariant;
 use eth::{consensus::ConsensusRPC, constants::*, execution::ExecutionRPC, gateway::Gateway};
 use prover::Prover;
 use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
