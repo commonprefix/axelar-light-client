@@ -267,10 +267,10 @@ pub mod test_helpers {
     use std::fs::File;
 
     use ssz_rs::Node;
+    use types::lightclient::MessageVerification;
     use types::{
         common::{ChainConfig, Fork, Forks},
         consensus::{Bootstrap, Update},
-        lightclient::{EventVerificationData, TopicInclusionRequest},
     };
 
     use super::hex_str_to_bytes;
@@ -291,18 +291,16 @@ pub mod test_helpers {
         update
     }
 
-    pub fn get_event_verification_data() -> EventVerificationData {
-        let path = format!("testdata/event_verification_data.json");
+    pub fn get_verification_data_with_block_roots() -> MessageVerification {
+        let path = format!("testdata/message_verification_block_roots.json");
         let file = File::open(path).unwrap();
         serde_json::from_reader(file).unwrap()
     }
 
-    pub fn get_topic_inclusion_query() -> TopicInclusionRequest {
-        let path = format!("testdata/topic_inclusion.json");
+    pub fn get_verification_data_with_historical_roots() -> MessageVerification {
+        let path = format!("testdata/message_verification_historical_roots.json");
         let file = File::open(path).unwrap();
-        let request: TopicInclusionRequest = serde_json::from_reader(file).unwrap();
-
-        return request;
+        serde_json::from_reader(file).unwrap()
     }
 
     pub fn get_config() -> ChainConfig {

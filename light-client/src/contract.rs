@@ -3,7 +3,6 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdResult,
 };
-use types::lightclient::{EventVerificationData, Message};
 
 use crate::error::ContractError;
 use crate::lightclient::helpers::calc_sync_period;
@@ -12,6 +11,7 @@ use crate::{lightclient::LightClient, state::*};
 use eyre::Result;
 
 use cw2::{self, set_contract_version};
+use types::lightclient::Message;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -50,7 +50,6 @@ pub fn execute(
         }
         // TODO: only admin should do that
         UpdateForks { forks } => execute::update_forks(deps, forks),
-        VerifyBlock { verification_data } => execute::verify_block(&deps, &env, verification_data),
         verification_request @ VerifyProof { .. } => execute::verify_proof(verification_request),
         VerifyTopicInclusion { receipt, topic } => execute::verify_topic_inclusion(receipt, topic),
         EventVerificationData { payload } => {
@@ -76,14 +75,14 @@ pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, Contract
 
 mod execute {
     use cosmwasm_std::{to_json_binary, StdResult, WasmMsg};
-    use ssz_rs::{verify_merkle_proof, GeneralizedIndex, Merkleized};
-    use types::proofs::AncestryProof;
-    use types::{
-        common::Forks,
-        consensus::Update,
-        execution::ReceiptLogs,
-        lightclient::{BlockVerificationData, UpdateVariant},
+    use ssz_rs::{
+        get_generalized_index, verify_merkle_proof, GeneralizedIndex, Merkleized, Node,
+        SszVariableOrIndex, Vector,
     };
+    use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
+    use types::lightclient::MessageVerification;
+    use types::proofs::{AncestryProof, UpdateVariant};
+    use types::{common::Forks, consensus::Update, execution::ReceiptLogs};
 
     use crate::lightclient::helpers::{verify_message, verify_trie_proof};
     use crate::lightclient::Verification;
@@ -92,10 +91,13 @@ mod execute {
 
     pub fn process_verification_data(
         lightclient: &LightClient,
-        data: &EventVerificationData,
+        data: &MessageVerification,
     ) -> Result<()> {
+        let message = &data.message;
+        let proofs = &data.proofs;
+
         // Get recent block
-        let recent_block = match data.update.clone() {
+        let recent_block = match proofs.update.clone() {
             UpdateVariant::Finality(update) => {
                 update.verify(lightclient)?;
                 update.finalized_header.beacon
@@ -106,10 +108,10 @@ mod execute {
             }
         };
 
-        let target_block_root = data.target_block.clone().hash_tree_root()?;
+        let target_block_root = proofs.target_block.clone().hash_tree_root()?;
 
         // Verify ancestry proof
-        match data.ancestry_proof.clone() {
+        match proofs.ancestry_proof.clone() {
             AncestryProof::BlockRoots {
                 block_roots_index,
                 block_root_proof,
@@ -126,21 +128,47 @@ mod execute {
                 }
             }
             AncestryProof::HistoricalRoots {
-                block_roots_proof: _,
-                historical_batch_proof: _,
-                historical_roots_proof: _,
-                historical_roots_index: _,
-                historical_roots_branch: _,
+                block_root_proof,
+                block_summary_root_proof,
+                block_summary_root,
+                block_summary_root_gindex,
             } => {
-                todo!()
+                let block_root_index =
+                    proofs.target_block.slot as usize % SLOTS_PER_HISTORICAL_ROOT;
+                let block_root_gindex = get_generalized_index(
+                    &Vector::<Node, SLOTS_PER_HISTORICAL_ROOT>::default(),
+                    &[SszVariableOrIndex::Index(block_root_index)],
+                );
+
+                let valid_block_root_proof = verify_merkle_proof(
+                    &target_block_root,
+                    block_root_proof.as_slice(),
+                    &GeneralizedIndex(block_root_gindex),
+                    &block_summary_root,
+                );
+
+                if !valid_block_root_proof {
+                    return Err(ContractError::InvalidBlockRootsProof.into());
+                }
+
+                let valid_block_summary_root_proof = verify_merkle_proof(
+                    &block_summary_root,
+                    block_summary_root_proof.as_slice(),
+                    &GeneralizedIndex(block_summary_root_gindex as usize),
+                    &recent_block.state_root,
+                );
+
+                if !valid_block_summary_root_proof {
+                    return Err(ContractError::InvalidBlockSummaryRootProof.into());
+                }
             }
         }
 
         // Verify receipt proof
         let receipt_option = verify_trie_proof(
-            data.receipt_proof.receipts_root,
-            data.receipt_proof.transaction_index,
-            data.receipt_proof.receipt_proof.clone(),
+            proofs.receipt_proof.receipts_root,
+            proofs.transaction_proof.transaction_index,
+            proofs.receipt_proof.receipt_proof.clone(),
         );
 
         let receipt = match receipt_option {
@@ -149,8 +177,8 @@ mod execute {
         };
 
         let valid_receipts_root = verify_merkle_proof(
-            &data.receipt_proof.receipts_root,
-            &data.receipt_proof.receipts_branch,
+            &proofs.receipt_proof.receipts_root,
+            &proofs.receipt_proof.receipts_root_proof,
             &GeneralizedIndex(3219), // TODO
             &target_block_root,
         );
@@ -161,9 +189,13 @@ mod execute {
 
         // Verify transaction proof
         let valid_transaction = verify_merkle_proof(
-            &data.receipt_proof.transaction.clone().hash_tree_root()?,
-            data.receipt_proof.transaction_branch.as_slice(),
-            &GeneralizedIndex(data.receipt_proof.transaction_gindex as usize),
+            &proofs
+                .transaction_proof
+                .transaction
+                .clone()
+                .hash_tree_root()?,
+            proofs.transaction_proof.transaction_proof.as_slice(),
+            &GeneralizedIndex(proofs.transaction_proof.transaction_gindex as usize),
             &target_block_root,
         );
 
@@ -173,7 +205,7 @@ mod execute {
 
         let logs: ReceiptLogs = alloy_rlp::Decodable::decode(&mut &receipt[..]).unwrap();
         for log in logs.0.iter() {
-            if verify_message(&data.message, log, &data.receipt_proof.transaction) {
+            if verify_message(&message, log, &proofs.transaction_proof.transaction) {
                 return Ok(());
             }
         }
@@ -228,38 +260,6 @@ mod execute {
             Ok(config)
         })?;
         Ok(Response::new())
-    }
-
-    pub fn verify_block(
-        deps: &DepsMut,
-        env: &Env,
-        ver_data: BlockVerificationData,
-    ) -> Result<Response, ContractError> {
-        let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
-        let config = CONFIG.load(deps.storage)?;
-        let lc = LightClient::new(&config, Some(state), env);
-
-        let sync_committee =
-            SYNC_COMMITTEES.load(deps.storage, calc_sync_period(ver_data.sig_slot));
-        if sync_committee.is_err() {
-            return Err(ContractError::NoSyncCommittee {
-                period: calc_sync_period(ver_data.sig_slot),
-            });
-        }
-
-        let res = lc.verify_block(
-            &sync_committee.unwrap(),
-            &ver_data.target_block,
-            &ver_data.intermediate_chain,
-            &ver_data.sync_aggregate,
-            ver_data.sig_slot,
-        );
-
-        if res {
-            Ok(Response::new().add_attribute("result", "ok"))
-        } else {
-            Ok(Response::new().add_attribute("result", "err"))
-        }
     }
 }
 
@@ -362,67 +362,21 @@ mod tests {
     }
 
     #[test]
-    fn test_data() {
+    fn test_verification_with_historical_roots() {
         let lightclient = init_lightclient();
-        let data = get_event_verification_data();
+        let data = get_verification_data_with_historical_roots();
         let res = execute::process_verification_data(&lightclient, &data);
         println!("{res:?}");
         assert!(res.is_ok());
     }
 
     #[test]
-    fn test_verify() {
-        assert!(false);
-    }
-
-    #[test]
-    fn test_topic_inclusion() {
-        let (mut app, addr) = deploy();
-        let mut request = get_topic_inclusion_query();
-        let mut resp = app
-            .execute_contract(
-                Addr::unchecked("owner"),
-                addr.to_owned(),
-                &ExecuteMsg::VerifyTopicInclusion {
-                    receipt: request.receipt.clone(),
-                    topic: request.topic.clone(),
-                },
-                &[],
-            )
-            .unwrap();
-
-        let wasm = resp.events.iter().find(|ev| ev.ty == "wasm").unwrap();
-        assert_eq!(
-            wasm.attributes
-                .iter()
-                .find(|attr| attr.key == "result")
-                .unwrap()
-                .value,
-            "true"
-        );
-
-        request.topic[0] = request.topic[0] + 1; // modify a random byte
-        resp = app
-            .execute_contract(
-                Addr::unchecked("owner"),
-                addr.to_owned(),
-                &ExecuteMsg::VerifyTopicInclusion {
-                    receipt: request.receipt.clone(),
-                    topic: request.topic.clone(),
-                },
-                &[],
-            )
-            .unwrap();
-
-        let wasm = resp.events.iter().find(|ev| ev.ty == "wasm").unwrap();
-        assert_eq!(
-            wasm.attributes
-                .iter()
-                .find(|attr| attr.key == "result")
-                .unwrap()
-                .value,
-            "false"
-        );
+    fn test_verification_with_block_roots() {
+        let lightclient = init_lightclient();
+        let data = get_verification_data_with_block_roots();
+        let res = execute::process_verification_data(&lightclient, &data);
+        println!("{res:?}");
+        assert!(res.is_ok());
     }
 
     #[test]

@@ -24,6 +24,9 @@ pub enum ContractError {
     #[error("Invalid BlockRoots proof")]
     InvalidBlockRootsProof,
 
+    #[error("Invalid Block Summary Root proof")]
+    InvalidBlockSummaryRootProof,
+
     #[error("Invalid BlockRoots branch")]
     InvalidBlockRootsBranch,
 

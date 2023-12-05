@@ -16,6 +16,7 @@ pub struct LightClientState {
     pub current_max_active_participants: u64,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
 pub struct MessageVerification {
     pub message: Message,
     pub proofs: MessageProof,
