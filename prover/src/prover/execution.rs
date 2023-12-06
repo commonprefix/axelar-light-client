@@ -129,6 +129,6 @@ mod tests {
         let invalid_proof = verify_trie_proof(root, 2, proof);
 
         assert!(valid_proof.is_ok());
-        assert!(invalid_proof.is_ok())
+        assert!(invalid_proof.is_err());
     }
 }
