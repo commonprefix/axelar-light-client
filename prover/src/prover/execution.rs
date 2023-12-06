@@ -22,7 +22,10 @@ pub fn generate_receipt_proof(
 
     // Reality check
     if block.receipts_root != H256::from_slice(&trie_root[0..32]) {
-        return Err(anyhow!("Invalid receipts root from trie generation"));
+        return Err(anyhow!(
+            "Invalid receipts root from trie generation: {}",
+            block.number.unwrap()
+        ));
     }
 
     let receipt_index: cosmos_sdk_proto::prost::bytes::BytesMut = encode(&index);
@@ -42,7 +45,7 @@ pub fn get_tx_index(receipts: &[TransactionReceipt], cc_id: &CrossChainId) -> Re
 
     match tx_index {
         Some(index) => Ok(index as u64),
-        None => Err(anyhow!("Transaction not found in receipts")),
+        None => Err(anyhow!("Transaction not found in receipts. {:?}", cc_id)),
     }
 }
 

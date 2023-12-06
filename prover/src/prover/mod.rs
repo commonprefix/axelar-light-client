@@ -10,7 +10,7 @@ use crate::prover::{
     execution::{generate_receipt_proof, get_tx_index},
 };
 use consensus_types::{
-    consensus::{to_beacon_header, BeaconBlockAlias},
+    consensus::to_beacon_header,
     lightclient::{MessageProof, ReceiptProof, TransactionProof, UpdateVariant},
 };
 use eth::{
@@ -19,25 +19,11 @@ use eth::{
     types::InternalMessage,
     utils::calc_slot_from_timestamp,
 };
-use ethers::types::{Block, Transaction, TransactionReceipt};
 use ethers::utils::rlp::encode;
-use eyre::{anyhow, Result};
+use eyre::{anyhow, Context, Result};
 use ssz_rs::{Merkleized, Node};
-use sync_committee_rs::consensus_types::BeaconBlockHeader;
 
-use self::state_prover::StateProver;
-
-// Neccessary data for proving a message
-struct ProofData {
-    // Target execution block that contains the transaction/log.
-    target_execution_block: Block<Transaction>,
-    // Target beacon block that contains the target execution block.
-    target_beacon_block: BeaconBlockAlias,
-    // Receipts of the target execution block.
-    receipts: Vec<TransactionReceipt>,
-    // Block header of the most recent block. (Either finalized or attested depending or the UpdateVariant)
-    recent_block_header: BeaconBlockHeader,
-}
+use self::{state_prover::StateProver, types::ProofAuxiliaryData};
 
 pub struct Prover {
     execution_rpc: ExecutionRPC,
@@ -63,17 +49,20 @@ impl Prover {
         message: InternalMessage,
         update: UpdateVariant,
     ) -> Result<MessageProof> {
-        let proof_data = self.gather_proof_data(&message, &update).await;
-        if proof_data.is_err() {
-            return Err(anyhow!("Failed to gather data for message {:?}", message));
-        };
+        let proof_data = self
+            .gather_proof_data(&message, &update)
+            .await
+            .wrap_err(format!(
+                "Failed to gather proof data for message {:?}",
+                message
+            ))?;
 
-        let ProofData {
+        let ProofAuxiliaryData {
             mut target_beacon_block,
             target_execution_block,
             receipts,
             recent_block_header,
-        } = proof_data.unwrap();
+        } = proof_data;
 
         let block_id = target_beacon_block.hash_tree_root()?.to_string();
         let tx_index = get_tx_index(&receipts, &message.message.cc_id)?;
@@ -82,13 +71,26 @@ impl Prover {
         let receipt = encode(&receipts[tx_index as usize].clone());
 
         // Execution Proofs
-        let receipt_proof = generate_receipt_proof(&target_execution_block, &receipts, tx_index)?;
+        let receipt_proof =
+            generate_receipt_proof(&target_execution_block, &receipts, tx_index).wrap_err(
+                format!("Failed to generate receipt proof for message {:?}", message),
+            )?;
 
         // Consensus Proofs
         let transaction_branch =
-            generate_transaction_proof(&self.state_prover, &block_id, tx_index).await?;
+            generate_transaction_proof(&self.state_prover, &block_id, tx_index)
+                .await
+                .wrap_err(format!(
+                    "Failed to generate transaction proof for message {:?}",
+                    message
+                ))?;
 
-        let receipts_branch = generate_receipts_root_proof(&self.state_prover, &block_id).await?;
+        let receipts_root_proof = generate_receipts_root_proof(&self.state_prover, &block_id)
+            .await
+            .wrap_err(format!(
+                "Failed to generate receipts root proof for message {:?}",
+                message
+            ))?;
 
         let ancestry_proof = prove_ancestry(
             &self.consensus_rpc,
@@ -97,7 +99,11 @@ impl Prover {
             recent_block_header.slot as usize,
             &recent_block_header.state_root.to_string(),
         )
-        .await?;
+        .await
+        .wrap_err(format!(
+            "Failed to generate ancestry proof for message {:?}",
+            message
+        ))?;
 
         Ok(MessageProof {
             update: update.clone(),
@@ -112,7 +118,7 @@ impl Prover {
             receipt_proof: ReceiptProof {
                 receipt: receipt.to_vec(),
                 receipt_proof,
-                receipts_root_proof: receipts_branch.witnesses,
+                receipts_root_proof: receipts_root_proof.witnesses,
                 receipts_root: Node::from_bytes(
                     target_execution_block.receipts_root.as_bytes().try_into()?,
                 ),
@@ -124,30 +130,43 @@ impl Prover {
         &self,
         message: &InternalMessage,
         update: &UpdateVariant,
-    ) -> Result<ProofData> {
+    ) -> Result<ProofAuxiliaryData> {
         let target_execution_block = self
             .execution_rpc
             .get_block_with_txs(message.block_number)
-            .await?
-            .ok_or_else(|| anyhow!("Block not found"))?;
+            .await
+            .wrap_err(format!(
+                "Failed to get execution block {}",
+                message.block_number
+            ))?
+            .ok_or_else(|| anyhow!("Could not find execution block {:?}", message.block_number))?;
+
         let target_block_slot = calc_slot_from_timestamp(target_execution_block.timestamp.as_u64());
 
         let target_beacon_block = self
             .consensus_rpc
             .get_beacon_block(target_block_slot)
-            .await?;
+            .await
+            .wrap_err(format!(
+                "Failed to get beacon block {}",
+                message.block_number
+            ))?;
 
         let receipts = self
             .execution_rpc
-            .get_block_receipts(target_execution_block.number.unwrap().as_u64())
-            .await?;
+            .get_block_receipts(message.block_number)
+            .await
+            .wrap_err(format!(
+                "Failed to get receipts for block {}",
+                message.block_number
+            ))?;
 
         let recent_block_header = match update.clone() {
             UpdateVariant::Finality(update) => update.finalized_header.beacon,
             UpdateVariant::Optimistic(update) => update.attested_header.beacon,
         };
 
-        Ok(ProofData {
+        Ok(ProofAuxiliaryData {
             target_execution_block,
             target_beacon_block,
             receipts,
