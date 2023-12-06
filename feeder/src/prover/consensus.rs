@@ -182,7 +182,7 @@ pub async fn prove_ancestry_with_historical_summaries(
         block_root_proof: block_root_to_block_summary_root,
         block_summary_root_proof: historical_summaries_proof.witnesses,
         block_summary_root: historical_summaries_proof.leaf,
-        block_summary_root_gindex: historical_summaries_proof.gindex as usize,
+        block_summary_root_gindex: historical_summaries_proof.gindex,
     };
 
     Ok(res)
