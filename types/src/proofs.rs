@@ -53,12 +53,6 @@ pub enum AncestryProof {
     },
 }
 
-#[allow(dead_code)]
-pub struct Test {
-    // Same index of transaction to transaction trie and from receipt to receipt trie
-    pub transaction_index: f32,
-}
-
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
 pub struct TransactionProof {
     // Same index of transaction to transaction trie and from receipt to receipt trie
