@@ -13,7 +13,7 @@ pub mod execute {
 
     use crate::lightclient::helpers::{verify_message, verify_trie_proof};
     use crate::lightclient::{LightClient, Verification};
-    use crate::state::{CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEES};
+    use crate::state::{CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE};
 
     use super::*;
 
@@ -155,7 +155,7 @@ pub mod execute {
             return Err(ContractError::from(res.err().unwrap()));
         }
 
-        SYNC_COMMITTEES.save(deps.storage, period + 1, &update.next_sync_committee)?;
+        SYNC_COMMITTEE.save(deps.storage, &(update.next_sync_committee, period + 1))?;
         LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
 
         Ok(Response::new())

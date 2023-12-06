@@ -28,7 +28,10 @@ pub fn instantiate(
     CONFIG.save(deps.storage, &msg.config)?;
 
     let period = calc_sync_period(msg.bootstrap.header.beacon.slot);
-    SYNC_COMMITTEES.save(deps.storage, period, &msg.bootstrap.current_sync_committee)?;
+    SYNC_COMMITTEE.save(
+        deps.storage,
+        &(msg.bootstrap.current_sync_committee, period),
+    )?;
 
     // TODO: Use commit hash or something else
     cw2::set_contract_version(deps.storage, "lightclient", "1")?;
@@ -79,8 +82,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         LightClientState {} => to_json_binary(&LIGHT_CLIENT_STATE.load(deps.storage)?),
         Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
-        SyncCommittee { period } => {
-            let sync_committee = &SYNC_COMMITTEES.load(deps.storage, period)?;
+        SyncCommittee {} => {
+            let sync_committee = &SYNC_COMMITTEE.load(deps.storage)?;
             to_json_binary(&sync_committee)
         }
         Version {} => to_json_binary(&VERSION.load(deps.storage)?),
