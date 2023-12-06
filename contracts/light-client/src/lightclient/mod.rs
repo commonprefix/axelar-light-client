@@ -13,6 +13,7 @@ use sync_committee_rs::{
     constants::{BlsSignature, Bytes32, SYNC_COMMITTEE_SIZE},
     util::SigningData,
 };
+use types::proofs::UpdateVariant;
 use types::{common::ChainConfig, consensus::*, lightclient::LightClientState};
 
 use self::helpers::calc_sync_period;
@@ -213,6 +214,19 @@ impl LightClient {
         Ok(())
     }
 
+    pub fn extract_recent_block(&self, update: &UpdateVariant) -> Result<BeaconBlockHeader> {
+        match update.clone() {
+            UpdateVariant::Finality(update) => {
+                update.verify(self)?;
+                Ok(update.finalized_header.beacon)
+            }
+            UpdateVariant::Optimistic(update) => {
+                update.verify(self)?;
+                Ok(update.attested_header.beacon)
+            }
+        }
+    }
+
     fn is_current_committee_proof_valid(
         &self,
         attested_header: &BeaconBlockHeader,
@@ -221,8 +235,8 @@ impl LightClient {
     ) -> bool {
         is_proof_valid(
             &attested_header.state_root,
-            current_committee.clone().as_mut(),
-            current_committee_branch.clone(),
+            &mut current_committee.clone(),
+            current_committee_branch,
             5,
             22,
         )

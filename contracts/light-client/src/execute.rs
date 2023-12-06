@@ -1,178 +1,78 @@
-pub mod execute {
-    use crate::ContractError;
-    use cosmwasm_std::{DepsMut, Env, Response, StdResult};
-    use eyre::Result;
-    use ssz_rs::{
-        get_generalized_index, verify_merkle_proof, GeneralizedIndex, Merkleized, Node,
-        SszVariableOrIndex, Vector,
-    };
-    use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
-    use types::lightclient::MessageVerification;
-    use types::proofs::{AncestryProof, UpdateVariant};
-    use types::{common::Forks, consensus::Update, execution::ReceiptLogs};
+use crate::ContractError;
+use cosmwasm_std::{DepsMut, Env, Response};
+use eyre::Result;
+use ssz_rs::Merkleized;
+use types::common::ChainConfig;
+use types::lightclient::MessageVerification;
+use types::{common::Forks, consensus::Update};
 
-    use crate::lightclient::helpers::{verify_message, verify_trie_proof};
-    use crate::lightclient::{LightClient, Verification};
-    use crate::state::{CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE};
+use crate::lightclient::helpers::{
+    extract_logs_from_receipt_proof, verify_ancestry_proof, verify_message,
+    verify_transaction_proof,
+};
+use crate::lightclient::LightClient;
+use crate::state::{CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE};
 
-    use super::*;
+pub fn process_verification_data(
+    lightclient: &LightClient,
+    data: &MessageVerification,
+) -> Result<()> {
+    let message = &data.message;
+    let proofs = &data.proofs;
 
-    pub fn process_verification_data(
-        lightclient: &LightClient,
-        data: &MessageVerification,
-    ) -> Result<()> {
-        let message = &data.message;
-        let proofs = &data.proofs;
+    let recent_block = lightclient.extract_recent_block(&proofs.update)?;
+    let target_block_root = proofs.target_block.clone().hash_tree_root()?;
 
-        // Get recent block
-        let recent_block = match proofs.update.clone() {
-            UpdateVariant::Finality(update) => {
-                update.verify(lightclient)?;
-                update.finalized_header.beacon
-            }
-            UpdateVariant::Optimistic(update) => {
-                update.verify(lightclient)?;
-                update.attested_header.beacon
-            }
-        };
+    verify_ancestry_proof(&proofs.ancestry_proof, &proofs.target_block, &recent_block)?;
+    verify_transaction_proof(&proofs.transaction_proof, &target_block_root)?;
 
-        let target_block_root = proofs.target_block.clone().hash_tree_root()?;
+    let logs = extract_logs_from_receipt_proof(
+        &proofs.receipt_proof,
+        proofs.transaction_proof.transaction_index,
+        &target_block_root,
+    )?;
 
-        // Verify ancestry proof
-        match proofs.ancestry_proof.clone() {
-            AncestryProof::BlockRoots {
-                block_roots_index,
-                block_root_proof,
-            } => {
-                let valid_block_root_proof = verify_merkle_proof(
-                    &target_block_root,
-                    block_root_proof.as_slice(),
-                    &GeneralizedIndex(block_roots_index as usize),
-                    &recent_block.state_root,
-                );
-
-                if !valid_block_root_proof {
-                    return Err(ContractError::InvalidBlockRootsProof.into());
-                }
-            }
-            AncestryProof::HistoricalRoots {
-                block_root_proof,
-                block_summary_root_proof,
-                block_summary_root,
-                block_summary_root_gindex,
-            } => {
-                let block_root_index =
-                    proofs.target_block.slot as usize % SLOTS_PER_HISTORICAL_ROOT;
-                let block_root_gindex = get_generalized_index(
-                    &Vector::<Node, SLOTS_PER_HISTORICAL_ROOT>::default(),
-                    &[SszVariableOrIndex::Index(block_root_index)],
-                );
-
-                let valid_block_root_proof = verify_merkle_proof(
-                    &target_block_root,
-                    block_root_proof.as_slice(),
-                    &GeneralizedIndex(block_root_gindex),
-                    &block_summary_root,
-                );
-
-                if !valid_block_root_proof {
-                    return Err(ContractError::InvalidBlockRootsProof.into());
-                }
-
-                let valid_block_summary_root_proof = verify_merkle_proof(
-                    &block_summary_root,
-                    block_summary_root_proof.as_slice(),
-                    &GeneralizedIndex(block_summary_root_gindex as usize),
-                    &recent_block.state_root,
-                );
-
-                if !valid_block_summary_root_proof {
-                    return Err(ContractError::InvalidBlockSummaryRootProof.into());
-                }
-            }
+    // TODO: use log index
+    for log in logs.0.iter() {
+        if verify_message(message, log, &proofs.transaction_proof.transaction) {
+            return Ok(());
         }
+    }
+    Err(ContractError::InvalidMessage.into())
+}
 
-        // Verify receipt proof
-        let receipt_option = verify_trie_proof(
-            proofs.receipt_proof.receipts_root,
-            proofs.transaction_proof.transaction_index,
-            proofs.receipt_proof.receipt_proof.clone(),
-        );
+pub fn light_client_update(
+    deps: DepsMut,
+    env: &Env,
+    period: u64,
+    update: Update,
+) -> Result<Response, ContractError> {
+    let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
+    let mut lc = LightClient::new(&config, Some(state), env);
 
-        let receipt = match receipt_option {
-            Some(s) => s,
-            None => return Err(ContractError::InvalidReceiptProof.into()),
-        };
-
-        let valid_receipts_root = verify_merkle_proof(
-            &proofs.receipt_proof.receipts_root,
-            &proofs.receipt_proof.receipts_root_proof,
-            &GeneralizedIndex(3219), // TODO
-            &target_block_root,
-        );
-
-        if !valid_receipts_root {
-            return Err(ContractError::InvalidReceiptsBranchProof.into());
-        }
-
-        // Verify transaction proof
-        let valid_transaction = verify_merkle_proof(
-            &proofs
-                .transaction_proof
-                .transaction
-                .clone()
-                .hash_tree_root()?,
-            proofs.transaction_proof.transaction_proof.as_slice(),
-            &GeneralizedIndex(proofs.transaction_proof.transaction_gindex as usize),
-            &target_block_root,
-        );
-
-        if !valid_transaction {
-            return Err(ContractError::InvalidTransactionProof.into());
-        }
-
-        let logs: ReceiptLogs = alloy_rlp::Decodable::decode(&mut &receipt[..]).unwrap();
-        for log in logs.0.iter() {
-            if verify_message(message, log, &proofs.transaction_proof.transaction) {
-                return Ok(());
-            }
-        }
-        Err(ContractError::InvalidMessage.into())
+    let res = lc.apply_update(&update);
+    if res.is_err() {
+        return Err(ContractError::from(res.err().unwrap()));
     }
 
-    pub fn light_client_update(
-        deps: DepsMut,
-        env: &Env,
-        period: u64,
-        update: Update,
-    ) -> Result<Response, ContractError> {
-        let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
-        let config = CONFIG.load(deps.storage)?;
-        let mut lc = LightClient::new(&config, Some(state), env);
+    SYNC_COMMITTEE.save(deps.storage, &(update.next_sync_committee, period + 1))?;
+    LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
 
-        let res = lc.apply_update(&update);
-        if res.is_err() {
-            return Err(ContractError::from(res.err().unwrap()));
-        }
+    Ok(Response::new())
+}
 
-        SYNC_COMMITTEE.save(deps.storage, &(update.next_sync_committee, period + 1))?;
-        LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
-
-        Ok(Response::new())
-    }
-
-    pub fn update_forks(deps: DepsMut, forks: Forks) -> Result<Response, ContractError> {
-        CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
-            config.forks = forks;
-            Ok(config)
-        })?;
-        Ok(Response::new())
-    }
+pub fn update_forks(deps: DepsMut, forks: Forks) -> Result<Response> {
+    CONFIG.update(deps.storage, |mut config| -> Result<ChainConfig> {
+        config.forks = forks;
+        Ok(config)
+    })?;
+    Ok(Response::new())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::execute::execute;
+    use crate::execute;
     use crate::lightclient::helpers::test_helpers::{
         get_verification_data_with_block_roots, get_verification_data_with_historical_roots,
     };

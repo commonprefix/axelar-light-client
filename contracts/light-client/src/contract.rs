@@ -1,7 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdResult,
+    to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdError,
+    StdResult,
 };
 
 use crate::error::ContractError;
@@ -10,7 +11,7 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::{lightclient::LightClient, state::*};
 use eyre::Result;
 
-use crate::execute::execute;
+use crate::execute;
 use cw2::{self, set_contract_version};
 use types::lightclient::Message;
 
@@ -53,7 +54,8 @@ pub fn execute(
             execute::light_client_update(deps, &env, period, update)
         }
         // TODO: only admin should do that
-        UpdateForks { forks } => execute::update_forks(deps, forks),
+        UpdateForks { forks } => execute::update_forks(deps, forks)
+            .map_err(|e| ContractError::Std(StdError::GenericErr { msg: e.to_string() })),
         EventVerificationData { payload } => {
             let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
             let config = CONFIG.load(deps.storage)?;
@@ -175,7 +177,7 @@ mod tests {
             .unwrap();
 
         let mut lc = LightClient::new(&get_config(), None, &env);
-        lc.bootstrap(bootstrap).unwrap();
+        lc.bootstrap(&bootstrap).unwrap();
         assert_eq!(resp, lc.state)
     }
 

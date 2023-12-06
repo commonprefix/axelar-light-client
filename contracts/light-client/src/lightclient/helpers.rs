@@ -11,9 +11,16 @@ use cita_trie::{MemoryDB, PatriciaTrie, Trie};
 use cosmwasm_std::StdError;
 use eyre::Result;
 
+use crate::ContractError;
 use hasher::{Hasher, HasherKeccak};
-use ssz_rs::{is_valid_merkle_branch, Merkleized, Node};
-use sync_committee_rs::constants::{Bytes32, Root};
+use ssz_rs::{
+    get_generalized_index, is_valid_merkle_branch, verify_merkle_proof, GeneralizedIndex,
+    Merkleized, Node, SszVariableOrIndex, Vector,
+};
+use sync_committee_rs::consensus_types::BeaconBlockHeader;
+use sync_committee_rs::constants::{Bytes32, Root, SLOTS_PER_HISTORICAL_ROOT};
+use types::execution::ReceiptLogs;
+use types::proofs::{AncestryProof, ReceiptProof, TransactionProof};
 use types::{
     execution::{ContractCallBase, ReceiptLog},
     lightclient::Message,
@@ -50,6 +57,138 @@ pub fn verify_trie_proof(root: Root, key: u64, proof: Vec<Vec<u8>>) -> Option<Ve
         return res;
     }
     None
+}
+
+pub fn verify_ancestry_proof(
+    proof: &AncestryProof,
+    target_block: &BeaconBlockHeader,
+    recent_block: &BeaconBlockHeader,
+) -> Result<()> {
+    let target_block_root = target_block.clone().hash_tree_root()?;
+
+    match proof {
+        AncestryProof::BlockRoots {
+            block_roots_index,
+            block_root_proof,
+        } => verify_block_roots_proof(
+            block_roots_index,
+            block_root_proof,
+            &target_block_root,
+            &recent_block.state_root,
+        ),
+        AncestryProof::HistoricalRoots {
+            block_root_proof,
+            block_summary_root_proof,
+            block_summary_root,
+            block_summary_root_gindex,
+        } => verify_historical_roots_proof(
+            block_root_proof,
+            block_summary_root_proof,
+            block_summary_root,
+            block_summary_root_gindex,
+            target_block,
+            &recent_block.state_root,
+        ),
+    }
+}
+
+pub fn verify_block_roots_proof(
+    block_roots_index: &u64,
+    block_root_proof: &Vec<Node>,
+    leaf_root: &Node,
+    root: &Node,
+) -> Result<()> {
+    // TODO: compute gindex
+    if !verify_merkle_proof(
+        leaf_root,
+        block_root_proof.as_slice(),
+        &GeneralizedIndex(*block_roots_index as usize),
+        root,
+    ) {
+        return Err(ContractError::InvalidBlockRootsProof.into());
+    }
+    Ok(())
+}
+
+pub fn verify_historical_roots_proof(
+    block_root_proof: &Vec<Node>,
+    block_summary_root_proof: &Vec<Node>,
+    block_summary_root: &Root,
+    block_summary_root_gindex: &u64,
+    target_block: &BeaconBlockHeader,
+    recent_block_state_root: &Node,
+) -> Result<()> {
+    let target_block_root = target_block.clone().hash_tree_root()?;
+
+    let block_root_index = target_block.slot as usize % SLOTS_PER_HISTORICAL_ROOT;
+    let block_root_gindex = get_generalized_index(
+        &Vector::<Node, SLOTS_PER_HISTORICAL_ROOT>::default(),
+        &[SszVariableOrIndex::Index(block_root_index)],
+    );
+
+    verify_block_roots_proof(
+        &(block_root_gindex as u64),
+        block_root_proof,
+        &target_block_root,
+        block_summary_root,
+    )?;
+
+    let valid_block_summary_root_proof = verify_merkle_proof(
+        block_summary_root,
+        block_summary_root_proof.as_slice(),
+        &GeneralizedIndex(*block_summary_root_gindex as usize),
+        recent_block_state_root,
+    );
+
+    if !valid_block_summary_root_proof {
+        return Err(ContractError::InvalidBlockSummaryRootProof.into());
+    }
+    Ok(())
+}
+
+pub fn extract_logs_from_receipt_proof(
+    proof: &ReceiptProof,
+    transaction_index: u64,
+    target_block_root: &Node,
+) -> Result<ReceiptLogs> {
+    if !verify_merkle_proof(
+        &proof.receipts_root,
+        &proof.receipts_root_proof,
+        &GeneralizedIndex(3219), // TODO
+        target_block_root,
+    ) {
+        return Err(ContractError::InvalidReceiptsBranchProof.into());
+    }
+
+    let receipt_option = verify_trie_proof(
+        proof.receipts_root,
+        transaction_index,
+        proof.receipt_proof.clone(),
+    );
+
+    let receipt = match receipt_option {
+        Some(s) => s,
+        None => return Err(ContractError::InvalidReceiptProof.into()),
+    };
+
+    parse_logs_from_receipt(&receipt)
+}
+
+pub fn parse_logs_from_receipt(receipt: &[u8]) -> Result<ReceiptLogs> {
+    let logs: ReceiptLogs = alloy_rlp::Decodable::decode(&mut &receipt[..])?;
+    Ok(logs)
+}
+
+pub fn verify_transaction_proof(proof: &TransactionProof, target_block_root: &Node) -> Result<()> {
+    if !verify_merkle_proof(
+        &proof.transaction.clone().hash_tree_root()?,
+        proof.transaction_proof.as_slice(),
+        &GeneralizedIndex(proof.transaction_gindex as usize),
+        target_block_root,
+    ) {
+        return Err(ContractError::InvalidTransactionProof.into());
+    }
+    Ok(())
 }
 
 pub fn parse_log(log: &ReceiptLog) -> Result<ContractCallBase, StdError> {

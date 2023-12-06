@@ -40,7 +40,7 @@ pub mod tests {
         );
 
         let mut client = LightClient::new(&config, None, &env);
-        let res = client.bootstrap(bootstrap);
+        let res = client.bootstrap(&bootstrap);
         if let Err(e) = res {
             panic!("Error bootstrapping: {}", e);
         }
