@@ -5,18 +5,9 @@ pub mod state_prover;
 pub mod types;
 mod utils;
 
-use crate::{
-    eth::{
-        consensus::{ConsensusRPC, EthBeaconAPI},
-        execution::{ExecutionAPI, ExecutionRPC},
-        state_prover::StateProver,
-        utils::calc_slot_from_timestamp,
-    },
-    prover::{
-        consensus::{generate_receipts_root_proof, generate_transaction_proof, prove_ancestry},
-        execution::{generate_receipt_proof, get_tx_index},
-    },
-    types::InternalMessage,
+use crate::prover::{
+    consensus::{generate_receipts_root_proof, generate_transaction_proof, prove_ancestry},
+    execution::{generate_receipt_proof, get_tx_index},
 };
 use consensus_types::{
     consensus::{to_beacon_header, BeaconBlockAlias},
@@ -33,6 +24,8 @@ use ethers::utils::rlp::encode;
 use eyre::{anyhow, Result};
 use ssz_rs::{Merkleized, Node};
 use sync_committee_rs::consensus_types::BeaconBlockHeader;
+
+use self::state_prover::StateProver;
 
 // Neccessary data for proving a message
 struct ProofData {
@@ -93,9 +86,9 @@ impl Prover {
 
         // Consensus Proofs
         let transaction_branch =
-            generate_transaction_branch(&self.state_prover, &block_id, tx_index).await?;
+            generate_transaction_proof(&self.state_prover, &block_id, tx_index).await?;
 
-        let receipts_branch = generate_receipts_root_branch(&self.state_prover, &block_id).await?;
+        let receipts_branch = generate_receipts_root_proof(&self.state_prover, &block_id).await?;
 
         let ancestry_proof = prove_ancestry(
             &self.consensus_rpc,

@@ -2,8 +2,9 @@ use crate::consensus::{FinalityUpdate, OptimisticUpdate};
 pub use connection_router::state::{
     Address as AddressType, ChainName, CrossChainId, Message, MessageHash,
 };
+use ssz_rs::Node;
 use sync_committee_rs::{
-    consensus_types::{BeaconBlockHeader, SyncCommittee},
+    consensus_types::{BeaconBlockHeader, SyncCommittee, Transaction},
     constants::{Root, MAX_BYTES_PER_TRANSACTION, SYNC_COMMITTEE_SIZE},
 };
 

@@ -202,6 +202,7 @@ mod tests {
     use consensus_types::lightclient::AncestryProof;
     use ssz_rs::{
         get_generalized_index, GeneralizedIndex, Merkleized, Node, SszVariableOrIndex, Vector,
+    };
     use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
     use tokio::test as tokio_test;
 
