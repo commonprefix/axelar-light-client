@@ -1,7 +1,6 @@
 use crate::prover::types::{GindexOrPath, ProofResponse};
 use async_trait::async_trait;
-use eth::error::RpcError;
-use eyre::Result;
+use eyre::{anyhow, Result};
 use retri::{retry, BackoffSettings};
 use serde::de::DeserializeOwned;
 use ssz_rs::SszVariableOrIndex;
@@ -62,11 +61,12 @@ impl StateProverAPI for StateProver {
             ),
         };
 
-        let res: ProofResponse = get(&req)
-            .await
-            .map_err(|e| RpcError::new("get_state_proof", e))?;
+        let res = get::<ProofResponse>(&req).await;
+        if res.is_err() {
+            return Err(anyhow!("Failed to get block proof: {:?} {:?}", req, res));
+        }
 
-        Ok(res)
+        res
     }
 
     async fn get_block_proof(
@@ -87,11 +87,12 @@ impl StateProverAPI for StateProver {
             ),
         };
 
-        let res: ProofResponse = get(&req)
-            .await
-            .map_err(|e| RpcError::new("get_block_proof", e))?;
+        let res = get::<ProofResponse>(&req).await;
+        if res.is_err() {
+            return Err(anyhow!("Failed to get block proof: {:?} {:?}", req, res));
+        }
 
-        Ok(res)
+        res
     }
 }
 
