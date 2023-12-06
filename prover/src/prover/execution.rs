@@ -117,14 +117,14 @@ mod tests {
     #[tokio_test]
     async fn test_receipts_proof() {
         let execution_rpc = MockExecutionRPC::new();
-        let mut execution_block = execution_rpc
+        let execution_block = execution_rpc
             .get_block_with_txs(18615160)
             .await
             .unwrap()
             .unwrap();
         let receipts = execution_rpc.get_block_receipts(18615160).await.unwrap();
 
-        let proof = generate_receipt_proof(&mut execution_block, &receipts, 1).unwrap();
+        let proof = generate_receipt_proof(&execution_block, &receipts, 1).unwrap();
         let bytes: Result<[u8; 32], _> = execution_block.receipts_root[0..32].try_into();
         let root = Root::from_bytes(bytes.unwrap());
 

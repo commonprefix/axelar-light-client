@@ -1,12 +1,9 @@
-use consensus_types::{
-    consensus::{BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update},
-    lightclient::Message,
+use consensus_types::consensus::{
+    BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update,
 };
-use ethers::types::H256;
+
 use ssz_rs::Node;
 use sync_committee_rs::consensus_types::BeaconBlockHeader;
-
-pub type UpdateResponse = Vec<UpdateData>;
 
 #[derive(serde::Deserialize, Debug)]
 pub struct UpdateData {

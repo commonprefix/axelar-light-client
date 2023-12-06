@@ -3,7 +3,8 @@ use async_trait::async_trait;
 use eyre::{anyhow, Result};
 use retri::{retry, BackoffSettings};
 use serde::de::DeserializeOwned;
-use ssz_rs::SszVariableOrIndex;
+
+use super::utils::parse_path;
 
 pub async fn get<R: DeserializeOwned>(req: &str) -> Result<R> {
     let bytes = retry(
@@ -94,15 +95,4 @@ impl StateProverAPI for StateProver {
 
         res
     }
-}
-
-fn parse_path(path: &Vec<SszVariableOrIndex>) -> String {
-    let mut path_str = String::new();
-    for p in path {
-        match p {
-            SszVariableOrIndex::Name(name) => path_str.push_str(&format!(",{}", name)),
-            SszVariableOrIndex::Index(index) => path_str.push_str(&format!(",{}", index)),
-        }
-    }
-    path_str[1..].to_string() // remove first comma
 }
