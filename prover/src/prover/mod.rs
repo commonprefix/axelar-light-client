@@ -29,6 +29,7 @@ use eth::{
     utils::calc_slot_from_timestamp,
 };
 use ethers::types::{Block, Transaction, TransactionReceipt};
+use ethers::utils::rlp::encode;
 use eyre::{anyhow, Result};
 use ssz_rs::{Merkleized, Node};
 use sync_committee_rs::consensus_types::BeaconBlockHeader;
@@ -85,6 +86,7 @@ impl Prover {
         let tx_index = get_tx_index(&receipts, &message.message.cc_id)?;
         let transaction =
             target_beacon_block.body.execution_payload.transactions[tx_index as usize].clone();
+        let receipt = encode(&receipts[tx_index as usize].clone());
 
         // Execution Proofs
         let receipt_proof = generate_receipt_proof(&target_execution_block, &receipts, tx_index)?;
@@ -115,6 +117,7 @@ impl Prover {
                 transaction,
             },
             receipt_proof: ReceiptProof {
+                receipt: receipt.to_vec(),
                 receipt_proof,
                 receipts_root_proof: receipts_branch.witnesses,
                 receipts_root: Node::from_bytes(
