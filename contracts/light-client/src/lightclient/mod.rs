@@ -148,10 +148,10 @@ impl LightClient {
         }
     }
 
-    pub fn bootstrap(&mut self, mut bootstrap: Bootstrap) -> Result<(), ConsensusError> {
+    pub fn bootstrap(&mut self, bootstrap: &Bootstrap) -> Result<(), ConsensusError> {
         let committee_valid = self.is_current_committee_proof_valid(
             &bootstrap.header.beacon,
-            &mut bootstrap.current_sync_committee,
+            &bootstrap.current_sync_committee,
             &bootstrap.current_sync_committee_branch,
         );
 
@@ -160,8 +160,8 @@ impl LightClient {
         }
 
         self.state = LightClientState {
-            finalized_header: bootstrap.header.beacon,
-            current_sync_committee: bootstrap.current_sync_committee,
+            finalized_header: bootstrap.header.beacon.clone(),
+            current_sync_committee: bootstrap.current_sync_committee.clone(),
             next_sync_committee: None,
             previous_max_active_participants: 0,
             current_max_active_participants: 0,
@@ -216,13 +216,13 @@ impl LightClient {
     fn is_current_committee_proof_valid(
         &self,
         attested_header: &BeaconBlockHeader,
-        current_committee: &mut SyncCommittee<SYNC_COMMITTEE_SIZE>,
+        current_committee: &SyncCommittee<SYNC_COMMITTEE_SIZE>,
         current_committee_branch: &[Bytes32],
     ) -> bool {
         is_proof_valid(
             &attested_header.state_root,
-            current_committee,
-            current_committee_branch,
+            current_committee.clone().as_mut(),
+            current_committee_branch.clone(),
             5,
             22,
         )

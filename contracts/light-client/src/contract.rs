@@ -22,7 +22,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     let mut lc = LightClient::new(&msg.config, None, &env);
-    lc.bootstrap(msg.bootstrap.clone()).unwrap();
+    lc.bootstrap(&msg.bootstrap).unwrap();
 
     LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
     CONFIG.save(deps.storage, &msg.config)?;
