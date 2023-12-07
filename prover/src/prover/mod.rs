@@ -77,7 +77,7 @@ impl<'a> Prover<'a> {
             )?;
 
         // Consensus Proofs
-        let transaction_branch = generate_transaction_proof(self.state_prover, &block_id, tx_index)
+        let transaction_proof = generate_transaction_proof(self.state_prover, &block_id, tx_index)
             .await
             .wrap_err(format!(
                 "Failed to generate transaction proof for message {:?}",
@@ -110,8 +110,8 @@ impl<'a> Prover<'a> {
             ancestry_proof,
             transaction_proof: TransactionProof {
                 transaction_index: tx_index,
-                transaction_gindex: transaction_branch.gindex,
-                transaction_branch: transaction_branch.witnesses,
+                transaction_gindex: transaction_proof.gindex,
+                transaction_proof: transaction_proof.witnesses,
                 transaction,
             },
             receipt_proof: ReceiptProof {

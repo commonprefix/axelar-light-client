@@ -60,7 +60,7 @@ pub struct TransactionProof {
     // Generalized index of transaction in target block
     pub transaction_gindex: u64,
     // Proof from target block to transaction
-    pub transaction_branch: Vec<Node>,
+    pub transaction_proof: Vec<Node>,
     // Actual transaction to keccak and test against tx_hash of message
     pub transaction: Transaction<MAX_BYTES_PER_TRANSACTION>,
 }
