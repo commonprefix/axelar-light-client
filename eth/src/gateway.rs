@@ -1,4 +1,4 @@
-use crate::execution::{ExecutionAPI};
+use crate::execution::ExecutionAPI;
 use crate::types::InternalMessage;
 use crate::utils::calc_slot_from_timestamp;
 use ethers::abi::{Bytes, RawLog};
