@@ -17,7 +17,7 @@ const CAPELLA_FORK_SLOT: u64 = CAPELLA_FORK_EPOCH * SLOTS_PER_EPOCH;
 */
 pub async fn generate_transaction_proof(
     state_prover: &dyn StateProverAPI,
-    block_id: &String,
+    block_id: &str,
     tx_index: u64,
 ) -> Result<ProofResponse> {
     let path = vec![
@@ -38,7 +38,7 @@ pub async fn generate_transaction_proof(
 */
 pub async fn generate_receipts_root_proof(
     state_prover: &dyn StateProverAPI,
-    block_id: &String,
+    block_id: &str,
 ) -> Result<ProofResponse> {
     let path = vec![
         SszVariableOrIndex::Name("body"),
@@ -61,7 +61,7 @@ pub async fn prove_ancestry(
     state_prover: &dyn StateProverAPI,
     target_block_slot: usize,
     recent_block_slot: usize,
-    recent_block_state_id: &String,
+    recent_block_state_id: &str,
 ) -> Result<AncestryProof> {
     let is_in_block_roots_range = target_block_slot < recent_block_slot
         && recent_block_slot <= target_block_slot + SLOTS_PER_HISTORICAL_ROOT;
@@ -91,7 +91,7 @@ pub async fn prove_ancestry(
 pub async fn prove_ancestry_with_block_roots(
     state_prover: &dyn StateProverAPI,
     target_block_slot: &usize,
-    recent_block_state_id: &String,
+    recent_block_state_id: &str,
 ) -> Result<AncestryProof> {
     let index = target_block_slot % SLOTS_PER_HISTORICAL_ROOT;
     let g_index_from_state_root = get_generalized_index(
@@ -120,7 +120,7 @@ pub async fn prove_ancestry_with_block_roots(
 async fn prove_historical_summaries_proof(
     state_prover: &dyn StateProverAPI,
     target_block_slot: &u64,
-    recent_block_state_id: &String,
+    recent_block_state_id: &str,
 ) -> Result<ProofResponse> {
     let historical_summaries_index =
         (target_block_slot - CAPELLA_FORK_SLOT) / SLOTS_PER_HISTORICAL_ROOT as u64;
@@ -165,7 +165,7 @@ pub async fn prove_ancestry_with_historical_summaries(
     consensus: &dyn CustomConsensusApi,
     state_prover: &dyn StateProverAPI,
     target_block_slot: &u64,
-    recent_block_state_id: &String,
+    recent_block_state_id: &str,
 ) -> Result<AncestryProof> {
     if *target_block_slot < CAPELLA_FORK_SLOT {
         return Err(anyhow!(

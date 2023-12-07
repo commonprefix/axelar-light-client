@@ -21,7 +21,7 @@ impl MockStateProver {
 impl StateProverAPI for MockStateProver {
     async fn get_state_proof(
         &self,
-        state_id: &String,
+        state_id: &str,
         gindex_or_path: &GindexOrPath,
     ) -> Result<ProofResponse> {
         let filename = match gindex_or_path {
@@ -42,7 +42,7 @@ impl StateProverAPI for MockStateProver {
 
     async fn get_block_proof(
         &self,
-        block_id: &String,
+        block_id: &str,
         gindex_or_path: GindexOrPath,
     ) -> Result<ProofResponse> {
         let filename = match gindex_or_path {

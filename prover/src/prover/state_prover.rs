@@ -20,12 +20,12 @@ pub async fn get<R: DeserializeOwned>(req: &str) -> Result<R> {
 pub trait StateProverAPI {
     async fn get_state_proof(
         &self,
-        state_id: &String,
+        state_id: &str,
         gindex_or_path: &GindexOrPath,
     ) -> Result<ProofResponse>;
     async fn get_block_proof(
         &self,
-        block_id: &String,
+        block_id: &str,
         gindex_or_path: GindexOrPath,
     ) -> Result<ProofResponse>;
 }
@@ -44,7 +44,7 @@ impl StateProver {
 impl StateProverAPI for StateProver {
     async fn get_state_proof(
         &self,
-        state_id: &String,
+        state_id: &str,
         gindex_or_path: &GindexOrPath,
     ) -> Result<ProofResponse> {
         let req = match gindex_or_path {
@@ -70,7 +70,7 @@ impl StateProverAPI for StateProver {
 
     async fn get_block_proof(
         &self,
-        block_id: &String,
+        block_id: &str,
         gindex_or_path: GindexOrPath,
     ) -> Result<ProofResponse> {
         let req = match gindex_or_path {
