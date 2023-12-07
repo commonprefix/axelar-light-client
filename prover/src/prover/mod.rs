@@ -9,6 +9,7 @@ use crate::prover::{
     consensus::{generate_receipts_root_proof, generate_transaction_proof, prove_ancestry},
     execution::{generate_receipt_proof, get_tx_index},
 };
+use consensus_types::lightclient::MessageVerification;
 use consensus_types::{
     consensus::to_beacon_header,
     proofs::{MessageProof, ReceiptProof, TransactionProof, UpdateVariant},
@@ -48,7 +49,7 @@ impl<'a> Prover<'a> {
         &self,
         message: InternalMessage,
         update: UpdateVariant,
-    ) -> Result<MessageProof> {
+    ) -> Result<MessageVerification> {
         let proof_data = self
             .gather_proof_data(&message, &update)
             .await
@@ -104,22 +105,25 @@ impl<'a> Prover<'a> {
             message
         ))?;
 
-        Ok(MessageProof {
-            update: update.clone(),
-            target_block: to_beacon_header(&target_beacon_block)?,
-            ancestry_proof,
-            transaction_proof: TransactionProof {
-                transaction_index: tx_index,
-                transaction_gindex: transaction_proof.gindex,
-                transaction_proof: transaction_proof.witnesses,
-                transaction,
-            },
-            receipt_proof: ReceiptProof {
-                receipt_proof,
-                receipts_root_proof: receipts_root_proof.witnesses,
-                receipts_root: Node::from_bytes(
-                    target_execution_block.receipts_root.as_bytes().try_into()?,
-                ),
+        Ok(MessageVerification {
+            message: message.message.clone(),
+            proofs: MessageProof {
+                update: update.clone(),
+                target_block: to_beacon_header(&target_beacon_block)?,
+                ancestry_proof,
+                transaction_proof: TransactionProof {
+                    transaction_index: tx_index,
+                    transaction_gindex: transaction_proof.gindex,
+                    transaction_proof: transaction_proof.witnesses,
+                    transaction,
+                },
+                receipt_proof: ReceiptProof {
+                    receipt_proof,
+                    receipts_root_proof: receipts_root_proof.witnesses,
+                    receipts_root: Node::from_bytes(
+                        target_execution_block.receipts_root.as_bytes().try_into()?,
+                    ),
+                },
             },
         })
     }
