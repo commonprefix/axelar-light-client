@@ -23,8 +23,8 @@ pub struct ExecutionRPC {
 }
 
 impl ExecutionRPC {
-    pub fn new(rpc: &str) -> Self {
-        let http = Http::from_str(rpc).expect("Could not initialize HTTP provider");
+    pub fn new(rpc: String) -> Self {
+        let http = Http::from_str(rpc.as_str()).expect("Could not initialize HTTP provider");
         let mut client = RetryClient::new(http, Box::new(HttpRateLimitRetryPolicy), 100, 50);
         client.set_compute_units(300);
 

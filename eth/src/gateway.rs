@@ -1,4 +1,3 @@
-use crate::constants::EXECUTION_RPC;
 use crate::execution::{ExecutionAPI, ExecutionRPC};
 use crate::types::InternalMessage;
 use crate::utils::calc_slot_from_timestamp;
@@ -31,7 +30,7 @@ pub struct ContractCallWithToken {
 }
 
 impl Gateway {
-    pub fn new(rpc: &str, address: &str) -> Self {
+    pub fn new(rpc: String, address: String) -> Self {
         let address = address.parse::<Address>().unwrap();
 
         let provider = Provider::<Http>::try_from(rpc).unwrap();
@@ -132,12 +131,12 @@ impl Gateway {
 
     pub async fn get_messages_in_slot_range(
         &self,
+        execution: &dyn ExecutionAPI,
         from_slot: u64,
         to_slot: u64,
     ) -> Result<Vec<InternalMessage>> {
         // TODO: Move that out of the code
         const BLOCK_RANGE: u64 = 500;
-        let execution = ExecutionRPC::new(EXECUTION_RPC);
         let latest_block_number = execution.get_latest_block_number().await?;
 
         let messages = self

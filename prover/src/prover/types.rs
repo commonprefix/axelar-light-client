@@ -28,3 +28,12 @@ pub enum GindexOrPath {
     Gindex(usize),
     Path(Vec<SszVariableOrIndex>),
 }
+
+pub struct Config {
+    pub consensus_rpc: String,
+    pub execution_rpc: String,
+    pub state_prover_rpc: String,
+    pub gateway_addr: String,
+    pub historical_roots_enabled: bool,
+    pub historical_roots_block_roots_batch_size: u64,
+}

@@ -25,21 +25,21 @@ use ssz_rs::{Merkleized, Node};
 
 use self::{state_prover::StateProver, types::ProofAuxiliaryData};
 
-pub struct Prover {
-    execution_rpc: ExecutionRPC,
-    consensus_rpc: ConsensusRPC,
-    state_prover: StateProver,
+pub struct Prover<'a> {
+    consensus_rpc: &'a ConsensusRPC,
+    execution_rpc: &'a ExecutionRPC,
+    state_prover: &'a StateProver,
 }
 
-impl Prover {
+impl<'a> Prover<'a> {
     pub fn new(
-        execution_rpc: ExecutionRPC,
-        consensus_rpc: ConsensusRPC,
-        state_prover: StateProver,
+        consensus_rpc: &'a ConsensusRPC,
+        execution_rpc: &'a ExecutionRPC,
+        state_prover: &'a StateProver,
     ) -> Self {
         Prover {
-            execution_rpc,
             consensus_rpc,
+            execution_rpc,
             state_prover,
         }
     }
@@ -77,15 +77,14 @@ impl Prover {
             )?;
 
         // Consensus Proofs
-        let transaction_branch =
-            generate_transaction_proof(&self.state_prover, &block_id, tx_index)
-                .await
-                .wrap_err(format!(
-                    "Failed to generate transaction proof for message {:?}",
-                    message
-                ))?;
+        let transaction_branch = generate_transaction_proof(self.state_prover, &block_id, tx_index)
+            .await
+            .wrap_err(format!(
+                "Failed to generate transaction proof for message {:?}",
+                message
+            ))?;
 
-        let receipts_root_proof = generate_receipts_root_proof(&self.state_prover, &block_id)
+        let receipts_root_proof = generate_receipts_root_proof(self.state_prover, &block_id)
             .await
             .wrap_err(format!(
                 "Failed to generate receipts root proof for message {:?}",
@@ -93,8 +92,8 @@ impl Prover {
             ))?;
 
         let ancestry_proof = prove_ancestry(
-            &self.consensus_rpc,
-            &self.state_prover,
+            self.consensus_rpc,
+            self.state_prover,
             target_beacon_block.slot as usize,
             recent_block_header.slot as usize,
             &recent_block_header.state_root.to_string(),

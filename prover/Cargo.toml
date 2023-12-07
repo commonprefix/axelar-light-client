@@ -27,3 +27,4 @@ tonic = "0.10.2"
 cita_trie = "5.0.1"
 tree_hash = { git = "https://github.com/synapseweb3/lighthouse", rev = "be911e6" }
 hasher = "0.1.4"
+dotenv = "0.15.0"

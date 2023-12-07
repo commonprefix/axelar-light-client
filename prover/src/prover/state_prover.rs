@@ -35,10 +35,8 @@ pub struct StateProver {
 }
 
 impl StateProver {
-    pub fn new(rpc: &str) -> Self {
-        StateProver {
-            rpc: rpc.to_string(),
-        }
+    pub fn new(rpc: String) -> Self {
+        StateProver { rpc }
     }
 }
 

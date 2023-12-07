@@ -39,10 +39,8 @@ pub struct ConsensusRPC {
 
 #[allow(dead_code)]
 impl ConsensusRPC {
-    pub fn new(rpc: &str) -> Self {
-        ConsensusRPC {
-            rpc: rpc.to_string(),
-        }
+    pub fn new(rpc: String) -> Self {
+        ConsensusRPC { rpc }
     }
 }
 
