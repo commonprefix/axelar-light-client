@@ -22,7 +22,10 @@ pub fn generate_receipt_proof(
 
     // Reality check
     if block.receipts_root != H256::from_slice(&trie_root[0..32]) {
-        return Err(anyhow!("Invalid receipts root from trie generation"));
+        return Err(anyhow!(
+            "Invalid receipts root from trie generation: {}",
+            block.number.unwrap()
+        ));
     }
 
     let receipt_index: cosmos_sdk_proto::prost::bytes::BytesMut = encode(&index);
@@ -38,10 +41,12 @@ pub fn get_tx_index(receipts: &[TransactionReceipt], cc_id: &CrossChainId) -> Re
 
     let tx_index = receipts
         .iter()
-        .position(|r| format!("0x{:x}", r.transaction_hash) == tx_hash)
-        .unwrap();
+        .position(|r| format!("0x{:x}", r.transaction_hash) == tx_hash);
 
-    Ok(tx_index as u64)
+    match tx_index {
+        Some(index) => Ok(index as u64),
+        None => Err(anyhow!("Transaction not found in receipts. {:?}", cc_id)),
+    }
 }
 
 fn generate_trie<T>(
@@ -76,51 +81,57 @@ fn encode_receipt(receipt: &TransactionReceipt) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use cita_trie::{MemoryDB, PatriciaTrie, Trie};
-    use ethers::{
-        utils::rlp::encode,
+    use crate::prover::{
+        execution::generate_receipt_proof, mocks::mock_execution_rpc::MockExecutionRPC,
     };
+    use cita_trie::{MemoryDB, PatriciaTrie, Trie};
+    use eth::execution::ExecutionAPI;
+    use ethers::utils::rlp::encode;
+    use eyre::{anyhow, Result};
     use hasher::HasherKeccak;
-    use std::{sync::Arc};
+    use std::sync::Arc;
     use sync_committee_rs::constants::Root;
     use tokio::test as tokio_test;
 
-    use crate::{
-        eth::execution::ExecutionAPI,
-        prover::{execution::generate_receipt_proof, mocks::mock_execution_rpc::MockExecutionRPC},
-    };
-
-    fn verify_trie_proof(root: Root, key: u64, proof_bytes: Vec<Vec<u8>>) -> Option<Vec<u8>> {
+    fn verify_trie_proof(root: Root, key: u64, proof_bytes: Vec<Vec<u8>>) -> Result<Vec<u8>> {
         let memdb = Arc::new(MemoryDB::new(true));
         let hasher = Arc::new(HasherKeccak::new());
 
         let trie = PatriciaTrie::new(Arc::clone(&memdb), Arc::clone(&hasher));
-        trie.verify_proof(
+        let proof = trie.verify_proof(
             root.as_bytes(),
             encode(&key).to_vec().as_slice(),
             proof_bytes,
-        )
-        .unwrap()
+        );
+
+        if proof.is_err() {
+            return Err(anyhow!("Invalid proof"));
+        }
+
+        match proof.unwrap() {
+            Some(value) => Ok(value),
+            None => Err(anyhow!("Invalid proof")),
+        }
     }
 
     #[tokio_test]
     async fn test_receipts_proof() {
         let execution_rpc = MockExecutionRPC::new();
-        let mut execution_block = execution_rpc
+        let execution_block = execution_rpc
             .get_block_with_txs(18615160)
             .await
             .unwrap()
             .unwrap();
         let receipts = execution_rpc.get_block_receipts(18615160).await.unwrap();
 
-        let proof = generate_receipt_proof(&mut execution_block, &receipts, 1).unwrap();
+        let proof = generate_receipt_proof(&execution_block, &receipts, 1).unwrap();
         let bytes: Result<[u8; 32], _> = execution_block.receipts_root[0..32].try_into();
         let root = Root::from_bytes(bytes.unwrap());
 
         let valid_proof = verify_trie_proof(root, 1, proof.clone());
         let invalid_proof = verify_trie_proof(root, 2, proof);
 
-        assert!(valid_proof.is_some());
-        assert!(invalid_proof.is_none())
+        assert!(valid_proof.is_ok());
+        assert!(invalid_proof.is_err());
     }
 }

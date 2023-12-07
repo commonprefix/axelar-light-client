@@ -1,7 +1,12 @@
 use crate::consensus::{FinalityUpdate, OptimisticUpdate};
+pub use connection_router::state::{
+    Address as AddressType, ChainName, CrossChainId, Message, MessageHash,
+};
 use ssz_rs::Node;
-use sync_committee_rs::consensus_types::{BeaconBlockHeader, Transaction};
-use sync_committee_rs::constants::{Root, MAX_BYTES_PER_TRANSACTION};
+use sync_committee_rs::{
+    consensus_types::{BeaconBlockHeader, Transaction},
+    constants::{Root, MAX_BYTES_PER_TRANSACTION},
+};
 
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
 pub struct MessageProof {
@@ -62,6 +67,8 @@ pub struct TransactionProof {
 
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct ReceiptProof {
+    // Actual receipt
+    pub receipt: Vec<u8>,
     // Proof from receipts root to beacon block
     pub receipts_root_proof: Vec<Node>,
     // Proof from receipt to receipts root trie

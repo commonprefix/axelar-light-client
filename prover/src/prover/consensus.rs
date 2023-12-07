@@ -1,9 +1,9 @@
-use crate::{
-    eth::{consensus::CustomConsensusApi, state_prover::StateProverAPI},
-    prover::types::{GindexOrPath, ProofResponse},
+use crate::prover::{
+    state_prover::StateProverAPI,
+    types::{GindexOrPath, ProofResponse},
 };
-use consensus_types::consensus::BeaconStateType;
-use consensus_types::proofs::AncestryProof;
+use consensus_types::{consensus::BeaconStateType, proofs::AncestryProof};
+use eth::consensus::CustomConsensusApi;
 use eyre::{anyhow, Result};
 use ssz_rs::{get_generalized_index, Node, SszVariableOrIndex, Vector};
 use sync_committee_rs::constants::{
@@ -17,7 +17,7 @@ const CAPELLA_FORK_SLOT: u64 = CAPELLA_FORK_EPOCH * SLOTS_PER_EPOCH;
 */
 pub async fn generate_transaction_proof(
     state_prover: &dyn StateProverAPI,
-    block_id: &String,
+    block_id: &str,
     tx_index: u64,
 ) -> Result<ProofResponse> {
     let path = vec![
@@ -38,7 +38,7 @@ pub async fn generate_transaction_proof(
 */
 pub async fn generate_receipts_root_proof(
     state_prover: &dyn StateProverAPI,
-    block_id: &String,
+    block_id: &str,
 ) -> Result<ProofResponse> {
     let path = vec![
         SszVariableOrIndex::Name("body"),
@@ -61,7 +61,7 @@ pub async fn prove_ancestry(
     state_prover: &dyn StateProverAPI,
     target_block_slot: usize,
     recent_block_slot: usize,
-    recent_block_state_id: &String,
+    recent_block_state_id: &str,
 ) -> Result<AncestryProof> {
     let is_in_block_roots_range = target_block_slot < recent_block_slot
         && recent_block_slot <= target_block_slot + SLOTS_PER_HISTORICAL_ROOT;
@@ -91,7 +91,7 @@ pub async fn prove_ancestry(
 pub async fn prove_ancestry_with_block_roots(
     state_prover: &dyn StateProverAPI,
     target_block_slot: &usize,
-    recent_block_state_id: &String,
+    recent_block_state_id: &str,
 ) -> Result<AncestryProof> {
     let index = target_block_slot % SLOTS_PER_HISTORICAL_ROOT;
     let g_index_from_state_root = get_generalized_index(
@@ -120,7 +120,7 @@ pub async fn prove_ancestry_with_block_roots(
 async fn prove_historical_summaries_proof(
     state_prover: &dyn StateProverAPI,
     target_block_slot: &u64,
-    recent_block_state_id: &String,
+    recent_block_state_id: &str,
 ) -> Result<ProofResponse> {
     let historical_summaries_index =
         (target_block_slot - CAPELLA_FORK_SLOT) / SLOTS_PER_HISTORICAL_ROOT as u64;
@@ -134,6 +134,7 @@ async fn prove_historical_summaries_proof(
     let res = state_prover
         .get_state_proof(recent_block_state_id, &GindexOrPath::Path(path))
         .await?;
+
     Ok(res)
 }
 
@@ -164,7 +165,7 @@ pub async fn prove_ancestry_with_historical_summaries(
     consensus: &dyn CustomConsensusApi,
     state_prover: &dyn StateProverAPI,
     target_block_slot: &u64,
-    recent_block_state_id: &String,
+    recent_block_state_id: &str,
 ) -> Result<AncestryProof> {
     if *target_block_slot < CAPELLA_FORK_SLOT {
         return Err(anyhow!(
@@ -182,7 +183,7 @@ pub async fn prove_ancestry_with_historical_summaries(
         block_root_proof: block_root_to_block_summary_root,
         block_summary_root_proof: historical_summaries_proof.witnesses,
         block_summary_root: historical_summaries_proof.leaf,
-        block_summary_root_gindex: historical_summaries_proof.gindex as usize,
+        block_summary_root_gindex: historical_summaries_proof.gindex,
     };
 
     Ok(res)
@@ -190,19 +191,17 @@ pub async fn prove_ancestry_with_historical_summaries(
 
 #[cfg(test)]
 mod tests {
-    use crate::eth::consensus::EthBeaconAPI;
     use crate::prover::consensus::{
         generate_receipts_root_proof, generate_transaction_proof, prove_ancestry_with_block_roots,
         prove_ancestry_with_historical_summaries,
     };
     use crate::prover::mocks::mock_consensus_rpc::MockConsensusRPC;
     use crate::prover::mocks::mock_state_prover::MockStateProver;
-
+    use consensus_types::proofs::AncestryProof;
+    use eth::consensus::EthBeaconAPI;
     use ssz_rs::{
         get_generalized_index, GeneralizedIndex, Merkleized, Node, SszVariableOrIndex, Vector,
     };
-
-    use consensus_types::proofs::AncestryProof;
     use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
     use tokio::test as tokio_test;
 
@@ -327,7 +326,7 @@ mod tests {
                 let is_valid_proof = ssz_rs::verify_merkle_proof(
                     &block_summary_root,
                     &block_summary_root_proof,
-                    &GeneralizedIndex(block_summary_root_gindex),
+                    &GeneralizedIndex(block_summary_root_gindex as usize),
                     &latest_block.state_root,
                 );
                 assert!(is_valid_proof);

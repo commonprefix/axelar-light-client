@@ -1,10 +1,10 @@
-use consensus_types::{
-    consensus::{BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update},
-    lightclient::Message,
-};
 use ethers::types::H256;
 use ssz_rs::Node;
 use sync_committee_rs::consensus_types::BeaconBlockHeader;
+use types::{
+    consensus::{BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update},
+    lightclient::Message,
+};
 
 #[derive(Clone, Debug)]
 pub struct InternalMessage {

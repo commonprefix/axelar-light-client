@@ -1,15 +1,15 @@
-use crate::eth::constants::EXECUTION_RPC;
-use crate::eth::execution::{ExecutionAPI, ExecutionRPC};
-use crate::eth::utils::calc_slot_from_timestamp;
+use crate::execution::ExecutionAPI;
 use crate::types::InternalMessage;
-use consensus_types::lightclient::{CrossChainId, Message};
+use crate::utils::calc_slot_from_timestamp;
 use ethers::abi::{Bytes, RawLog};
 use ethers::prelude::{EthEvent, Http};
 use ethers::providers::{Middleware, Provider};
 use ethers::types::Filter;
 use ethers::types::{Address, Log, H256, U256};
+use eyre::eyre;
 use eyre::Result;
 use std::sync::Arc;
+use types::lightclient::{CrossChainId, Message};
 
 pub struct Gateway {
     client: Arc<Provider<Http>>,
@@ -30,7 +30,7 @@ pub struct ContractCallWithToken {
 }
 
 impl Gateway {
-    pub fn new(rpc: &str, address: &str) -> Self {
+    pub fn new(rpc: String, address: String) -> Self {
         let address = address.parse::<Address>().unwrap();
 
         let provider = Provider::<Http>::try_from(rpc).unwrap();
@@ -53,14 +53,23 @@ impl Gateway {
             .iter()
             .zip(events)
             .map(|(log, event)| {
+                if log.transaction_hash.is_none()
+                    || log.log_index.is_none()
+                    || log.block_hash.is_none()
+                    || log.block_number.is_none()
+                {
+                    return Err(eyre!("Missing field on log/event: {:?}, {:?}", log, event));
+                }
+
                 let tx_hash = log.transaction_hash.unwrap();
                 let log_index = log.log_index.unwrap();
+
                 let cc_id = CrossChainId {
                     chain: "ethereum".parse().unwrap(),
                     id: format!("0x{:x}:{}", tx_hash, log_index).parse().unwrap(),
                 };
 
-                InternalMessage {
+                let msg = InternalMessage {
                     message: Message {
                         cc_id,
                         source_address: format!("0x{:x}", event.sender).parse().unwrap(),
@@ -70,10 +79,22 @@ impl Gateway {
                     },
                     block_hash: log.block_hash.unwrap(),
                     block_number: log.block_number.unwrap().as_u64(),
-                }
-            })
-            .collect::<Vec<InternalMessage>>();
+                };
 
+                Ok(msg)
+            })
+            .collect::<Vec<Result<InternalMessage>>>();
+
+        for message in &messages {
+            if message.is_err() {
+                println!("Failed to decode message: {:?}", message);
+            }
+        }
+
+        let messages = messages
+            .into_iter()
+            .filter_map(|message| message.ok())
+            .collect::<Vec<InternalMessage>>();
         Ok(messages)
     }
 
@@ -110,12 +131,12 @@ impl Gateway {
 
     pub async fn get_messages_in_slot_range(
         &self,
+        execution: &dyn ExecutionAPI,
         from_slot: u64,
         to_slot: u64,
     ) -> Result<Vec<InternalMessage>> {
         // TODO: Move that out of the code
         const BLOCK_RANGE: u64 = 500;
-        let execution = ExecutionRPC::new(EXECUTION_RPC);
         let latest_block_number = execution.get_latest_block_number().await?;
 
         let messages = self
@@ -131,7 +152,7 @@ impl Gateway {
             .map(|message| message.block_number)
             .collect::<Vec<u64>>();
 
-        let blocks = execution.get_blocks(&block_heights).await.unwrap();
+        let blocks = execution.get_blocks(&block_heights).await?;
 
         let filtered_messages = messages
             .into_iter()

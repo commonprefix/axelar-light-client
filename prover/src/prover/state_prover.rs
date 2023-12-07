@@ -1,23 +1,31 @@
-use crate::{
-    error::RpcError,
-    prover::types::{GindexOrPath, ProofResponse},
-};
+use crate::prover::types::{GindexOrPath, ProofResponse};
 use async_trait::async_trait;
-use eyre::Result;
-use ssz_rs::SszVariableOrIndex;
+use eyre::{anyhow, Result};
+use retri::{retry, BackoffSettings};
+use serde::de::DeserializeOwned;
 
-use super::utils::get;
+use super::utils::parse_path;
+
+pub async fn get<R: DeserializeOwned>(req: &str) -> Result<R> {
+    let bytes = retry(
+        || async { Ok::<_, eyre::Report>(reqwest::get(req).await?.bytes().await?) },
+        BackoffSettings::default(),
+    )
+    .await?;
+
+    Ok(serde_json::from_slice::<R>(&bytes)?)
+}
 
 #[async_trait]
 pub trait StateProverAPI {
     async fn get_state_proof(
         &self,
-        state_id: &String,
+        state_id: &str,
         gindex_or_path: &GindexOrPath,
     ) -> Result<ProofResponse>;
     async fn get_block_proof(
         &self,
-        block_id: &String,
+        block_id: &str,
         gindex_or_path: GindexOrPath,
     ) -> Result<ProofResponse>;
 }
@@ -27,10 +35,8 @@ pub struct StateProver {
 }
 
 impl StateProver {
-    pub fn new(rpc: &str) -> Self {
-        StateProver {
-            rpc: rpc.to_string(),
-        }
+    pub fn new(rpc: String) -> Self {
+        StateProver { rpc }
     }
 }
 
@@ -38,7 +44,7 @@ impl StateProver {
 impl StateProverAPI for StateProver {
     async fn get_state_proof(
         &self,
-        state_id: &String,
+        state_id: &str,
         gindex_or_path: &GindexOrPath,
     ) -> Result<ProofResponse> {
         let req = match gindex_or_path {
@@ -54,16 +60,17 @@ impl StateProverAPI for StateProver {
             ),
         };
 
-        let res: ProofResponse = get(&req)
-            .await
-            .map_err(|e| RpcError::new("get_state_proof", e))?;
+        let res = get::<ProofResponse>(&req).await;
+        if res.is_err() {
+            return Err(anyhow!("Failed to get block proof: {:?} {:?}", req, res));
+        }
 
-        Ok(res)
+        res
     }
 
     async fn get_block_proof(
         &self,
-        block_id: &String,
+        block_id: &str,
         gindex_or_path: GindexOrPath,
     ) -> Result<ProofResponse> {
         let req = match gindex_or_path {
@@ -79,21 +86,11 @@ impl StateProverAPI for StateProver {
             ),
         };
 
-        let res: ProofResponse = get(&req)
-            .await
-            .map_err(|e| RpcError::new("get_block_proof", e))?;
-
-        Ok(res)
-    }
-}
-
-fn parse_path(path: &Vec<SszVariableOrIndex>) -> String {
-    let mut path_str = String::new();
-    for p in path {
-        match p {
-            SszVariableOrIndex::Name(name) => path_str.push_str(&format!(",{}", name)),
-            SszVariableOrIndex::Index(index) => path_str.push_str(&format!(",{}", index)),
+        let res = get::<ProofResponse>(&req).await;
+        if res.is_err() {
+            return Err(anyhow!("Failed to get block proof: {:?} {:?}", req, res));
         }
+
+        res
     }
-    path_str[1..].to_string() // remove first comma
 }

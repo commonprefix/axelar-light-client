@@ -1,12 +1,13 @@
 [package]
 edition = "2021"
-name = "feeder"
+name = "prover"
 version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 consensus_types = {path = "../types", package = "types"}
+eth = {path = "../eth", package = "eth"}
 ethers = "2.0.10"
 eyre = "0.6.8"
 hex = "0.4.3"
@@ -26,3 +27,4 @@ tonic = "0.10.2"
 cita_trie = "5.0.1"
 tree_hash = { git = "https://github.com/synapseweb3/lighthouse", rev = "be911e6" }
 hasher = "0.1.4"
+dotenv = "0.15.0"

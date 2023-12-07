@@ -1,5 +1,20 @@
 use ethers::types::H256;
+use reqwest::Error;
 use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum RPCError {
+    #[error("Resource not found on request: {0}")]
+    NotFoundError(String),
+    #[error("Rate limit error on request: {0}")]
+    RateLimitError(String),
+    #[error("Error sending request: {0}")]
+    RequestError(String, Error),
+    #[error("UnknownError for request: {0}")]
+    UnknownError(String),
+    #[error("Error deserializing response: {0}")]
+    DeserializationError(String),
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum BlockTag {
