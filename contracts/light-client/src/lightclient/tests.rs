@@ -1,9 +1,6 @@
 #[cfg(test)]
 pub mod tests {
-    use std::{
-        fs::File,
-        time::{SystemTime, UNIX_EPOCH},
-    };
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     use crate::{
         lightclient::error::ConsensusError,
@@ -315,7 +312,7 @@ pub mod tests {
     #[ignore]
     fn test_apply_same_period_update() {
         let mut lightclient = init_lightclient(None);
-        let mut update = get_update(862);
+        let update = get_update(862);
 
         let mut res;
         res = lightclient.apply_update(&update);
