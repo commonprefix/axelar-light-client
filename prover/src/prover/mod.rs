@@ -115,7 +115,6 @@ impl<'a> Prover<'a> {
                 transaction,
             },
             receipt_proof: ReceiptProof {
-                receipt: receipt.to_vec(),
                 receipt_proof,
                 receipts_root_proof: receipts_root_proof.witnesses,
                 receipts_root: Node::from_bytes(

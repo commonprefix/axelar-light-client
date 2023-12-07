@@ -67,8 +67,6 @@ pub struct TransactionProof {
 
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct ReceiptProof {
-    // Actual receipt
-    pub receipt: Vec<u8>,
     // Proof from receipts root to beacon block
     pub receipts_root_proof: Vec<Node>,
     // Proof from receipt to receipts root trie
