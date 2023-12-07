@@ -4,7 +4,7 @@ mod wasm;
 
 use crate::prover::state_prover::StateProver;
 use crate::prover::Prover;
-use consensus_types::lightclient::UpdateVariant;
+use consensus_types::proofs::UpdateVariant;
 use dotenv::dotenv;
 use eth::consensus::EthBeaconAPI;
 use eth::{consensus::ConsensusRPC, execution::ExecutionRPC, gateway::Gateway};

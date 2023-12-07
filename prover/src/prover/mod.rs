@@ -11,7 +11,7 @@ use crate::prover::{
 };
 use consensus_types::{
     consensus::to_beacon_header,
-    lightclient::{MessageProof, ReceiptProof, TransactionProof, UpdateVariant},
+    proofs::{MessageProof, ReceiptProof, TransactionProof, UpdateVariant},
 };
 use eth::{
     consensus::{ConsensusRPC, EthBeaconAPI},

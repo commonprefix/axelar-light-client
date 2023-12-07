@@ -2,7 +2,7 @@ use crate::prover::{
     state_prover::StateProverAPI,
     types::{GindexOrPath, ProofResponse},
 };
-use consensus_types::{consensus::BeaconStateType, lightclient::AncestryProof};
+use consensus_types::{consensus::BeaconStateType, proofs::AncestryProof};
 use eth::consensus::CustomConsensusApi;
 use eyre::{anyhow, Result};
 use ssz_rs::{get_generalized_index, Node, SszVariableOrIndex, Vector};
@@ -197,9 +197,8 @@ mod tests {
     };
     use crate::prover::mocks::mock_consensus_rpc::MockConsensusRPC;
     use crate::prover::mocks::mock_state_prover::MockStateProver;
+    use consensus_types::proofs::AncestryProof;
     use eth::consensus::EthBeaconAPI;
-
-    use consensus_types::lightclient::AncestryProof;
     use ssz_rs::{
         get_generalized_index, GeneralizedIndex, Merkleized, Node, SszVariableOrIndex, Vector,
     };
