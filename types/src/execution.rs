@@ -3,6 +3,8 @@ use alloy_rlp::{Buf, Decodable};
 use ssz_rs::prelude::*;
 use std::cmp::Ordering;
 
+pub const RECEIPTS_ROOT_GINDEX: usize = 3219;
+
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct ReceiptLog {
     pub address: [u8; 20],

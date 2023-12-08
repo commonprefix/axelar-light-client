@@ -19,7 +19,7 @@ use ssz_rs::{
 };
 use sync_committee_rs::consensus_types::BeaconBlockHeader;
 use sync_committee_rs::constants::{Bytes32, Root, SLOTS_PER_HISTORICAL_ROOT};
-use types::execution::ReceiptLogs;
+use types::execution::{ReceiptLogs, RECEIPTS_ROOT_GINDEX};
 use types::proofs::{AncestryProof, ReceiptProof, TransactionProof};
 use types::{
     execution::{ContractCallBase, ReceiptLog},
@@ -154,7 +154,7 @@ pub fn extract_logs_from_receipt_proof(
     if !verify_merkle_proof(
         &proof.receipts_root,
         &proof.receipts_root_proof,
-        &GeneralizedIndex(3219), // TODO
+        &GeneralizedIndex(RECEIPTS_ROOT_GINDEX),
         target_block_root,
     ) {
         return Err(ContractError::InvalidReceiptsBranchProof.into());
