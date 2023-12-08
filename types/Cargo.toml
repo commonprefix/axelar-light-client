@@ -5,7 +5,6 @@ name = "types"
 version = "0.1.0"
 
 [dependencies]
-alloy-dyn-abi = {package = "alloy-dyn-abi", git = "https://github.com/alloy-rs/core ", rev = "862f01e04191ba6146f6d63d66cf2e1035c136df"}
 alloy-primitives = {package = "alloy-primitives", git = "https://github.com/alloy-rs/core ", rev = "862f01e04191ba6146f6d63d66cf2e1035c136df"}
 alloy-rlp = {version = "0.3.3", features = ["derive", "arrayvec"]}
 connection-router = {git = "https://github.com/axelarnetwork/axelar-amplifier", features = ["library"]}

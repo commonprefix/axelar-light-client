@@ -3,11 +3,11 @@ use std::{
     sync::Arc,
 };
 
+use alloy_dyn_abi::EventExt;
 use alloy_json_abi::{AbiItem, JsonAbi};
 use cita_trie::{MemoryDB, PatriciaTrie, Trie};
 use cosmwasm_std::StdError;
 use eyre::Result;
-use types::alloy_dyn_abi::EventExt;
 use types::alloy_primitives::{Bytes, FixedBytes, Log};
 use types::alloy_rlp::encode;
 
