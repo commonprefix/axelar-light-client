@@ -278,7 +278,7 @@ pub fn verify_message(message: &Message, log: &ReceiptLog, transaction: &Vec<u8>
         .cc_id
         .id
         .split(':')
-        .nth(0)
+        .next()
         .ok_or_else(|| anyhow!("Failed to extract transaction hash from Message."))?
         .strip_prefix("0x")
         .ok_or_else(|| anyhow!("Invalid transaction hash format."))?;
