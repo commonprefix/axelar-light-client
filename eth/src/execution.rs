@@ -5,6 +5,7 @@ use ethers::prelude::Http;
 use ethers::providers::{HttpRateLimitRetryPolicy, Middleware, Provider, RetryClient};
 use ethers::types::{Block, Filter, Log, Transaction, TransactionReceipt, H256, U64};
 use eyre::Result;
+use mockall::automock;
 
 use crate::error::RpcError;
 
@@ -34,6 +35,7 @@ impl ExecutionRPC {
     }
 }
 
+#[automock]
 #[async_trait]
 impl ExecutionAPI for ExecutionRPC {
     async fn get_block_receipts(&self, block_number: u64) -> Result<Vec<TransactionReceipt>> {

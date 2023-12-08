@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use cita_trie::{MemoryDB, PatriciaTrie, Trie};
 use consensus_types::lightclient::CrossChainId;
 use ethers::{
@@ -8,6 +6,7 @@ use ethers::{
 };
 use eyre::{anyhow, Result};
 use hasher::HasherKeccak;
+use std::sync::Arc;
 
 /**
  * Generates an MPT proof from a receipt to the receipts_root.
@@ -82,11 +81,16 @@ fn encode_receipt(receipt: &TransactionReceipt) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use crate::prover::{
-        execution::generate_receipt_proof, mocks::mock_execution_rpc::MockExecutionRPC,
+        execution::{generate_receipt_proof, get_tx_index},
+        mocks::mock_execution_rpc::MockExecutionRPC,
     };
     use cita_trie::{MemoryDB, PatriciaTrie, Trie};
+    use consensus_types::proofs::CrossChainId;
     use eth::execution::ExecutionAPI;
-    use ethers::utils::rlp::encode;
+    use ethers::{
+        types::{TransactionReceipt, H256},
+        utils::rlp::encode,
+    };
     use eyre::{anyhow, Result};
     use hasher::HasherKeccak;
     use std::sync::Arc;

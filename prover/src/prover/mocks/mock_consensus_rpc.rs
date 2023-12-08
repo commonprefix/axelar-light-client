@@ -25,7 +25,21 @@ impl MockConsensusRPC {
 }
 
 #[async_trait]
-impl CustomConsensusApi for MockConsensusRPC {
+impl EthBeaconAPI for MockConsensusRPC {
+    async fn get_beacon_block_header(&self, slot: u64) -> Result<BeaconBlockHeader, RPCError> {
+        let filename = format!("./src/prover/testdata/beacon_block_headers/{}.json", slot);
+        let file = File::open(filename).unwrap();
+        let res: BeaconBlockHeader = serde_json::from_reader(file).unwrap();
+        Ok(res)
+    }
+
+    async fn get_beacon_block(&self, slot: u64) -> Result<BeaconBlockAlias, RPCError> {
+        let filename = format!("./src/prover/testdata/beacon_blocks/{}.json", slot);
+        let file = File::open(filename).unwrap();
+        let res: BeaconBlockAlias = serde_json::from_reader(file).unwrap();
+        Ok(res)
+    }
+
     async fn get_block_roots_tree(
         &self,
         _start_slot: u64,
@@ -41,23 +55,6 @@ impl CustomConsensusApi for MockConsensusRPC {
 
     async fn get_latest_beacon_block(&self) -> Result<BeaconBlockAlias, RPCError> {
         unimplemented!();
-    }
-}
-
-#[async_trait]
-impl EthBeaconAPI for MockConsensusRPC {
-    async fn get_beacon_block_header(&self, slot: u64) -> Result<BeaconBlockHeader, RPCError> {
-        let filename = format!("./src/prover/testdata/beacon_block_headers/{}.json", slot);
-        let file = File::open(filename).unwrap();
-        let res: BeaconBlockHeader = serde_json::from_reader(file).unwrap();
-        Ok(res)
-    }
-
-    async fn get_beacon_block(&self, slot: u64) -> Result<BeaconBlockAlias, RPCError> {
-        let filename = format!("./src/prover/testdata/beacon_blocks/{}.json", slot);
-        let file = File::open(filename).unwrap();
-        let res: BeaconBlockAlias = serde_json::from_reader(file).unwrap();
-        Ok(res)
     }
 
     async fn get_block_root(&self, _slot: u64) -> Result<Root, RPCError> {

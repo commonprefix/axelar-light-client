@@ -12,6 +12,8 @@ use sync_committee_rs::constants::{
 
 const CAPELLA_FORK_SLOT: u64 = CAPELLA_FORK_EPOCH * SLOTS_PER_EPOCH;
 
+struct ConsensusProver;
+
 /**
  * Generates a merkle proof from the transaction to the beacon block root.
 */
@@ -57,7 +59,7 @@ pub async fn generate_receipts_root_proof(
  * using either the block_roots or the historical_roots beacon state property.
 */
 pub async fn prove_ancestry(
-    consensus: &dyn CustomConsensusApi,
+    consensus: &dyn EthBeaconAPI,
     state_prover: &dyn StateProverAPI,
     target_block_slot: usize,
     recent_block_slot: usize,
@@ -139,7 +141,7 @@ async fn prove_historical_summaries_proof(
 }
 
 async fn prove_block_root_to_block_summary_root(
-    consensus: &dyn CustomConsensusApi,
+    consensus: &dyn EthBeaconAPI,
     target_block_slot: &u64,
 ) -> Result<Vec<Node>> {
     let block_root_index = *target_block_slot as usize % SLOTS_PER_HISTORICAL_ROOT;
@@ -162,7 +164,7 @@ async fn prove_block_root_to_block_summary_root(
  * in a slot less than recent_block_slot - SLOTS_PER_HISTORICAL_ROOT.
  */
 pub async fn prove_ancestry_with_historical_summaries(
-    consensus: &dyn CustomConsensusApi,
+    consensus: &dyn EthBeaconAPI,
     state_prover: &dyn StateProverAPI,
     target_block_slot: &u64,
     recent_block_state_id: &str,

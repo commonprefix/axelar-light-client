@@ -26,14 +26,14 @@ use ssz_rs::{Merkleized, Node};
 use self::{state_prover::StateProver, types::ProofAuxiliaryData};
 
 pub struct Prover<'a> {
-    consensus_rpc: &'a ConsensusRPC,
+    consensus_rpc: &'a dyn EthBeaconAPI,
     execution_rpc: &'a ExecutionRPC,
     state_prover: &'a StateProver,
 }
 
 impl<'a> Prover<'a> {
     pub fn new(
-        consensus_rpc: &'a ConsensusRPC,
+        consensus_rpc: &'a dyn EthBeaconAPI,
         execution_rpc: &'a ExecutionRPC,
         state_prover: &'a StateProver,
     ) -> Self {

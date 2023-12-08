@@ -3,6 +3,7 @@ use crate::types::*;
 use crate::utils::get;
 use async_trait::async_trait;
 use futures::future;
+use mockall::automock;
 use ssz_rs::Vector;
 use std::cmp;
 use sync_committee_rs::{
@@ -20,10 +21,6 @@ pub trait EthBeaconAPI {
     async fn get_optimistic_update(&self) -> Result<OptimisticUpdate, RPCError>;
     async fn get_beacon_block_header(&self, slot: u64) -> Result<BeaconBlockHeader, RPCError>;
     async fn get_beacon_block(&self, slot: u64) -> Result<BeaconBlockAlias, RPCError>;
-}
-
-#[async_trait]
-pub trait CustomConsensusApi {
     async fn get_block_roots_tree(
         &self,
         start_slot: u64,
@@ -44,6 +41,7 @@ impl ConsensusRPC {
     }
 }
 
+#[automock]
 #[async_trait]
 impl EthBeaconAPI for ConsensusRPC {
     async fn get_block_root(&self, slot: u64) -> Result<Root, RPCError> {
@@ -108,10 +106,7 @@ impl EthBeaconAPI for ConsensusRPC {
 
         Ok(res.data.message)
     }
-}
 
-#[async_trait]
-impl CustomConsensusApi for ConsensusRPC {
     async fn get_latest_beacon_block(&self) -> Result<BeaconBlockAlias, RPCError> {
         let req = format!("{}/eth/v2/beacon/blocks/head", self.rpc);
         let res: BeaconBlockResponse = get(&req).await?;
