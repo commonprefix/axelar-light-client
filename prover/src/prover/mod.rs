@@ -15,18 +15,13 @@ use consensus_types::{
     proofs::{MessageProof, ReceiptProof, TransactionProof, UpdateVariant},
 };
 use eth::{
-    consensus::EthBeaconAPI,
-    execution::{EthExecutionAPI, ExecutionRPC},
-    types::InternalMessage,
+    consensus::EthBeaconAPI, execution::EthExecutionAPI, types::InternalMessage,
     utils::calc_slot_from_timestamp,
 };
 use eyre::{anyhow, Context, Result};
 use ssz_rs::{Merkleized, Node};
 
-use self::{
-    state_prover::{StateProver, StateProverAPI},
-    types::ProofAuxiliaryData,
-};
+use self::{state_prover::StateProverAPI, types::ProofAuxiliaryData};
 
 pub struct Prover<'a> {
     consensus_rpc: &'a dyn EthBeaconAPI,
@@ -201,7 +196,7 @@ mod tests {
     use std::fs::File;
 
     use super::state_prover::MockStateProver;
-    use consensus_types::consensus::{BeaconBlockAlias, FinalityUpdate, OptimisticUpdate, Update};
+    use consensus_types::consensus::{BeaconBlockAlias, FinalityUpdate, OptimisticUpdate};
     use consensus_types::proofs::{CrossChainId, Message, UpdateVariant};
     use eth::consensus::MockConsensusRPC;
     use eth::error::RPCError;
