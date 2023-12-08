@@ -3,24 +3,24 @@ use std::{
     sync::Arc,
 };
 
-use alloy_dyn_abi::EventExt;
 use alloy_json_abi::{AbiItem, JsonAbi};
-use alloy_primitives::{Bytes, FixedBytes, Log};
-use alloy_rlp::encode;
 use cita_trie::{MemoryDB, PatriciaTrie, Trie};
 use cosmwasm_std::StdError;
 use eyre::Result;
+use types::alloy_dyn_abi::EventExt;
+use types::alloy_primitives::{Bytes, FixedBytes, Log};
+use types::alloy_rlp::encode;
 
 use crate::ContractError;
 use hasher::{Hasher, HasherKeccak};
-use ssz_rs::{
+use types::execution::{ReceiptLogs, RECEIPTS_ROOT_GINDEX};
+use types::proofs::{AncestryProof, ReceiptProof, TransactionProof};
+use types::ssz_rs::{
     get_generalized_index, is_valid_merkle_branch, verify_merkle_proof, GeneralizedIndex,
     Merkleized, Node, SszVariableOrIndex, Vector,
 };
-use sync_committee_rs::consensus_types::BeaconBlockHeader;
-use sync_committee_rs::constants::{Bytes32, Root, SLOTS_PER_HISTORICAL_ROOT};
-use types::execution::{ReceiptLogs, RECEIPTS_ROOT_GINDEX};
-use types::proofs::{AncestryProof, ReceiptProof, TransactionProof};
+use types::sync_committee_rs::consensus_types::BeaconBlockHeader;
+use types::sync_committee_rs::constants::{Bytes32, Root, SLOTS_PER_HISTORICAL_ROOT};
 use types::{
     execution::{ContractCallBase, ReceiptLog},
     lightclient::Message,
@@ -175,7 +175,7 @@ pub fn extract_logs_from_receipt_proof(
 }
 
 pub fn parse_logs_from_receipt(receipt: &[u8]) -> Result<ReceiptLogs> {
-    let logs: ReceiptLogs = alloy_rlp::Decodable::decode(&mut &receipt[..])?;
+    let logs: ReceiptLogs = types::alloy_rlp::Decodable::decode(&mut &receipt[..])?;
     Ok(logs)
 }
 

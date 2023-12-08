@@ -5,4 +5,8 @@ pub mod helpers;
 pub mod lightclient;
 pub mod primitives;
 pub mod proofs;
+pub use alloy_dyn_abi;
 pub use alloy_primitives;
+pub use alloy_rlp;
+pub use ssz_rs;
+pub use sync_committee_rs;

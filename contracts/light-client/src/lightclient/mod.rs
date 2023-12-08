@@ -7,13 +7,13 @@ use error::ConsensusError;
 use eyre::Result;
 use helpers::is_proof_valid;
 use milagro_bls::{AggregateSignature, PublicKey};
-use ssz_rs::prelude::*;
-use sync_committee_rs::{
+use types::proofs::UpdateVariant;
+use types::ssz_rs::prelude::*;
+use types::sync_committee_rs::{
     consensus_types::{BeaconBlockHeader, ForkData, SyncCommittee},
     constants::{BlsSignature, Bytes32, SYNC_COMMITTEE_SIZE},
     util::SigningData,
 };
-use types::proofs::UpdateVariant;
 use types::{common::ChainConfig, consensus::*, lightclient::LightClientState};
 
 use self::helpers::calc_sync_period;

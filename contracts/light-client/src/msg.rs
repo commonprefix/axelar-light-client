@@ -1,5 +1,4 @@
 use cosmwasm_schema::cw_serde;
-
 use types::lightclient::{Message, MessageVerification};
 use types::{
     common::{ChainConfig, Forks},

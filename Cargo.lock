@@ -2713,10 +2713,7 @@ dependencies = [
 name = "light-client"
 version = "0.1.0"
 dependencies = [
- "alloy-dyn-abi",
  "alloy-json-abi",
- "alloy-primitives",
- "alloy-rlp",
  "cita_trie",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -2731,8 +2728,6 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "ssz-rs",
- "sync-committee-primitives",
  "thiserror",
  "types",
 ]
@@ -4996,7 +4991,6 @@ dependencies = [
  "eyre",
  "hex",
  "serde",
- "serde_json",
  "ssz-rs",
  "sync-committee-primitives",
 ]
