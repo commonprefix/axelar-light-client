@@ -215,14 +215,14 @@ impl LightClient {
     }
 
     pub fn extract_recent_block(&self, update: &UpdateVariant) -> Result<BeaconBlockHeader> {
-        match update.clone() {
+        match update {
             UpdateVariant::Finality(update) => {
                 update.verify(self)?;
-                Ok(update.finalized_header.beacon)
+                Ok(update.finalized_header.beacon.clone())
             }
             UpdateVariant::Optimistic(update) => {
                 update.verify(self)?;
-                Ok(update.attested_header.beacon)
+                Ok(update.attested_header.beacon.clone())
             }
         }
     }

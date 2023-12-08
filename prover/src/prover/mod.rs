@@ -20,7 +20,6 @@ use eth::{
     types::InternalMessage,
     utils::calc_slot_from_timestamp,
 };
-use ethers::utils::rlp::encode;
 use eyre::{anyhow, Context, Result};
 use ssz_rs::{Merkleized, Node};
 
@@ -51,7 +50,7 @@ impl<'a> Prover<'a> {
         update: UpdateVariant,
     ) -> Result<MessageVerification> {
         let proof_data = self
-            .gather_proof_data(&message, &update)
+            .gather_proof_data(message, &update)
             .await
             .wrap_err(format!(
                 "Failed to gather proof data for message {:?}",

@@ -5,14 +5,14 @@ use std::cmp::Ordering;
 
 pub const RECEIPTS_ROOT_GINDEX: usize = 3219;
 
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
+#[derive(Default)]
 pub struct ReceiptLog {
     pub address: [u8; 20],
     pub topics: Vec<[u8; 32]>,
     pub data: Vec<u8>,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct ContractCallBase {
     pub source_address: Option<Address>,
     pub destination_chain: Option<String>,
@@ -20,7 +20,7 @@ pub struct ContractCallBase {
     pub payload_hash: Option<[u8; 32]>,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct ReceiptLogs(pub Vec<ReceiptLog>);
 
 impl ReceiptLogs {

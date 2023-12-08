@@ -15,12 +15,12 @@ pub struct InternalMessage {
 
 pub type UpdateResponse = Vec<UpdateData>;
 
-#[derive(serde::Deserialize, Debug)]
+#[derive(serde::Deserialize)]
 pub struct UpdateData {
     pub data: Update,
 }
 
-#[derive(serde::Deserialize, Debug)]
+#[derive(serde::Deserialize)]
 pub struct BootstrapResponse {
     pub data: Bootstrap,
 }
@@ -49,12 +49,12 @@ pub struct BeaconBlockResponse {
 pub struct BeaconBlockContainer {
     pub message: BeaconBlockAlias,
 }
-#[derive(serde::Deserialize, Debug)]
+#[derive(serde::Deserialize)]
 pub struct FinalityUpdateData {
     pub data: FinalityUpdate,
 }
 
-#[derive(serde::Deserialize, Debug)]
+#[derive(serde::Deserialize)]
 pub struct OptimisticUpdateData {
     pub data: OptimisticUpdate,
 }

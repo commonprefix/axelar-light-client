@@ -8,7 +8,7 @@ use sync_committee_rs::{
     constants::{Root, MAX_BYTES_PER_TRANSACTION},
 };
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct MessageProof {
     // Proof from sync committee signed block to a recent block (either finalized or optimistic)
     pub update: UpdateVariant,
@@ -22,7 +22,9 @@ pub struct MessageProof {
     pub receipt_proof: ReceiptProof,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "clone", derive(Clone))]
+#[cfg_attr(feature = "debug", derive(Debug))]
 pub enum UpdateVariant {
     // LightClientFinalityUpdate from the beacon API spec.
     Finality(FinalityUpdate),
@@ -30,7 +32,7 @@ pub enum UpdateVariant {
     Optimistic(OptimisticUpdate),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub enum AncestryProof {
     // This variant defines the proof data for a beacon chain header in the `state.block_roots`.
     BlockRoots {
@@ -53,7 +55,7 @@ pub enum AncestryProof {
     },
 }
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct TransactionProof {
     // Same index of transaction to transaction trie and from receipt to receipt trie
     pub transaction_index: u64,
@@ -65,7 +67,7 @@ pub struct TransactionProof {
     pub transaction: Transaction<MAX_BYTES_PER_TRANSACTION>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct ReceiptProof {
     // Proof from receipts root to beacon block
     pub receipts_root_proof: Vec<Node>,

@@ -6,13 +6,13 @@ use types::{
     consensus::{Bootstrap, Update},
 };
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct InstantiateMsg {
     pub bootstrap: Bootstrap,
     pub config: ChainConfig,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize)]
 #[allow(clippy::large_enum_variant)] // TODO: Properly fix this
 pub enum ExecuteMsg {
     LightClientUpdate { period: u64, update: Update },

@@ -7,7 +7,7 @@ use sync_committee_rs::{
     constants::SYNC_COMMITTEE_SIZE,
 };
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
+#[derive(serde::Serialize, serde::Deserialize, Default)]
 pub struct LightClientState {
     pub finalized_header: BeaconBlockHeader,
     pub current_sync_committee: SyncCommittee<SYNC_COMMITTEE_SIZE>,
@@ -16,7 +16,7 @@ pub struct LightClientState {
     pub current_max_active_participants: u64,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct MessageVerification {
     pub message: Message,
     pub proofs: MessageProof,

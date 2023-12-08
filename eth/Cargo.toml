@@ -17,5 +17,5 @@ ssz-rs = {git = "https://github.com/commonprefix/ssz-rs", branch = "main"}
 sync-committee-rs = {package = "sync-committee-primitives", git = "https://github.com/commonprefix/sync-committee-rs", branch = "cp_changes", default-features = false, features = ["serialize"]}
 thiserror = {version = "1.0.31"}
 reqwest = "0.11.22"
-types = {path = "../types"}
+types = {path = "../types", features = ["clone", "debug"]}
 tokio = {version = "1.4.0", features = ["rt", "rt-multi-thread", "macros"]}
