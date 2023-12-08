@@ -98,7 +98,6 @@ pub fn verify_block_roots_proof(
     leaf_root: &Node,
     root: &Node,
 ) -> Result<()> {
-    // TODO: compute gindex
     if !verify_merkle_proof(
         leaf_root,
         block_root_proof.as_slice(),
@@ -204,12 +203,10 @@ pub fn parse_log(log: &ReceiptLog) -> Result<ContractCallBase, StdError> {
             }) {
                 let topics: Vec<FixedBytes<32>> = log.topics.iter().map(FixedBytes::from).collect();
 
-                // TODO: unchecked -> checked
-                // TODO: set validate = true
                 let decoded = e
                     .decode_log(
-                        &Log::new_unchecked(topics, Bytes::from(log.data.clone())),
-                        false,
+                        &Log::new(topics, Bytes::from(log.data.clone())).unwrap(),
+                        true,
                     )
                     .map_err(|e| StdError::GenericErr { msg: e.to_string() })?;
 
