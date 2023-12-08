@@ -1,7 +1,7 @@
 use crate::ContractError;
 use cosmwasm_std::{DepsMut, Env, Response};
 use eyre::Result;
-use types:common::ChainConfig;
+use types::common::ChainConfig;
 use types::lightclient::MessageVerification;
 use types::ssz_rs::Merkleized;
 use types::{common::Forks, consensus::Update};
