@@ -405,8 +405,8 @@ where
 pub mod test_helpers {
     use std::fs::File;
 
-    use ssz_rs::Node;
     use types::lightclient::MessageVerification;
+    use types::ssz_rs::Node;
     use types::{
         common::{ChainConfig, Fork, Forks},
         consensus::{Bootstrap, Update},

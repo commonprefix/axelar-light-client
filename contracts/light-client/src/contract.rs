@@ -125,7 +125,7 @@ mod tests {
     };
     use cosmwasm_std::{testing::mock_env, Addr, Timestamp};
     use cw_multi_test::{App, ContractWrapper, Executor};
-    use sync_committee_rs::constants::BlsSignature;
+    use types::sync_committee_rs::constants::BlsSignature;
     use types::{
         common::{ChainConfig, Fork, Forks},
         lightclient::LightClientState,

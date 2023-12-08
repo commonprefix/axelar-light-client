@@ -13,13 +13,13 @@ pub mod tests {
     };
     use cosmwasm_std::testing::mock_env;
     use cosmwasm_std::Timestamp;
-    use ssz_rs::{Bitvector, Node};
-    use sync_committee_rs::{
+    use types::consensus::Bootstrap;
+    use types::lightclient::LightClientState;
+    use types::ssz_rs::{Bitvector, Node};
+    use types::sync_committee_rs::{
         consensus_types::BeaconBlockHeader,
         constants::{BlsPublicKey, BlsSignature},
     };
-    use types::consensus::Bootstrap;
-    use types::lightclient::LightClientState;
 
     pub fn init_lightclient(bootstrap: Option<Bootstrap>) -> LightClient {
         let bootstrap = if bootstrap.is_some() {

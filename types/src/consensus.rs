@@ -11,8 +11,7 @@ use sync_committee_rs::constants::{
 
 pub use sync_committee_rs::consensus_types::BeaconBlockHeader;
 
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
-#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct BeaconHeader {
     pub beacon: BeaconBlockHeader,
 }
@@ -60,17 +59,14 @@ pub fn to_beacon_header(block: &BeaconBlockAlias) -> eyre::Result<BeaconBlockHea
     })
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct Bootstrap {
     pub header: BeaconHeader,
     pub current_sync_committee: SyncCommittee<SYNC_COMMITTEE_SIZE>,
     pub current_sync_committee_branch: Vec<Bytes32>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "clone", derive(Clone))]
-#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct Update {
     pub attested_header: BeaconHeader,
     pub next_sync_committee: SyncCommittee<SYNC_COMMITTEE_SIZE>,
@@ -94,9 +90,7 @@ impl Update {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "clone", derive(Clone))]
-#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct FinalityUpdate {
     pub attested_header: BeaconHeader,
     pub finalized_header: BeaconHeader,
@@ -116,9 +110,7 @@ impl FinalityUpdate {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "clone", derive(Clone))]
-#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct OptimisticUpdate {
     pub attested_header: BeaconHeader,
     pub sync_aggregate: SyncAggregate<SYNC_COMMITTEE_SIZE>,
