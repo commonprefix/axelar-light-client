@@ -31,15 +31,12 @@ async fn main() {
         .await
         .unwrap();
 
-    let first_message = interested_messages.first().unwrap();
+    let mut first_message = interested_messages.first().unwrap().clone();
 
     let now = Instant::now();
 
     let proof = prover
-        .prove_event(
-            first_message.clone(),
-            UpdateVariant::Finality(finality_update),
-        )
+        .prove_event(&mut first_message, UpdateVariant::Finality(finality_update))
         .await
         .unwrap();
 

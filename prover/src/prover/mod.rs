@@ -47,7 +47,7 @@ impl<'a> Prover<'a> {
 
     pub async fn prove_event(
         &self,
-        message: InternalMessage,
+        message: &mut InternalMessage,
         update: UpdateVariant,
     ) -> Result<MessageVerification> {
         let proof_data = self
@@ -69,7 +69,23 @@ impl<'a> Prover<'a> {
         let tx_index = get_tx_index(&receipts, &message.message.cc_id)?;
         let transaction =
             target_beacon_block.body.execution_payload.transactions[tx_index as usize].clone();
-        let receipt = encode(&receipts[tx_index as usize].clone());
+
+        let log_index_str = message.message.cc_id.id.split(':').nth(1).unwrap();
+        let log_index: usize = log_index_str.parse()?;
+
+        let mut logs_before_tx = 0;
+        for idx in 0..tx_index {
+            logs_before_tx += receipts.get(idx as usize).unwrap().logs.len();
+        }
+
+        let colon_position = message.message.cc_id.id.find(':').unwrap();
+        // TODO: Remove on production
+        message.message.cc_id.id = format!(
+            "{}:{}",
+            &message.message.cc_id.id[..colon_position],
+            log_index - logs_before_tx
+        )
+        .try_into()?;
 
         // Execution Proofs
         let receipt_proof =
