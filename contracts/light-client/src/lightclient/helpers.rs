@@ -7,7 +7,7 @@ use alloy_dyn_abi::EventExt;
 use alloy_json_abi::{AbiItem, JsonAbi};
 use cita_trie::{MemoryDB, PatriciaTrie, Trie};
 use cosmwasm_std::StdError;
-use eyre::Result;
+use eyre::{anyhow, eyre, Result};
 use types::alloy_primitives::{Bytes, FixedBytes, Log};
 use types::alloy_rlp::encode;
 
@@ -266,21 +266,27 @@ pub fn parse_log(log: &ReceiptLog) -> Result<ContractCallBase, StdError> {
     })
 }
 
-pub fn verify_message(message: &Message, log: &ReceiptLog, transaction: &Vec<u8>) -> bool {
+pub fn verify_message(message: &Message, log: &ReceiptLog, transaction: &Vec<u8>) -> Result<()> {
     let hasher = HasherKeccak::new();
     let transaction_hash = hex::encode(hasher.digest(transaction.as_slice()));
 
     // TODO: don't hardcode
     let gateway_address =
         hex::decode("4f4495243837681061c4743b74b3eedf548d56a5").unwrap_or_default();
-    let message_id = message.cc_id.id.split(':').collect::<Vec<&str>>();
-    let message_tx_hash = message_id[0].strip_prefix("0x").unwrap_or_default();
 
-    let event = parse_log(log).unwrap_or_default();
-    // println!("{:?}", log);
+    let message_tx_hash = message
+        .cc_id
+        .id
+        .split(':')
+        .nth(0)
+        .ok_or_else(|| anyhow!("Failed to extract transaction hash from Message."))?
+        .strip_prefix("0x")
+        .ok_or_else(|| anyhow!("Invalid transaction hash format."))?;
 
-    // TODO: verify that values are not empty
-    message_tx_hash == transaction_hash
+    let event = parse_log(log)?;
+
+    // TODO: verify that values are not empty/default
+    if !(message_tx_hash == transaction_hash
         && gateway_address == log.address
         && *message.source_address.to_string().to_lowercase()
             == event
@@ -292,7 +298,11 @@ pub fn verify_message(message: &Message, log: &ReceiptLog, transaction: &Vec<u8>
             == event.destination_chain.unwrap_or_default().to_lowercase()
         && *message.destination_address.to_string().to_lowercase()
             == event.destination_address.unwrap_or_default().to_lowercase()
-        && message.payload_hash == event.payload_hash.unwrap_or_default()
+        && message.payload_hash == event.payload_hash.unwrap_or_default())
+    {
+        return Err(eyre!("Invalid message"));
+    }
+    Ok(())
 }
 
 pub fn branch_to_nodes(branch: Vec<Bytes32>) -> Result<Vec<Node>> {

@@ -34,14 +34,12 @@ pub fn process_verification_data(
 
     let log_index_str = message.cc_id.id.split(':').nth(1).unwrap();
     let log_index: usize = log_index_str.parse()?;
-    if verify_message(
+    verify_message(
         message,
         logs.0.get(log_index).unwrap(),
         &proofs.transaction_proof.transaction,
-    ) {
-        return Ok(());
-    }
-    Err(ContractError::InvalidMessage.into())
+    )?;
+    Ok(())
 }
 
 pub fn light_client_update(
