@@ -32,11 +32,14 @@ pub fn process_verification_data(
         &target_block_root,
     )?;
 
-    // TODO: use log index
-    for log in logs.0.iter() {
-        if verify_message(message, log, &proofs.transaction_proof.transaction) {
-            return Ok(());
-        }
+    let log_index_str = message.cc_id.id.split(':').nth(1).unwrap();
+    let log_index: usize = log_index_str.parse()?;
+    if verify_message(
+        message,
+        logs.0.get(log_index).unwrap(),
+        &proofs.transaction_proof.transaction,
+    ) {
+        return Ok(());
     }
     Err(ContractError::InvalidMessage.into())
 }
