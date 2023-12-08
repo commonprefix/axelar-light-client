@@ -66,7 +66,7 @@ pub struct Bootstrap {
     pub current_sync_committee_branch: Vec<Bytes32>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct Update {
     pub attested_header: BeaconHeader,
     pub next_sync_committee: SyncCommittee<SYNC_COMMITTEE_SIZE>,
@@ -90,7 +90,7 @@ impl Update {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct FinalityUpdate {
     pub attested_header: BeaconHeader,
     pub finalized_header: BeaconHeader,
@@ -110,7 +110,7 @@ impl FinalityUpdate {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct OptimisticUpdate {
     pub attested_header: BeaconHeader,
     pub sync_aggregate: SyncAggregate<SYNC_COMMITTEE_SIZE>,

@@ -3,7 +3,7 @@ use crate::prover::{
     types::{GindexOrPath, ProofResponse},
 };
 use consensus_types::{consensus::BeaconStateType, proofs::AncestryProof};
-use eth::consensus::CustomConsensusApi;
+use eth::consensus::EthBeaconAPI;
 use eyre::{anyhow, Result};
 use ssz_rs::{get_generalized_index, Node, SszVariableOrIndex, Vector};
 use sync_committee_rs::constants::{

@@ -169,7 +169,7 @@ impl<'a> Prover<'a> {
                 message.block_number
             ))?;
 
-        let receipts = self
+        let receipts: Vec<ethers::types::TransactionReceipt> = self
             .execution_rpc
             .get_block_receipts(message.block_number)
             .await

@@ -2,10 +2,7 @@ use async_trait::async_trait;
 use consensus_types::consensus::{
     BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update,
 };
-use eth::{
-    consensus::{CustomConsensusApi, EthBeaconAPI},
-    error::RPCError,
-};
+use eth::{consensus::EthBeaconAPI, error::RPCError};
 use eyre::Result;
 use serde_json;
 use ssz_rs::Vector;

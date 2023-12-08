@@ -16,14 +16,14 @@ pub struct ProofAuxiliaryData {
     pub recent_block_header: BeaconBlockHeader,
 }
 
-#[derive(Deserialize, Debug, Serialize, Default)]
+#[derive(Deserialize, Debug, Serialize, Default, Clone)]
 pub struct ProofResponse {
     pub gindex: u64,
     pub witnesses: Vec<Node>,
     pub leaf: Node,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum GindexOrPath {
     Gindex(usize),
     Path(Vec<SszVariableOrIndex>),

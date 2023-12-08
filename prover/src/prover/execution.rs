@@ -36,7 +36,11 @@ pub fn generate_receipt_proof(
 }
 
 pub fn get_tx_index(receipts: &[TransactionReceipt], cc_id: &CrossChainId) -> Result<u64> {
-    let tx_hash = cc_id.id.split_once(':').unwrap().0;
+    let tx_hash = cc_id
+        .id
+        .split_once(':')
+        .ok_or_else(|| anyhow!("Invalid CrossChainId format. {:?}", cc_id))?
+        .0;
 
     let tx_index = receipts
         .iter()
@@ -118,8 +122,14 @@ mod tests {
         }
     }
 
+    fn get_mock_receipt() -> TransactionReceipt {
+        let mut receipt = TransactionReceipt::default();
+        receipt.transaction_hash = H256::random();
+        receipt
+    }
+
     #[tokio_test]
-    async fn test_receipts_proof() {
+    async fn test_receipts_proof_valid() {
         let execution_rpc = MockExecutionRPC::new();
         let execution_block = execution_rpc
             .get_block_with_txs(18615160)
@@ -133,9 +143,67 @@ mod tests {
         let root = Root::from_bytes(bytes.unwrap());
 
         let valid_proof = verify_trie_proof(root, 1, proof.clone());
-        let invalid_proof = verify_trie_proof(root, 2, proof);
 
         assert!(valid_proof.is_ok());
+    }
+
+    #[tokio_test]
+    async fn test_receipts_proof_invalid() {
+        let execution_rpc = MockExecutionRPC::new();
+        let execution_block = execution_rpc
+            .get_block_with_txs(18615160)
+            .await
+            .unwrap()
+            .unwrap();
+        let receipts = execution_rpc.get_block_receipts(18615160).await.unwrap();
+
+        let proof = generate_receipt_proof(&execution_block, &receipts, 1).unwrap();
+        let bytes: Result<[u8; 32], _> = execution_block.receipts_root[0..32].try_into();
+        let root = Root::from_bytes(bytes.unwrap());
+
+        let invalid_proof = verify_trie_proof(root, 2, proof);
+
         assert!(invalid_proof.is_err());
+    }
+
+    #[test]
+    fn test_get_tx_index_valid() {
+        let receipts = vec![get_mock_receipt(), get_mock_receipt(), get_mock_receipt()];
+
+        for (i, receipt) in receipts.iter().enumerate() {
+            let cc_id = CrossChainId {
+                id: format!("0x{:x}:15", receipt.transaction_hash)
+                    .parse()
+                    .unwrap(),
+                chain: "ethereum".parse().unwrap(),
+            };
+            let index = get_tx_index(&receipts, &cc_id).unwrap();
+            assert_eq!(index, i as u64);
+        }
+    }
+
+    #[test]
+    fn test_get_tx_index_invalid() {
+        let receipts = vec![get_mock_receipt(), get_mock_receipt(), get_mock_receipt()];
+        let random_tx_hash = H256::random();
+
+        let cc_id = CrossChainId {
+            id: format!("0x{:x}:15", random_tx_hash).parse().unwrap(),
+            chain: "ethereum".parse().unwrap(),
+        };
+        let index = get_tx_index(&receipts, &cc_id);
+        assert!(index.is_err())
+    }
+
+    #[test]
+    fn test_get_tx_index_invalid_cc_id_format() {
+        let receipts = vec![get_mock_receipt()];
+        let cc_id = CrossChainId {
+            id: "invalid_format".parse().unwrap(),
+            chain: "ethereum".parse().unwrap(),
+        };
+
+        let result = get_tx_index(&receipts, &cc_id);
+        assert!(result.is_err());
     }
 }
