@@ -1,4 +1,4 @@
-use crate::execution::ExecutionAPI;
+use crate::execution::EthExecutionAPI;
 use crate::types::InternalMessage;
 use crate::utils::calc_slot_from_timestamp;
 use ethers::abi::{Bytes, RawLog};
@@ -131,7 +131,7 @@ impl Gateway {
 
     pub async fn get_messages_in_slot_range(
         &self,
-        execution: &dyn ExecutionAPI,
+        execution: &dyn EthExecutionAPI,
         from_slot: u64,
         to_slot: u64,
     ) -> Result<Vec<InternalMessage>> {

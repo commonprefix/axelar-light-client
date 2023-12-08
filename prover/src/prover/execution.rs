@@ -90,7 +90,7 @@ mod tests {
     };
     use cita_trie::{MemoryDB, PatriciaTrie, Trie};
     use consensus_types::proofs::CrossChainId;
-    use eth::execution::ExecutionAPI;
+    use eth::execution::EthExecutionAPI;
     use ethers::{
         types::{TransactionReceipt, H256},
         utils::rlp::encode,

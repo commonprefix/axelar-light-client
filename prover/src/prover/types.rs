@@ -5,6 +5,7 @@ use ssz_rs::{Node, SszVariableOrIndex};
 use sync_committee_rs::consensus_types::BeaconBlockHeader;
 
 // Neccessary data for proving a message
+#[derive(Debug)]
 pub struct ProofAuxiliaryData {
     // Target execution block that contains the transaction/log.
     pub target_execution_block: Block<Transaction>,

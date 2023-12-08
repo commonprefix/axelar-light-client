@@ -10,7 +10,7 @@ use mockall::automock;
 use crate::error::RpcError;
 
 #[async_trait]
-pub trait ExecutionAPI {
+pub trait EthExecutionAPI {
     async fn get_block_receipts(&self, block_number: u64) -> Result<Vec<TransactionReceipt>>;
     async fn get_block(&self, block_number: u64) -> Result<Option<Block<H256>>>;
     async fn get_block_with_txs(&self, block_number: u64) -> Result<Option<Block<Transaction>>>;
@@ -37,7 +37,7 @@ impl ExecutionRPC {
 
 #[automock]
 #[async_trait]
-impl ExecutionAPI for ExecutionRPC {
+impl EthExecutionAPI for ExecutionRPC {
     async fn get_block_receipts(&self, block_number: u64) -> Result<Vec<TransactionReceipt>> {
         let block_receipts = self.provider.get_block_receipts(block_number).await?;
 
