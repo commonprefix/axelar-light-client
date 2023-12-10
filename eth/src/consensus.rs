@@ -13,7 +13,7 @@ use sync_committee_rs::{
 use types::consensus::{BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update};
 
 #[async_trait]
-pub trait EthBeaconAPI {
+pub trait EthBeaconAPI: Sync + Send + 'static {
     async fn get_block_root(&self, slot: u64) -> Result<Root, RPCError>;
     async fn get_bootstrap(&self, block_root: &'_ [u8]) -> Result<Bootstrap, RPCError>;
     async fn get_updates(&self, period: u64, count: u8) -> Result<Vec<Update>, RPCError>;

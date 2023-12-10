@@ -8,7 +8,7 @@ use super::utils::parse_path;
 
 #[automock]
 #[async_trait]
-pub trait StateProverAPI {
+pub trait StateProverAPI: Sync + Send + 'static {
     async fn get_state_proof(
         &self,
         state_id: &str,

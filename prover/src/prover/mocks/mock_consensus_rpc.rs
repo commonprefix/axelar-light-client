@@ -12,6 +12,7 @@ use sync_committee_rs::{
     constants::{Root, SLOTS_PER_HISTORICAL_ROOT},
 };
 
+#[derive(Clone)]
 pub struct MockConsensusRPC;
 
 #[allow(dead_code)]
