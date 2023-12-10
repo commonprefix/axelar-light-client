@@ -8,7 +8,7 @@ pub mod tests {
     use crate::lightclient::helpers::{
         extract_logs_from_receipt_proof, is_proof_valid, parse_logs_from_receipt,
         verify_ancestry_proof, verify_block_roots_proof, verify_historical_roots_proof,
-        verify_transaction_proof, verify_trie_proof,
+        verify_message, verify_transaction_proof, verify_trie_proof,
     };
     use crate::{
         lightclient::error::ConsensusError,
@@ -21,10 +21,13 @@ pub mod tests {
     };
     use cosmwasm_std::testing::mock_env;
     use cosmwasm_std::Timestamp;
+    use hasher::{Hasher, HasherKeccak};
+    use types::alloy_primitives::Address;
     use types::consensus::{Bootstrap, FinalityUpdate};
-    use types::lightclient::LightClientState;
+    use types::execution::ReceiptLog;
+    use types::lightclient::{CrossChainId, LightClientState, Message};
     use types::proofs::AncestryProof::HistoricalRoots;
-    use types::proofs::{AncestryProof, UpdateVariant};
+    use types::proofs::{AddressType, AncestryProof, UpdateVariant};
     use types::ssz_rs::{Bitvector, Merkleized, Node};
     use types::sync_committee_rs::consensus_types::Transaction;
     use types::sync_committee_rs::constants::{Bytes32, Root};
@@ -512,6 +515,110 @@ pub mod tests {
         let mut invalid_proof = transaction_proof.clone();
         invalid_proof.transaction_gindex = invalid_proof.transaction_gindex + 1;
         assert!(verify_transaction_proof(&invalid_proof, &target_block_root).is_err());
+    }
+
+    #[test]
+    fn test_verify_message() {
+        let hasher = HasherKeccak::new();
+        let verification_data = get_verification_data_with_block_roots();
+        let message = verification_data.1.message;
+        let receipt_proof = verification_data.1.proofs.receipt_proof;
+        let transaction_proof = verification_data.1.proofs.transaction_proof;
+        let transaction_hash = hex::encode(hasher.digest(transaction_proof.transaction.as_slice()));
+
+        let log_index_str = message.cc_id.id.split(':').nth(1).unwrap();
+        let log_index: usize = log_index_str.parse().unwrap();
+        let logs = extract_logs_from_receipt_proof(
+            &receipt_proof,
+            transaction_proof.transaction_index,
+            &verification_data
+                .1
+                .proofs
+                .target_block
+                .clone()
+                .hash_tree_root()
+                .unwrap(),
+        )
+        .unwrap();
+        let log = logs.0[log_index].clone();
+
+        assert!(verify_message(&message, &log, &transaction_proof.transaction).is_ok());
+
+        // test source address check
+        let mut modified_log = log.clone();
+        // TODO: don't hardcode
+        assert_eq!(
+            modified_log.address,
+            hex::decode("4f4495243837681061c4743b74b3eedf548d56a5")
+                .unwrap()
+                .as_slice()
+        );
+        assert!(verify_message(&message, &modified_log, &transaction_proof.transaction).is_ok());
+        modified_log.address = Address::ZERO.to_vec().try_into().unwrap();
+        assert!(verify_message(&message, &modified_log, &transaction_proof.transaction).is_err());
+
+        // test transaction hash check
+        let mut modified_message = message.clone();
+        assert_eq!(
+            modified_message.cc_id.id.split(':').next().unwrap(),
+            "0x39c508536dbb1e48ee05d4c17bab7262bd18951725d3004fc0c58dab147f64c3"
+        );
+        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_ok());
+        modified_message.cc_id.id = String::from("foo:bar").try_into().unwrap();
+        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_err());
+        modified_message.cc_id.id = String::from("0x1234567:bar").try_into().unwrap();
+        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_err());
+
+        // test source_address check
+        let mut modified_message = message.clone();
+        assert_eq!(
+            modified_message.source_address.to_string().to_lowercase(),
+            "0xce16f69375520ab01377ce7b88f5ba8c48f8d666"
+        );
+        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_ok());
+        modified_message.source_address = Address::ZERO.to_string().try_into().unwrap();
+        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_err());
+
+        // test destination_chain check
+        let mut modified_message = message.clone();
+        assert_eq!(
+            modified_message
+                .destination_chain
+                .to_string()
+                .to_lowercase(),
+            "fantom"
+        );
+        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_ok());
+        modified_message.destination_chain = String::from("none").try_into().unwrap();
+        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_err());
+
+        // test destination_address check
+        let mut modified_message = message.clone();
+        assert_eq!(
+            modified_message.destination_address.to_string(),
+            "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
+        );
+        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_ok());
+        modified_message.destination_address = Address::ZERO.to_string().try_into().unwrap();
+        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_err());
+
+        // test payload_hash check
+        let mut modified_message = message.clone();
+        assert_eq!(
+            hex::encode(modified_message.payload_hash),
+            "44f95df5069da9568af3523591468aab99df0ef9c8328cb66bdfe0e612d9d037"
+        );
+        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_ok());
+        // TODO: generate [u8; 32] instead of hardcoding
+        modified_message.payload_hash = [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0,
+        ];
+        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_err());
+
+        // failure on invalid log
+        let log = ReceiptLog::default();
+        assert!(verify_message(&message, &log, &transaction_proof.transaction).is_err());
     }
 
     #[test]
