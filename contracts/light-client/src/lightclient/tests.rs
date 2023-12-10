@@ -2,6 +2,7 @@
 pub mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use crate::lightclient::helpers::is_proof_valid;
     use crate::{
         lightclient::error::ConsensusError,
         lightclient::LightClient,
@@ -16,6 +17,7 @@ pub mod tests {
     use types::consensus::Bootstrap;
     use types::lightclient::LightClientState;
     use types::ssz_rs::{Bitvector, Node};
+    use types::sync_committee_rs::constants::Bytes32;
     use types::sync_committee_rs::{
         consensus_types::BeaconBlockHeader,
         constants::{BlsPublicKey, BlsSignature},
@@ -43,6 +45,71 @@ pub mod tests {
         }
 
         client
+    }
+
+    #[test]
+    fn test_is_proof_valid() {
+        let mut update = get_update(862);
+
+        // success
+        assert!(is_proof_valid(
+            &update.attested_header.beacon.state_root,
+            &mut update.finalized_header.beacon,
+            &update.finality_branch,
+            6,
+            41
+        ));
+
+        // change depth, fail
+        assert!(!is_proof_valid(
+            &update.attested_header.beacon.state_root,
+            &mut update.finalized_header.beacon,
+            &update.finality_branch,
+            5,
+            41
+        ));
+
+        // change index, fail
+        assert!(!is_proof_valid(
+            &update.attested_header.beacon.state_root,
+            &mut update.finalized_header.beacon,
+            &update.finality_branch,
+            6,
+            40
+        ));
+
+        // tamper with the state root, fail
+        let mut invalid_update = update.clone();
+        invalid_update.attested_header.beacon.state_root.0[0] = 0;
+        assert!(!is_proof_valid(
+            &invalid_update.attested_header.beacon.state_root,
+            &mut invalid_update.finalized_header.beacon,
+            &invalid_update.finality_branch,
+            6,
+            40
+        ));
+
+        // tamper with the body of the finalized header, fail
+        let mut invalid_update = update.clone();
+        invalid_update.finalized_header.beacon.body_root.0[0] = 0;
+        assert!(!is_proof_valid(
+            &invalid_update.attested_header.beacon.state_root,
+            &mut invalid_update.finalized_header.beacon,
+            &invalid_update.finality_branch,
+            6,
+            40
+        ));
+
+        // tamper with the proof, fail
+        let mut invalid_update = update.clone();
+        invalid_update.finality_branch[0] = Bytes32::default();
+        assert!(!is_proof_valid(
+            &invalid_update.attested_header.beacon.state_root,
+            &mut invalid_update.finalized_header.beacon,
+            &invalid_update.finality_branch,
+            6,
+            40
+        ));
     }
 
     #[test]
