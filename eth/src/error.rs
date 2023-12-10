@@ -1,5 +1,4 @@
 use ethers::types::H256;
-use reqwest::Error;
 use thiserror::Error;
 
 #[derive(Debug, Error, Clone)]

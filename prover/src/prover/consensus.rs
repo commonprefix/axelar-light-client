@@ -1,4 +1,3 @@
-use super::state_prover;
 use crate::prover::{
     state_prover::StateProverAPI,
     types::{GindexOrPath, ProofResponse},
