@@ -8,7 +8,7 @@ use alloy_json_abi::{AbiItem, JsonAbi};
 use cita_trie::{MemoryDB, PatriciaTrie, Trie};
 use cosmwasm_std::StdError;
 use eyre::{anyhow, eyre, Result};
-use types::alloy_primitives::{Bytes, FixedBytes, Log};
+use types::alloy_primitives::{Address, Bytes, FixedBytes, Log};
 use types::alloy_rlp::encode;
 
 use crate::ContractError;
@@ -190,7 +190,7 @@ pub fn verify_transaction_proof(proof: &TransactionProof, target_block_root: &No
     Ok(())
 }
 
-pub fn parse_log(log: &ReceiptLog) -> Result<ContractCallBase, StdError> {
+pub fn parse_log(log: &ReceiptLog) -> Result<ContractCallBase> {
     let abi = JsonAbi::parse([
         "event ContractCall(address indexed sender,string destinationChain,string destinationContractAddress,bytes32 indexed payloadHash,bytes payload)",
         "event ContractCallWithToken(address indexed sender,string destinationChain,string destinationContractAddress,bytes32 indexed payloadHash,bytes payload,string symbol,uint256 amount)"])
@@ -203,12 +203,10 @@ pub fn parse_log(log: &ReceiptLog) -> Result<ContractCallBase, StdError> {
             }) {
                 let topics: Vec<FixedBytes<32>> = log.topics.iter().map(FixedBytes::from).collect();
 
-                let decoded = e
-                    .decode_log(
-                        &Log::new(topics, Bytes::from(log.data.clone())).unwrap(),
-                        true,
-                    )
-                    .map_err(|e| StdError::GenericErr { msg: e.to_string() })?;
+                let decoded = e.decode_log(
+                    &Log::new(topics, Bytes::from(log.data.clone())).unwrap(),
+                    true,
+                )?;
 
                 let mut indexed_consumed = 0;
                 let mut base = ContractCallBase {
@@ -227,26 +225,37 @@ pub fn parse_log(log: &ReceiptLog) -> Result<ContractCallBase, StdError> {
                     if let Some(value) = value {
                         match param.name.as_str() {
                             "sender" => {
-                                base.source_address = Some(value.as_address().unwrap_or_default())
+                                // TODO: improve syntax
+                                let parsed_value: Option<Address> = value.as_address();
+                                if parsed_value.is_none() {
+                                    return Err(eyre!("Can't parse 'sender' from topics"));
+                                }
+                                base.source_address = Some(parsed_value.unwrap())
                             }
                             "destinationChain" => {
-                                base.destination_chain =
-                                    Some(value.as_str().unwrap_or_default().to_string());
+                                let parsed_value: Option<&str> = value.as_str();
+                                if parsed_value.is_none() {
+                                    return Err(eyre!(
+                                        "Can't parse 'destinationChain' from topics"
+                                    ));
+                                }
+                                base.destination_chain = Some(parsed_value.unwrap().to_string());
                             }
                             "destinationContractAddress" => {
-                                base.destination_address =
-                                    Some(value.as_str().unwrap_or_default().to_string());
+                                let parsed_value: Option<&str> = value.as_str();
+                                if parsed_value.is_none() {
+                                    return Err(eyre!(
+                                        "Can't parse 'destinationContractAddress' from topics"
+                                    ));
+                                }
+                                base.destination_address = Some(parsed_value.unwrap().to_string());
                             }
                             "payloadHash" => {
-                                let payload: [u8; 32] = value
-                                    .as_fixed_bytes()
-                                    .unwrap_or_default()
-                                    .0
-                                    .try_into()
-                                    .map_err(|_| StdError::GenericErr {
-                                        msg: "Invalid conversion of payload to [u8; 32]"
-                                            .to_string(),
-                                    })?;
+                                let parsed_value: Option<(&[u8], usize)> = value.as_fixed_bytes();
+                                if parsed_value.is_none() {
+                                    return Err(eyre!("Can't parse 'payloadHash' from topics"));
+                                }
+                                let payload: [u8; 32] = parsed_value.unwrap().0.try_into()?;
                                 base.payload_hash = Some(payload);
                             }
                             _ => {}
@@ -261,9 +270,7 @@ pub fn parse_log(log: &ReceiptLog) -> Result<ContractCallBase, StdError> {
             }
         }
     }
-    Err(StdError::GenericErr {
-        msg: "Couldn't match an event to decode the log".to_string(),
-    })
+    Err(eyre!("Couldn't match an event to decode the log"))
 }
 
 pub fn verify_message(message: &Message, log: &ReceiptLog, transaction: &Vec<u8>) -> Result<()> {
