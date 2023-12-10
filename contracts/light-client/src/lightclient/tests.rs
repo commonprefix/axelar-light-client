@@ -132,8 +132,8 @@ pub mod tests {
         let mut update = get_update(862);
         lightclient.apply_update(&update).unwrap();
 
-        update.attested_header.beacon.slot = lightclient.state.finalized_header.slot;
-        update.finalized_header.beacon.slot = lightclient.state.finalized_header.slot;
+        update.attested_header.beacon.slot = lightclient.state.update_slot;
+        update.finalized_header.beacon.slot = lightclient.state.update_slot;
         assert!(lightclient.state.next_sync_committee.is_some());
         let mut err = update.verify(&lightclient).unwrap_err();
         assert_eq!(
@@ -142,9 +142,8 @@ pub mod tests {
         );
 
         update = get_update(862);
-        update.attested_header.beacon.slot = lightclient.state.finalized_header.slot - (256 * 32);
-        update.finalized_header.beacon.slot =
-            lightclient.state.finalized_header.slot - (256 * 32) - 1; // subtracting 1 for a regression bug
+        update.attested_header.beacon.slot = lightclient.state.update_slot - (256 * 32);
+        update.finalized_header.beacon.slot = lightclient.state.update_slot - (256 * 32) - 1; // subtracting 1 for a regression bug
         lightclient.state.next_sync_committee = None;
         err = update.verify(&lightclient).unwrap_err();
         assert_eq!(
@@ -225,11 +224,9 @@ pub mod tests {
         assert_eq!(
             lightclient.state,
             LightClientState {
-                finalized_header: bootstrap.header.beacon,
+                update_slot: bootstrap.header.beacon.slot,
                 current_sync_committee: bootstrap.current_sync_committee,
                 next_sync_committee: None,
-                previous_max_active_participants: 0,
-                current_max_active_participants: 0
             }
         );
     }
@@ -245,7 +242,7 @@ pub mod tests {
         let res = lightclient.apply_update(&update);
         assert!(res.is_ok());
         assert_eq!(
-            lightclient.state.finalized_header, update.finalized_header.beacon,
+            lightclient.state.update_slot, update.finalized_header.beacon.slot,
             "finalized_header should be set after applying update"
         );
         assert_eq!(
@@ -256,14 +253,6 @@ pub mod tests {
             lightclient.state.next_sync_committee.unwrap(),
             update.next_sync_committee,
             "next_sync_committee should be set after applying update"
-        );
-        assert_eq!(
-            lightclient.state.previous_max_active_participants, 0,
-            "previous_max_active_participants should be unchanged"
-        );
-        assert_eq!(
-            lightclient.state.current_max_active_participants, 511,
-            "current_max_active_participants should be unchanged"
         );
     }
 
@@ -281,8 +270,8 @@ pub mod tests {
         assert!(res.is_ok());
 
         assert_eq!(
-            lightclient.state.finalized_header, update.finalized_header.beacon,
-            "finalized_header should be set after applying update"
+            lightclient.state.update_slot, update.finalized_header.beacon.slot,
+            "update_slot should be set after applying update"
         );
         assert_eq!(
             lightclient.state.current_sync_committee,
@@ -293,18 +282,6 @@ pub mod tests {
             lightclient.state.next_sync_committee.clone().unwrap(),
             update.next_sync_committee,
             "next_sync_committee was updated"
-        );
-        assert_eq!(
-            lightclient.state.previous_max_active_participants,
-            u64::max(
-                state_before_update.current_max_active_participants,
-                lightclient.get_bits(&update.sync_aggregate.sync_committee_bits),
-            ),
-            "previous_max_active_participants should be unchanged"
-        );
-        assert_eq!(
-            lightclient.state.current_max_active_participants, 0,
-            "current_max_active_participants should be unchanged"
         );
     }
 
@@ -326,12 +303,12 @@ pub mod tests {
         assert!(res.is_ok());
 
         assert_ne!(
-            lightclient.state.finalized_header,
-            state_before_update.finalized_header,
+            lightclient.state.update_slot,
+            state_before_update.update_slot,
         );
         assert_eq!(
-            lightclient.state.finalized_header, update.finalized_header.beacon,
-            "finalized_header should be set after applying update"
+            lightclient.state.update_slot, update.finalized_header.beacon.slot,
+            "update_slot should be set after applying update"
         );
         assert_eq!(
             lightclient.state.current_sync_committee, state_before_update.current_sync_committee,
@@ -340,16 +317,6 @@ pub mod tests {
         assert_eq!(
             lightclient.state.next_sync_committee, state_before_update.next_sync_committee,
             "next_sync_committee should be unchanged"
-        );
-        assert_eq!(
-            lightclient.state.previous_max_active_participants,
-            state_before_update.previous_max_active_participants,
-            "previous_max_active_participants should be unchanged"
-        );
-        assert_eq!(
-            lightclient.state.current_max_active_participants,
-            state_before_update.current_max_active_participants,
-            "current_max_active_participants should be unchanged"
         );
     }
 
@@ -360,7 +327,7 @@ pub mod tests {
         let res = lightclient.apply_update(&update);
         assert!(res.is_ok());
         assert_eq!(
-            lightclient.state.finalized_header, update.finalized_header.beacon,
+            lightclient.state.update_slot, update.finalized_header.beacon.slot,
             "finalized_header should be set after applying first update"
         );
 
@@ -368,7 +335,7 @@ pub mod tests {
         let res = lightclient.apply_update(&update);
         assert!(res.is_ok());
         assert_eq!(
-            lightclient.state.finalized_header, update.finalized_header.beacon,
+            lightclient.state.update_slot, update.finalized_header.beacon.slot,
             "finalized_header should be set after applying second update"
         );
     }
