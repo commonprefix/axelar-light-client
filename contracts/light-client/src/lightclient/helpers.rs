@@ -271,8 +271,7 @@ pub fn verify_message(message: &Message, log: &ReceiptLog, transaction: &Vec<u8>
     let transaction_hash = hex::encode(hasher.digest(transaction.as_slice()));
 
     // TODO: don't hardcode
-    let gateway_address =
-        hex::decode("4f4495243837681061c4743b74b3eedf548d56a5").unwrap_or_default();
+    let gateway_address = hex::decode("4f4495243837681061c4743b74b3eedf548d56a5")?;
 
     let message_tx_hash = message
         .cc_id
@@ -283,22 +282,29 @@ pub fn verify_message(message: &Message, log: &ReceiptLog, transaction: &Vec<u8>
         .strip_prefix("0x")
         .ok_or_else(|| anyhow!("Invalid transaction hash format."))?;
 
-    let event = parse_log(log)?;
+    if message_tx_hash.len() != 64 {
+        return Err(eyre!("Invalid transaction hash size"));
+    }
 
-    // TODO: verify that values are not empty/default
+    let event = parse_log(log)?;
+    // TODO: improve syntax, find a way to test it
+    if event.source_address.is_none()
+        || event.destination_address.is_none()
+        || event.destination_chain.is_none()
+        || event.payload_hash.is_none()
+    {
+        return Err(eyre!("Event could not be parsed"));
+    }
+
     if !(message_tx_hash == transaction_hash
         && gateway_address == log.address
         && *message.source_address.to_string().to_lowercase()
-            == event
-                .source_address
-                .unwrap_or_default()
-                .to_string()
-                .to_lowercase()
+            == event.source_address.unwrap().to_string().to_lowercase()
         && String::from(message.destination_chain.clone()).to_lowercase()
-            == event.destination_chain.unwrap_or_default().to_lowercase()
+            == event.destination_chain.unwrap().to_lowercase()
         && *message.destination_address.to_string().to_lowercase()
-            == event.destination_address.unwrap_or_default().to_lowercase()
-        && message.payload_hash == event.payload_hash.unwrap_or_default())
+            == event.destination_address.unwrap().to_lowercase()
+        && message.payload_hash == event.payload_hash.unwrap())
     {
         return Err(eyre!("Invalid message"));
     }
