@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use consensus_types::{consensus::BeaconStateType, proofs::AncestryProof};
 use eth::consensus::EthBeaconAPI;
 use eyre::{anyhow, Result};
+use mockall::automock;
 use ssz_rs::{get_generalized_index, Node, SszVariableOrIndex, Vector};
 use sync_committee_rs::constants::{
     CAPELLA_FORK_EPOCH, SLOTS_PER_EPOCH, SLOTS_PER_HISTORICAL_ROOT,
@@ -67,7 +68,7 @@ impl<'a> ConsensusProver<'a> {
 }
 
 #[async_trait]
-impl<'a> ConsensusProverAPI for ConsensusProver<'a> {
+impl<'a> ConsensusProverAPI for ConsensusProver<'_> {
     async fn generate_transaction_proof(
         &self,
         block_id: &str,

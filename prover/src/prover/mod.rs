@@ -201,6 +201,10 @@ impl<'a> Prover<'a> {
 mod tests {
     use std::fs::File;
 
+    use crate::prover::consensus::ConsensusProver;
+    use crate::prover::execution::MockExecutionProver;
+    use crate::prover::Prover;
+
     use super::state_prover::MockStateProver;
     use consensus_types::consensus::{BeaconBlockAlias, FinalityUpdate, OptimisticUpdate};
     use consensus_types::proofs::{CrossChainId, Message, UpdateVariant};
@@ -209,7 +213,7 @@ mod tests {
     use eth::execution::MockExecutionRPC;
     use eth::types::InternalMessage;
     use ethers::types::{Block, Transaction, TransactionReceipt};
-    use eyre::Result;
+    use eyre::{anyhow, Result};
     use mockall::predicate;
 
     fn get_block_with_txs(block_num: u64) -> Result<Option<Block<Transaction>>> {
@@ -299,120 +303,173 @@ mod tests {
         (consensus_rpc, execution_rpc, state_prover)
     }
 
+    #[tokio::test]
+    async fn test_gather_proof_data_finality() {
+        let target_block_slot = 7807119;
+        let target_block_num = 18615160;
+
+        let (consensus_rpc, execution_rpc, state_prover) =
+            setup(target_block_slot, target_block_num, true);
+
+        let consensus_prover = ConsensusProver::new(&consensus_rpc, &state_prover);
+        let execution_prover = MockExecutionProver::new();
+        let prover = Prover::new(
+            &consensus_rpc,
+            &execution_rpc,
+            &consensus_prover,
+            &execution_prover,
+        );
+        let message = get_mock_message(target_block_num);
+        let update = get_mock_update(false, 1000, 500);
+
+        let result = prover.gather_proof_data(&message, &update).await.unwrap();
+
+        assert_eq!(
+            result.target_execution_block,
+            get_block_with_txs(target_block_num).unwrap().unwrap()
+        );
+        assert_eq!(
+            result.receipts,
+            get_block_receipts(target_block_num).unwrap()
+        );
+        assert_eq!(
+            result.target_beacon_block,
+            get_beacon_block(target_block_slot).unwrap()
+        );
+        match update {
+            UpdateVariant::Finality(update) => {
+                assert_eq!(result.recent_block_header, update.finalized_header.beacon)
+            }
+            _ => panic!("Wrong update variant"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_gather_proof_data_optimistic() {
+        let target_block_slot = 7807119;
+        let target_block_num = 18615160;
+
+        let (consensus_rpc, execution_rpc, state_prover) =
+            setup(target_block_slot, target_block_num, true);
+
+        let consensus_prover = ConsensusProver::new(&consensus_rpc, &state_prover);
+        let execution_prover = MockExecutionProver::new();
+        let prover = Prover::new(
+            &consensus_rpc,
+            &execution_rpc,
+            &consensus_prover,
+            &execution_prover,
+        );
+        let message = get_mock_message(target_block_num);
+        let update = get_mock_update(true, 1000, 500);
+
+        let result = prover.gather_proof_data(&message, &update).await.unwrap();
+
+        assert_eq!(
+            result.target_execution_block,
+            get_block_with_txs(target_block_num).unwrap().unwrap()
+        );
+        assert_eq!(
+            result.receipts,
+            get_block_receipts(target_block_num).unwrap()
+        );
+        assert_eq!(
+            result.target_beacon_block,
+            get_beacon_block(target_block_slot).unwrap()
+        );
+        match update {
+            UpdateVariant::Optimistic(update) => {
+                assert_eq!(result.recent_block_header, update.attested_header.beacon)
+            }
+            _ => panic!("Wrong update variant"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_gather_proof_data_invalid_execution() {
+        let target_block_slot = 7807119;
+        let target_block_num = 18615160;
+
+        let (consensus_rpc, mut execution_rpc, state_prover) =
+            setup(target_block_slot, target_block_num, false);
+
+        execution_rpc
+            .expect_get_block_with_txs()
+            .with(predicate::always())
+            .returning(move |_| Err(anyhow!("Invalid execution block")));
+
+        let consensus_prover = ConsensusProver::new(&consensus_rpc, &state_prover);
+        let execution_prover = MockExecutionProver::new();
+        let prover = Prover::new(
+            &consensus_rpc,
+            &execution_rpc,
+            &consensus_prover,
+            &execution_prover,
+        );
+
+        let message = get_mock_message(target_block_num);
+        let update = get_mock_update(true, 1000, 500);
+
+        let result = prover.gather_proof_data(&message, &update).await;
+
+        assert!(result.is_err())
+    }
+
+    #[tokio::test]
+    async fn test_gather_proof_data_invalid_consensus() {
+        let target_block_slot = 7807119;
+        let target_block_num = 18615160;
+
+        let (mut consensus_rpc, mut execution_rpc, state_prover) =
+            setup(target_block_slot, target_block_num, false);
+
+        consensus_rpc
+            .expect_get_beacon_block()
+            .with(predicate::eq(target_block_slot))
+            .returning(move |_| Err(RPCError::NotFoundError("test".into()))); // Provide a mock result
+
+        execution_rpc
+            .expect_get_block_with_txs()
+            .with(predicate::eq(target_block_num))
+            .returning(move |_| get_block_with_txs(target_block_num));
+
+        let consensus_prover = ConsensusProver::new(&consensus_rpc, &state_prover);
+        let execution_prover = MockExecutionProver::new();
+        let prover = Prover::new(
+            &consensus_rpc,
+            &execution_rpc,
+            &consensus_prover,
+            &execution_prover,
+        );
+
+        let message = get_mock_message(target_block_num);
+        let update = get_mock_update(true, 1000, 500);
+
+        let result = prover.gather_proof_data(&message, &update).await;
+
+        assert!(result.is_err())
+    }
+
     // #[tokio::test]
-    // async fn test_gather_proof_data_finality() {
+    // async fn test_prove_event_success() {
     //     let target_block_slot = 7807119;
     //     let target_block_num = 18615160;
+    //     let message = get_mock_message(target_block_num);
+    //     let update = get_mock_update(true, 1000, 500);
 
     //     let (consensus_rpc, execution_rpc, state_prover) =
-    //         setup(target_block_slot, target_block_num, true);
-
-    //     let prover = Prover::new(&consensus_rpc, &execution_rpc, &state_prover);
-    //     let message = get_mock_message(target_block_num);
-    //     let update = get_mock_update(false, 1000, 500);
-
-    //     let result = prover.gather_proof_data(&message, &update).await.unwrap();
-
-    //     assert_eq!(
-    //         result.target_execution_block,
-    //         get_block_with_txs(target_block_num).unwrap().unwrap()
-    //     );
-    //     assert_eq!(
-    //         result.receipts,
-    //         get_block_receipts(target_block_num).unwrap()
-    //     );
-    //     assert_eq!(
-    //         result.target_beacon_block,
-    //         get_beacon_block(target_block_slot).unwrap()
-    //     );
-    //     match update {
-    //         UpdateVariant::Finality(update) => {
-    //             assert_eq!(result.recent_block_header, update.finalized_header.beacon)
-    //         }
-    //         _ => panic!("Wrong update variant"),
-    //     }
-    // }
-
-    // #[tokio::test]
-    // async fn test_gather_proof_data_optimistic() {
-    //     let target_block_slot = 7807119;
-    //     let target_block_num = 18615160;
-
-    //     let (consensus_rpc, execution_rpc, state_prover) =
-    //         setup(target_block_slot, target_block_num, true);
-
-    //     let prover = Prover::new(&consensus_rpc, &execution_rpc, &state_prover);
-    //     let message = get_mock_message(target_block_num);
-    //     let update = get_mock_update(true, 1000, 500);
-
-    //     let result = prover.gather_proof_data(&message, &update).await.unwrap();
-
-    //     assert_eq!(
-    //         result.target_execution_block,
-    //         get_block_with_txs(target_block_num).unwrap().unwrap()
-    //     );
-    //     assert_eq!(
-    //         result.receipts,
-    //         get_block_receipts(target_block_num).unwrap()
-    //     );
-    //     assert_eq!(
-    //         result.target_beacon_block,
-    //         get_beacon_block(target_block_slot).unwrap()
-    //     );
-    //     match update {
-    //         UpdateVariant::Optimistic(update) => {
-    //             assert_eq!(result.recent_block_header, update.attested_header.beacon)
-    //         }
-    //         _ => panic!("Wrong update variant"),
-    //     }
-    // }
-
-    // #[tokio::test]
-    // async fn test_gather_proof_data_invalid_execution() {
-    //     let target_block_slot = 7807119;
-    //     let target_block_num = 18615160;
-
-    //     let (consensus_rpc, mut execution_rpc, state_prover) =
     //         setup(target_block_slot, target_block_num, false);
 
-    //     execution_rpc
-    //         .expect_get_block_with_txs()
-    //         .with(predicate::always())
-    //         .returning(move |_| Err(anyhow!("Invalid execution block")));
+    //     let consensus_prover = ConsensusProver::new(&consensus_rpc, &state_prover);
+    //     let execution_prover = MockExecutionProver::new();
+    //     let prover = Prover::new(
+    //         &consensus_rpc,
+    //         &execution_rpc,
+    //         &consensus_prover,
+    //         &execution_prover,
+    //     );
 
-    //     let prover = Prover::new(&consensus_rpc, &execution_rpc, &state_prover);
-    //     let message = get_mock_message(target_block_num);
-    //     let update = get_mock_update(true, 1000, 500);
-
-    //     let result = prover.gather_proof_data(&message, &update).await;
-
-    //     assert!(result.is_err())
-    // }
-
-    // #[tokio::test]
-    // async fn test_gather_proof_data_invalid_consensus() {
-    //     let target_block_slot = 7807119;
-    //     let target_block_num = 18615160;
-
-    //     let (mut consensus_rpc, mut execution_rpc, state_prover) =
-    //         setup(target_block_slot, target_block_num, false);
-
-    //     consensus_rpc
-    //         .expect_get_beacon_block()
-    //         .with(predicate::eq(target_block_slot))
-    //         .returning(move |_| Err(RPCError::NotFoundError("test".into()))); // Provide a mock result
-
-    //     execution_rpc
-    //         .expect_get_block_with_txs()
-    //         .with(predicate::eq(target_block_num))
-    //         .returning(move |_| get_block_with_txs(target_block_num));
-
-    //     let prover = Prover::new(&consensus_rpc, &execution_rpc, &state_prover);
-    //     let message = get_mock_message(target_block_num);
-    //     let update = get_mock_update(true, 1000, 500);
-
-    //     let result = prover.gather_proof_data(&message, &update).await;
-
-    //     assert!(result.is_err())
+    //     let res = prover.prove_event(message, update).await;
+    //     assert!(res.is_ok())
     // }
 }

@@ -5,6 +5,7 @@ use ethers::{
     utils::rlp::encode,
 };
 use eyre::{anyhow, Result};
+use mockall::automock;
 
 pub trait ExecutionProverAPI {
     fn generate_receipt_proof(
@@ -24,6 +25,7 @@ impl ExecutionProver {
     }
 }
 
+#[automock]
 impl ExecutionProverAPI for ExecutionProver {
     /**
      * Generates an MPT proof from a receipt to the receipts_root.
