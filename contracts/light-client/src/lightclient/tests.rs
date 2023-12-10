@@ -2,7 +2,14 @@
 pub mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use crate::lightclient::helpers::is_proof_valid;
+    use crate::lightclient::helpers::test_helpers::{
+        get_verification_data_with_block_roots, get_verification_data_with_historical_roots,
+    };
+    use crate::lightclient::helpers::{
+        extract_logs_from_receipt_proof, is_proof_valid, parse_logs_from_receipt,
+        verify_ancestry_proof, verify_block_roots_proof, verify_historical_roots_proof,
+        verify_transaction_proof, verify_trie_proof,
+    };
     use crate::{
         lightclient::error::ConsensusError,
         lightclient::LightClient,
@@ -14,10 +21,13 @@ pub mod tests {
     };
     use cosmwasm_std::testing::mock_env;
     use cosmwasm_std::Timestamp;
-    use types::consensus::Bootstrap;
+    use types::consensus::{Bootstrap, FinalityUpdate};
     use types::lightclient::LightClientState;
-    use types::ssz_rs::{Bitvector, Node};
-    use types::sync_committee_rs::constants::Bytes32;
+    use types::proofs::AncestryProof::HistoricalRoots;
+    use types::proofs::{AncestryProof, UpdateVariant};
+    use types::ssz_rs::{Bitvector, Merkleized, Node};
+    use types::sync_committee_rs::consensus_types::Transaction;
+    use types::sync_committee_rs::constants::{Bytes32, Root};
     use types::sync_committee_rs::{
         consensus_types::BeaconBlockHeader,
         constants::{BlsPublicKey, BlsSignature},
@@ -110,6 +120,398 @@ pub mod tests {
             6,
             40
         ));
+    }
+
+    #[test]
+    fn test_verify_trie_proof() {
+        let verification_data = get_verification_data_with_block_roots();
+        let proofs = verification_data.1.proofs;
+        let receipt_proof = proofs.receipt_proof.clone();
+        let transaction_proof = proofs.transaction_proof;
+
+        let res = verify_trie_proof(
+            receipt_proof.receipts_root,
+            transaction_proof.transaction_index,
+            receipt_proof.receipt_proof,
+        );
+        assert!(res.is_some());
+
+        let receipt_result = parse_logs_from_receipt(&res.unwrap());
+        // verify_trie_proof returns the leaf, a receipt with logs in this case
+        assert!(receipt_result.is_ok());
+
+        // break the receipts_root, fail
+        let mut invalid_receipt_proof = proofs.receipt_proof.clone();
+        invalid_receipt_proof.receipts_root.0[0] = 0;
+        assert!(verify_trie_proof(
+            invalid_receipt_proof.receipts_root,
+            transaction_proof.transaction_index,
+            invalid_receipt_proof.receipt_proof,
+        )
+        .is_none());
+
+        // change the transaction index, fail
+        let mut invalid_receipt_proof = proofs.receipt_proof.clone();
+        assert!(verify_trie_proof(
+            invalid_receipt_proof.receipts_root,
+            transaction_proof.transaction_index + 1,
+            invalid_receipt_proof.receipt_proof,
+        )
+        .is_none());
+
+        // change the proof, fail
+        let mut invalid_receipt_proof = proofs.receipt_proof.clone();
+        invalid_receipt_proof.receipt_proof[0] = vec![];
+        assert!(verify_trie_proof(
+            invalid_receipt_proof.receipts_root,
+            transaction_proof.transaction_index,
+            invalid_receipt_proof.receipt_proof,
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn test_verify_block_roots_proof() {
+        let mut verification_data = get_verification_data_with_block_roots();
+        let (block_roots_index, block_root_proof) = match verification_data.1.proofs.ancestry_proof
+        {
+            AncestryProof::BlockRoots {
+                block_roots_index,
+                block_root_proof,
+            } => (block_roots_index, block_root_proof),
+            AncestryProof::HistoricalRoots { .. } => {
+                panic!("Unexpected.")
+            }
+        };
+        // TODO: improve this
+        let mut update = match verification_data.1.proofs.update {
+            UpdateVariant::Finality(update) => update,
+            UpdateVariant::Optimistic(update) => {
+                panic!("Unexpected")
+            }
+        };
+
+        let recent_block = update.finalized_header.beacon;
+        let target_block_root = verification_data
+            .1
+            .proofs
+            .target_block
+            .hash_tree_root()
+            .unwrap();
+
+        assert!(verify_block_roots_proof(
+            &block_roots_index,
+            &block_root_proof,
+            &target_block_root,
+            &recent_block.state_root,
+        )
+        .is_ok());
+
+        // change block roots index, fail
+        assert!(verify_block_roots_proof(
+            &(block_roots_index + 1),
+            &block_root_proof,
+            &target_block_root,
+            &recent_block.state_root,
+        )
+        .is_err());
+
+        // change block roots proof, fail
+        let mut invalid_block_root_proof = block_root_proof.clone();
+        invalid_block_root_proof[0] = Node::default();
+        assert!(verify_block_roots_proof(
+            &block_roots_index,
+            &invalid_block_root_proof,
+            &target_block_root,
+            &recent_block.state_root,
+        )
+        .is_err());
+
+        // change target block, fail
+        assert!(verify_block_roots_proof(
+            &block_roots_index,
+            &block_root_proof,
+            &Node::default(),
+            &recent_block.state_root,
+        )
+        .is_err());
+
+        // change recent block state_root, fail
+        assert!(verify_block_roots_proof(
+            &block_roots_index,
+            &block_root_proof,
+            &target_block_root,
+            &Node::default(),
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_verify_historical_roots_proof() {
+        let mut verification_data = get_verification_data_with_historical_roots();
+        let (
+            block_root_proof,
+            block_summary_root,
+            block_summary_root_proof,
+            block_summary_root_gindex,
+        ) = match verification_data.1.proofs.ancestry_proof {
+            AncestryProof::BlockRoots { .. } => {
+                panic!("Unexpected.")
+            }
+            AncestryProof::HistoricalRoots {
+                block_root_proof,
+                block_summary_root,
+                block_summary_root_proof,
+                block_summary_root_gindex,
+            } => (
+                block_root_proof,
+                block_summary_root,
+                block_summary_root_proof,
+                block_summary_root_gindex,
+            ),
+        };
+
+        let mut update = match verification_data.1.proofs.update {
+            UpdateVariant::Finality(update) => update,
+            UpdateVariant::Optimistic(update) => {
+                panic!("Unexpected")
+            }
+        };
+
+        let recent_block = update.finalized_header.beacon;
+        let mut target_block = verification_data.1.proofs.target_block;
+        let target_block_root = target_block.hash_tree_root().unwrap();
+
+        assert!(verify_historical_roots_proof(
+            &block_root_proof,
+            &block_summary_root_proof,
+            &block_summary_root,
+            &block_summary_root_gindex,
+            &target_block,
+            &recent_block.state_root
+        )
+        .is_ok());
+
+        // change block roots proof, fail
+        let mut invalid_proof = block_root_proof.clone();
+        invalid_proof[0] = Node::default();
+        assert!(verify_historical_roots_proof(
+            &invalid_proof,
+            &block_summary_root_proof,
+            &block_summary_root,
+            &block_summary_root_gindex,
+            &target_block,
+            &recent_block.state_root
+        )
+        .is_err());
+
+        // change the block_summary_root_proof, fail
+        let mut invalid_proof = block_summary_root_proof.clone();
+        invalid_proof[0] = Node::default();
+        assert!(verify_historical_roots_proof(
+            &block_root_proof,
+            &invalid_proof,
+            &block_summary_root,
+            &block_summary_root_gindex,
+            &target_block,
+            &recent_block.state_root
+        )
+        .is_err());
+
+        // change the block_summary_root, fail
+        assert!(verify_historical_roots_proof(
+            &block_root_proof,
+            &block_summary_root_proof,
+            &Root::default(),
+            &block_summary_root_gindex,
+            &target_block,
+            &recent_block.state_root
+        )
+        .is_err());
+
+        // change the block_summary_root_gindex, fail
+        assert!(verify_historical_roots_proof(
+            &block_root_proof,
+            &block_summary_root_proof,
+            &block_summary_root,
+            &(block_summary_root_gindex + 1),
+            &target_block,
+            &recent_block.state_root
+        )
+        .is_err());
+
+        // change the target_block, fail
+        assert!(verify_historical_roots_proof(
+            &block_root_proof,
+            &block_summary_root_proof,
+            &block_summary_root,
+            &block_summary_root_gindex,
+            &BeaconBlockHeader::default(),
+            &recent_block.state_root
+        )
+        .is_err());
+
+        // change the state_root, fail
+        assert!(verify_historical_roots_proof(
+            &block_root_proof,
+            &block_summary_root_proof,
+            &block_summary_root,
+            &(block_summary_root_gindex + 1),
+            &target_block,
+            &Root::default()
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_parse_logs_from_receipt() {
+        let verification_data = get_verification_data_with_block_roots();
+        let proofs = verification_data.1.proofs;
+        let mut receipt = verify_trie_proof(
+            proofs.receipt_proof.receipts_root,
+            proofs.transaction_proof.transaction_index,
+            proofs.receipt_proof.receipt_proof.clone(),
+        )
+        .unwrap();
+
+        let logs_result = parse_logs_from_receipt(&receipt);
+        assert!(logs_result.is_ok());
+
+        let logs = logs_result.unwrap().0;
+        let first_log = logs.get(0).unwrap();
+        let expected_address: [u8; 20] = vec![
+            160, 184, 105, 145, 198, 33, 139, 54, 193, 209, 157, 74, 46, 158, 176, 206, 54, 6, 235,
+            72,
+        ]
+        .try_into()
+        .unwrap();
+        let expected_topics: Vec<[u8; 32]> = vec![
+            vec![
+                221, 242, 82, 173, 27, 226, 200, 155, 105, 194, 176, 104, 252, 55, 141, 170, 149,
+                43, 167, 241, 99, 196, 161, 22, 40, 245, 90, 77, 245, 35, 179, 239,
+            ]
+            .try_into()
+            .unwrap(),
+            vec![
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 45, 76, 236, 211, 98, 206, 77, 244, 1, 23, 21,
+                75, 154, 6, 121, 123, 92, 241, 118, 32,
+            ]
+            .try_into()
+            .unwrap(),
+            vec![
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 206, 22, 246, 147, 117, 82, 10, 176, 19, 119,
+                206, 123, 136, 245, 186, 140, 72, 248, 214, 102,
+            ]
+            .try_into()
+            .unwrap(),
+        ];
+        let expected_data: Vec<u8> = vec![
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 59,
+            154, 202, 0,
+        ];
+
+        assert_eq!(first_log.address, expected_address);
+        assert_eq!(first_log.topics, expected_topics);
+        assert_eq!(first_log.data, expected_data);
+
+        let logs_result = extract_logs_from_receipt_proof(
+            &proofs.receipt_proof,
+            proofs.transaction_proof.transaction_index,
+            &proofs.target_block.clone().hash_tree_root().unwrap(),
+        );
+        let logs = logs_result.unwrap().0;
+        let first_log = logs.get(0).unwrap();
+
+        assert_eq!(first_log.address, expected_address);
+        assert_eq!(first_log.topics, expected_topics);
+        assert_eq!(first_log.data, expected_data);
+
+        // providing an empty arrary should return error
+        assert!(parse_logs_from_receipt(&vec![]).is_err());
+
+        // providing invalid receipt should return error
+        receipt[0] = 0;
+        receipt[1] = 0;
+        receipt[2] = 0;
+        assert!(parse_logs_from_receipt(&receipt).is_err());
+    }
+
+    #[test]
+    fn test_extract_logs_from_receipt_proof() {
+        let verification_data = get_verification_data_with_block_roots();
+        let proofs = verification_data.1.proofs;
+
+        assert!(extract_logs_from_receipt_proof(
+            &proofs.receipt_proof,
+            proofs.transaction_proof.transaction_index,
+            &proofs.target_block.clone().hash_tree_root().unwrap(),
+        )
+        .is_ok());
+
+        // change the receipt proof, fail
+        let mut proof = proofs.receipt_proof.clone();
+        proof.receipts_root = Root::default();
+        assert!(extract_logs_from_receipt_proof(
+            &proofs.receipt_proof,
+            proofs.transaction_proof.transaction_index,
+            &Root::default()
+        )
+        .is_err());
+
+        let mut proof = proofs.receipt_proof.clone();
+        proof.receipt_proof[0] = vec![];
+        assert!(extract_logs_from_receipt_proof(
+            &proofs.receipt_proof,
+            proofs.transaction_proof.transaction_index,
+            &Root::default()
+        )
+        .is_err());
+
+        // change transaction index, fail
+        assert!(extract_logs_from_receipt_proof(
+            &proofs.receipt_proof,
+            proofs.transaction_proof.transaction_index + 1,
+            &proofs.target_block.clone().hash_tree_root().unwrap(),
+        )
+        .is_err());
+
+        // change the target_block root, fail
+        assert!(extract_logs_from_receipt_proof(
+            &proofs.receipt_proof,
+            proofs.transaction_proof.transaction_index,
+            &Root::default()
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_verify_transaction_proof() {
+        let verification_data = get_verification_data_with_block_roots();
+        let transaction_proof = verification_data.1.proofs.transaction_proof;
+        let target_block_root = &verification_data
+            .1
+            .proofs
+            .target_block
+            .clone()
+            .hash_tree_root()
+            .unwrap();
+
+        assert!(verify_transaction_proof(&transaction_proof, &target_block_root).is_ok());
+
+        // change the transaction bytecode, fail
+        let mut invalid_proof = transaction_proof.clone();
+        invalid_proof.transaction = Transaction::default();
+        assert!(verify_transaction_proof(&invalid_proof, &target_block_root).is_err());
+
+        // change the transaction proof, fail
+        let mut invalid_proof = transaction_proof.clone();
+        invalid_proof.transaction_proof[0] = Node::default();
+        assert!(verify_transaction_proof(&invalid_proof, &target_block_root).is_err());
+
+        // change the transaction gindex, fail
+        let mut invalid_proof = transaction_proof.clone();
+        invalid_proof.transaction_gindex = invalid_proof.transaction_gindex + 1;
+        assert!(verify_transaction_proof(&invalid_proof, &target_block_root).is_err());
     }
 
     #[test]
