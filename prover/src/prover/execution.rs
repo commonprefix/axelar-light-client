@@ -1,91 +1,118 @@
-use cita_trie::{MemoryDB, PatriciaTrie, Trie};
+use cita_trie::Trie;
 use consensus_types::lightclient::CrossChainId;
 use ethers::{
     types::{Block, Transaction, TransactionReceipt, H256},
-    utils::rlp::{encode, Encodable},
+    utils::rlp::encode,
 };
 use eyre::{anyhow, Result};
-use hasher::HasherKeccak;
-use std::sync::Arc;
 
-/**
- * Generates an MPT proof from a receipt to the receipts_root.
-*/
-pub fn generate_receipt_proof(
-    block: &Block<Transaction>,
-    receipts: &[TransactionReceipt],
-    index: u64,
-) -> Result<Vec<Vec<u8>>> {
-    let mut trie = generate_trie(receipts.to_owned(), encode_receipt);
-    let trie_root = trie.root().unwrap();
-
-    // Reality check
-    if block.receipts_root != H256::from_slice(&trie_root[0..32]) {
-        return Err(anyhow!(
-            "Invalid receipts root from trie generation: {}",
-            block.number.unwrap()
-        ));
-    }
-
-    let receipt_index: cosmos_sdk_proto::prost::bytes::BytesMut = encode(&index);
-    let proof = trie
-        .get_proof(receipt_index.to_vec().as_slice())
-        .map_err(|e| anyhow!("Failed to generate proof: {:?}", e))?;
-
-    Ok(proof)
+pub trait ExecutionProverAPI {
+    fn generate_receipt_proof(
+        &self,
+        block: &Block<Transaction>,
+        receipts: &[TransactionReceipt],
+        index: u64,
+    ) -> Result<Vec<Vec<u8>>>;
+    fn get_tx_index(&self, receipts: &[TransactionReceipt], cc_id: &CrossChainId) -> Result<u64>;
 }
 
-pub fn get_tx_index(receipts: &[TransactionReceipt], cc_id: &CrossChainId) -> Result<u64> {
-    let tx_hash = cc_id
-        .id
-        .split_once(':')
-        .ok_or_else(|| anyhow!("Invalid CrossChainId format. {:?}", cc_id))?
-        .0;
+pub struct ExecutionProver;
 
-    let tx_index = receipts
-        .iter()
-        .position(|r| format!("0x{:x}", r.transaction_hash) == tx_hash);
-
-    match tx_index {
-        Some(index) => Ok(index as u64),
-        None => Err(anyhow!("Transaction not found in receipts. {:?}", cc_id)),
+impl ExecutionProver {
+    pub fn new() -> Self {
+        ExecutionProver {}
     }
 }
 
-fn generate_trie<T>(
-    leaves: Vec<T>,
-    encode_fn: fn(&T) -> Vec<u8>,
-) -> PatriciaTrie<MemoryDB, HasherKeccak> {
-    let memdb = Arc::new(MemoryDB::new(true));
-    let hasher = Arc::new(HasherKeccak::new());
-    let mut trie = PatriciaTrie::new(Arc::clone(&memdb), Arc::clone(&hasher));
-    for (i, leaf) in leaves.iter().enumerate() {
-        let key = encode(&i);
-        let value = encode_fn(leaf);
-        trie.insert(key.to_vec(), value).unwrap();
-    }
+impl ExecutionProverAPI for ExecutionProver {
+    /**
+     * Generates an MPT proof from a receipt to the receipts_root.
+     */
+    fn generate_receipt_proof(
+        &self,
+        block: &Block<Transaction>,
+        receipts: &[TransactionReceipt],
+        index: u64,
+    ) -> Result<Vec<Vec<u8>>> {
+        let mut trie = utils::generate_trie(receipts.to_owned(), utils::encode_receipt);
+        let trie_root = trie.root().unwrap();
 
-    trie
-}
-
-fn encode_receipt(receipt: &TransactionReceipt) -> Vec<u8> {
-    let legacy_receipt_encoded = receipt.rlp_bytes();
-    if let Some(tx_type) = receipt.transaction_type {
-        let tx_type = tx_type.as_u64();
-        if tx_type == 0 {
-            legacy_receipt_encoded.to_vec()
-        } else {
-            [&tx_type.to_be_bytes()[7..8], &legacy_receipt_encoded].concat()
+        // Reality check
+        if block.receipts_root != H256::from_slice(&trie_root[0..32]) {
+            return Err(anyhow!(
+                "Invalid receipts root from trie generation: {}",
+                block.number.unwrap()
+            ));
         }
-    } else {
-        legacy_receipt_encoded.to_vec()
+
+        let receipt_index: cosmos_sdk_proto::prost::bytes::BytesMut = encode(&index);
+        let proof = trie
+            .get_proof(receipt_index.to_vec().as_slice())
+            .map_err(|e| anyhow!("Failed to generate proof: {:?}", e))?;
+
+        Ok(proof)
+    }
+
+    fn get_tx_index(&self, receipts: &[TransactionReceipt], cc_id: &CrossChainId) -> Result<u64> {
+        let tx_hash = cc_id
+            .id
+            .split_once(':')
+            .ok_or_else(|| anyhow!("Invalid CrossChainId format. {:?}", cc_id))?
+            .0;
+
+        let tx_index = receipts
+            .iter()
+            .position(|r| format!("0x{:x}", r.transaction_hash) == tx_hash);
+
+        match tx_index {
+            Some(index) => Ok(index as u64),
+            None => Err(anyhow!("Transaction not found in receipts. {:?}", cc_id)),
+        }
+    }
+}
+
+mod utils {
+    use cita_trie::{MemoryDB, PatriciaTrie, Trie};
+    use ethers::types::TransactionReceipt;
+    use ethers::utils::rlp::{encode, Encodable};
+    use hasher::HasherKeccak;
+    use std::sync::Arc;
+
+    pub(crate) fn generate_trie<T>(
+        leaves: Vec<T>,
+        encode_fn: fn(&T) -> Vec<u8>,
+    ) -> PatriciaTrie<MemoryDB, HasherKeccak> {
+        let memdb = Arc::new(MemoryDB::new(true));
+        let hasher = Arc::new(HasherKeccak::new());
+        let mut trie = PatriciaTrie::new(Arc::clone(&memdb), Arc::clone(&hasher));
+        for (i, leaf) in leaves.iter().enumerate() {
+            let key = encode(&i);
+            let value = encode_fn(leaf);
+            trie.insert(key.to_vec(), value).unwrap();
+        }
+
+        trie
+    }
+
+    pub(crate) fn encode_receipt(receipt: &TransactionReceipt) -> Vec<u8> {
+        let legacy_receipt_encoded = receipt.rlp_bytes();
+        if let Some(tx_type) = receipt.transaction_type {
+            let tx_type = tx_type.as_u64();
+            if tx_type == 0 {
+                legacy_receipt_encoded.to_vec()
+            } else {
+                [&tx_type.to_be_bytes()[7..8], &legacy_receipt_encoded].concat()
+            }
+        } else {
+            legacy_receipt_encoded.to_vec()
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::prover::{
-        execution::{generate_receipt_proof, get_tx_index},
+        execution::{ExecutionProver, ExecutionProverAPI},
         mocks::mock_execution_rpc::MockExecutionRPC,
     };
     use cita_trie::{MemoryDB, PatriciaTrie, Trie};
@@ -138,7 +165,11 @@ mod tests {
             .unwrap();
         let receipts = execution_rpc.get_block_receipts(18615160).await.unwrap();
 
-        let proof = generate_receipt_proof(&execution_block, &receipts, 1).unwrap();
+        let execution_prover = ExecutionProver::new();
+        let proof = execution_prover
+            .generate_receipt_proof(&execution_block, &receipts, 1)
+            .unwrap();
+
         let bytes: Result<[u8; 32], _> = execution_block.receipts_root[0..32].try_into();
         let root = Root::from_bytes(bytes.unwrap());
 
@@ -157,7 +188,11 @@ mod tests {
             .unwrap();
         let receipts = execution_rpc.get_block_receipts(18615160).await.unwrap();
 
-        let proof = generate_receipt_proof(&execution_block, &receipts, 1).unwrap();
+        let execution_prover = ExecutionProver::new();
+        let proof = execution_prover
+            .generate_receipt_proof(&execution_block, &receipts, 1)
+            .unwrap();
+
         let bytes: Result<[u8; 32], _> = execution_block.receipts_root[0..32].try_into();
         let root = Root::from_bytes(bytes.unwrap());
 
@@ -169,6 +204,7 @@ mod tests {
     #[test]
     fn test_get_tx_index_valid() {
         let receipts = vec![get_mock_receipt(), get_mock_receipt(), get_mock_receipt()];
+        let execution_prover = ExecutionProver::new();
 
         for (i, receipt) in receipts.iter().enumerate() {
             let cc_id = CrossChainId {
@@ -177,7 +213,8 @@ mod tests {
                     .unwrap(),
                 chain: "ethereum".parse().unwrap(),
             };
-            let index = get_tx_index(&receipts, &cc_id).unwrap();
+
+            let index = execution_prover.get_tx_index(&receipts, &cc_id).unwrap();
             assert_eq!(index, i as u64);
         }
     }
@@ -186,24 +223,27 @@ mod tests {
     fn test_get_tx_index_invalid() {
         let receipts = vec![get_mock_receipt(), get_mock_receipt(), get_mock_receipt()];
         let random_tx_hash = H256::random();
+        let execution_prover = ExecutionProver::new();
 
         let cc_id = CrossChainId {
             id: format!("0x{:x}:15", random_tx_hash).parse().unwrap(),
             chain: "ethereum".parse().unwrap(),
         };
-        let index = get_tx_index(&receipts, &cc_id);
+        let index = execution_prover.get_tx_index(&receipts, &cc_id);
         assert!(index.is_err())
     }
 
     #[test]
     fn test_get_tx_index_invalid_cc_id_format() {
         let receipts = vec![get_mock_receipt()];
+        let execution_prover = ExecutionProver::new();
+
         let cc_id = CrossChainId {
             id: "invalid_format".parse().unwrap(),
             chain: "ethereum".parse().unwrap(),
         };
 
-        let result = get_tx_index(&receipts, &cc_id);
+        let result = execution_prover.get_tx_index(&receipts, &cc_id);
         assert!(result.is_err());
     }
 }

@@ -3,6 +3,7 @@ mod types;
 mod wasm;
 
 use crate::prover::consensus::ConsensusProver;
+use crate::prover::execution::ExecutionProver;
 use crate::prover::state_prover::StateProver;
 use crate::prover::Prover;
 use consensus_types::proofs::UpdateVariant;
@@ -23,7 +24,8 @@ async fn main() {
     let state_prover = StateProver::new(config.state_prover_rpc.clone());
     let gateway: Gateway = Gateway::new(config.execution_rpc, config.gateway_addr);
     let consensus_prover = ConsensusProver::new(&consensus, &state_prover);
-    let prover = Prover::new(&consensus, &consensus_prover, &execution);
+    let execution_prover = ExecutionProver::new();
+    let prover = Prover::new(&consensus, &execution, &consensus_prover, &execution_prover);
 
     let finality_update = consensus.get_finality_update().await.unwrap();
     let finality_header_slot = finality_update.finalized_header.beacon.slot;

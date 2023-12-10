@@ -245,7 +245,6 @@ mod tests {
     use super::{ConsensusProver, ConsensusProverAPI};
     use crate::prover::mocks::mock_consensus_rpc::MockConsensusRPC;
     use crate::prover::mocks::mock_state_prover::MockStateProver;
-    use crate::prover::state_prover;
     use consensus_types::consensus::BeaconBlockAlias;
     use consensus_types::proofs::AncestryProof;
     use eth::consensus::EthBeaconAPI;

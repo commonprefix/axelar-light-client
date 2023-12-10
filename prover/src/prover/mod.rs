@@ -6,11 +6,7 @@ pub mod types;
 mod utils;
 
 use self::types::ProofAuxiliaryData;
-use crate::prover::{
-    consensus::ConsensusProverAPI,
-    execution::{generate_receipt_proof, get_tx_index},
-};
-use consensus_types::lightclient::MessageVerification;
+use crate::prover::{consensus::ConsensusProverAPI, execution::ExecutionProverAPI};
 use consensus_types::{
     consensus::to_beacon_header,
     proofs::{MessageProof, ReceiptProof, TransactionProof, UpdateVariant},
@@ -26,18 +22,21 @@ pub struct Prover<'a> {
     consensus_rpc: &'a dyn EthBeaconAPI,
     execution_rpc: &'a dyn EthExecutionAPI,
     consensus_prover: &'a dyn ConsensusProverAPI,
+    execution_prover: &'a dyn ExecutionProverAPI,
 }
 
 impl<'a> Prover<'a> {
     pub fn new(
         consensus_rpc: &'a dyn EthBeaconAPI,
-        consensus_prover: &'a dyn ConsensusProverAPI,
         execution_rpc: &'a dyn EthExecutionAPI,
+        consensus_prover: &'a dyn ConsensusProverAPI,
+        execution_prover: &'a dyn ExecutionProverAPI,
     ) -> Self {
         Prover {
             consensus_rpc,
-            consensus_prover,
             execution_rpc,
+            consensus_prover,
+            execution_prover,
         }
     }
 
@@ -62,7 +61,9 @@ impl<'a> Prover<'a> {
         } = proof_data;
 
         let block_id = target_beacon_block.hash_tree_root()?.to_string();
-        let tx_index = get_tx_index(&receipts, &message.message.cc_id)?;
+        let tx_index = self
+            .execution_prover
+            .get_tx_index(&receipts, &message.message.cc_id)?;
         let transaction =
             target_beacon_block.body.execution_payload.transactions[tx_index as usize].clone();
 
@@ -84,10 +85,13 @@ impl<'a> Prover<'a> {
         .try_into()?;
 
         // Execution Proofs
-        let receipt_proof =
-            generate_receipt_proof(&target_execution_block, &receipts, tx_index).wrap_err(
-                format!("Failed to generate receipt proof for message {:?}", message),
-            )?;
+        let receipt_proof = self
+            .execution_prover
+            .generate_receipt_proof(&target_execution_block, &receipts, tx_index)
+            .wrap_err(format!(
+                "Failed to generate receipt proof for message {:?}",
+                message
+            ))?;
 
         // Consensus Proofs
         let transaction_proof = self
