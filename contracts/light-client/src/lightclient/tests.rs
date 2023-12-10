@@ -7,8 +7,8 @@ pub mod tests {
     };
     use crate::lightclient::helpers::{
         extract_logs_from_receipt_proof, is_proof_valid, parse_logs_from_receipt,
-        verify_ancestry_proof, verify_block_roots_proof, verify_historical_roots_proof,
-        verify_message, verify_transaction_proof, verify_trie_proof,
+        verify_block_roots_proof, verify_historical_roots_proof, verify_message,
+        verify_transaction_proof, verify_trie_proof,
     };
     use crate::{
         lightclient::error::ConsensusError,
@@ -21,13 +21,11 @@ pub mod tests {
     };
     use cosmwasm_std::testing::mock_env;
     use cosmwasm_std::Timestamp;
-    use hasher::{Hasher, HasherKeccak};
     use types::alloy_primitives::Address;
-    use types::consensus::{Bootstrap, FinalityUpdate};
+    use types::consensus::Bootstrap;
     use types::execution::ReceiptLog;
-    use types::lightclient::{CrossChainId, LightClientState, Message};
-    use types::proofs::AncestryProof::HistoricalRoots;
-    use types::proofs::{AddressType, AncestryProof, UpdateVariant};
+    use types::lightclient::LightClientState;
+    use types::proofs::{AncestryProof, UpdateVariant};
     use types::ssz_rs::{Bitvector, Merkleized, Node};
     use types::sync_committee_rs::consensus_types::Transaction;
     use types::sync_committee_rs::constants::{Bytes32, Root};
@@ -154,7 +152,7 @@ pub mod tests {
         .is_none());
 
         // change the transaction index, fail
-        let mut invalid_receipt_proof = proofs.receipt_proof.clone();
+        let invalid_receipt_proof = proofs.receipt_proof.clone();
         assert!(verify_trie_proof(
             invalid_receipt_proof.receipts_root,
             transaction_proof.transaction_index + 1,
@@ -187,9 +185,9 @@ pub mod tests {
             }
         };
         // TODO: improve this
-        let mut update = match verification_data.1.proofs.update {
+        let update = match verification_data.1.proofs.update {
             UpdateVariant::Finality(update) => update,
-            UpdateVariant::Optimistic(update) => {
+            UpdateVariant::Optimistic(..) => {
                 panic!("Unexpected")
             }
         };
@@ -251,7 +249,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_historical_roots_proof() {
-        let mut verification_data = get_verification_data_with_historical_roots();
+        let verification_data = get_verification_data_with_historical_roots();
         let (
             block_root_proof,
             block_summary_root,
@@ -274,16 +272,15 @@ pub mod tests {
             ),
         };
 
-        let mut update = match verification_data.1.proofs.update {
+        let update = match verification_data.1.proofs.update {
             UpdateVariant::Finality(update) => update,
-            UpdateVariant::Optimistic(update) => {
+            UpdateVariant::Optimistic(..) => {
                 panic!("Unexpected")
             }
         };
 
         let recent_block = update.finalized_header.beacon;
-        let mut target_block = verification_data.1.proofs.target_block;
-        let target_block_root = target_block.hash_tree_root().unwrap();
+        let target_block = verification_data.1.proofs.target_block;
 
         assert!(verify_historical_roots_proof(
             &block_root_proof,
@@ -519,12 +516,10 @@ pub mod tests {
 
     #[test]
     fn test_verify_message() {
-        let hasher = HasherKeccak::new();
         let verification_data = get_verification_data_with_block_roots();
         let message = verification_data.1.message;
         let receipt_proof = verification_data.1.proofs.receipt_proof;
         let transaction_proof = verification_data.1.proofs.transaction_proof;
-        let transaction_hash = hex::encode(hasher.digest(transaction_proof.transaction.as_slice()));
 
         let log_index_str = message.cc_id.id.split(':').nth(1).unwrap();
         let log_index: usize = log_index_str.parse().unwrap();
