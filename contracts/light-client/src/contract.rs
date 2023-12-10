@@ -1,8 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdError,
-    StdResult,
+    to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdError, StdResult,
 };
 
 use crate::error::ContractError;
@@ -70,11 +69,6 @@ pub fn execute(
             messages: _messages,
         } => Ok(Response::new()),
     }
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    Ok(Response::new().add_attribute(msg.id.to_string(), "somevalue"))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

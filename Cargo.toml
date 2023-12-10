@@ -2,7 +2,6 @@
 resolver = "2"
 members = [
   "contracts/light-client",
-  "trie-verifier",
   "types",
   "eth",
   "prover"

@@ -1186,25 +1186,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cw-multi-test"
-version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d818f5323c80ed4890db7f89d65eda3f0261fe21878e628c27ea2d8de4b7ba4"
-dependencies = [
- "anyhow",
- "cosmwasm-std",
- "cw-storage-plus",
- "cw-utils",
- "derivative",
- "itertools 0.11.0",
- "prost 0.12.3",
- "schemars",
- "serde",
- "sha2 0.10.8",
- "thiserror",
-]
-
-[[package]]
 name = "cw-storage-plus"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2748,7 +2729,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw-multi-test 0.16.5",
+ "cw-multi-test",
  "cw-storage-plus",
  "cw2",
  "eyre",
@@ -5020,20 +5001,6 @@ dependencies = [
  "eth2_hashing",
  "ethereum-types",
  "smallvec",
-]
-
-[[package]]
-name = "trie-verifier"
-version = "0.1.0"
-dependencies = [
- "cita_trie",
- "cosmwasm-std",
- "cw-multi-test 0.17.0",
- "hasher",
- "hex",
- "serde",
- "serde_json",
- "thiserror",
 ]
 
 [[package]]
