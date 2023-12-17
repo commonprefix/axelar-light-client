@@ -26,7 +26,7 @@ pub fn process_batch_verification_data(
 
     verify_ancestry_proof(&data.ancestry_proof, &data.target_block, &recent_block)?;
 
-    for proof in proofs.into_iter() {
+    for proof in proofs.iter() {
         // TODO: wrap everything in something like a try catch
         let transaction_proof_res =
             verify_transaction_proof(&proof.transaction_proof, &target_block_root);
@@ -49,13 +49,13 @@ pub fn process_batch_verification_data(
 
         // TODO: handle all unwraps gracefully
         let logs = receipt_verification_res.unwrap();
-        for message in (&proof.messages).into_iter() {
+        for message in proof.messages.iter() {
             let log_index_str = message.cc_id.id.split(':').nth(1).unwrap();
             let log_index: usize = log_index_str.parse()?;
             let log = logs.0.get(log_index).unwrap();
 
             let verification_result =
-                verify_message(&message, log, &proof.transaction_proof.transaction);
+                verify_message(message, log, &proof.transaction_proof.transaction);
 
             if verification_result.is_err() {
                 continue;

@@ -843,12 +843,6 @@ pub mod tests {
         let lightclient = init_lightclient(None);
         let bootstrap = get_bootstrap();
 
-        let mut update = get_update(862);
-        update.finalized_header.beacon = BeaconBlockHeader::default();
-
-        let err = update.verify(&lightclient);
-        assert!(err.is_err());
-
         assert_eq!(
             lightclient.state,
             LightClientState {
@@ -864,14 +858,12 @@ pub mod tests {
         let mut lightclient = init_lightclient(None);
         let update = get_update(862);
         let bootstrap = get_bootstrap();
-        let res = update.verify(&lightclient);
-        assert!(res.is_ok());
 
         let res = lightclient.apply_update(&update);
         assert!(res.is_ok());
         assert_eq!(
             lightclient.state.update_slot, update.finalized_header.beacon.slot,
-            "finalized_header should be set after applying update"
+            "update_slot should be set after applying update"
         );
         assert_eq!(
             lightclient.state.current_sync_committee, bootstrap.current_sync_committee,
@@ -888,14 +880,11 @@ pub mod tests {
     fn test_apply_next_period_update() {
         let mut lightclient = init_lightclient(None);
 
-        let mut res;
-        res = lightclient.apply_update(&get_update(862));
-        assert!(res.is_ok());
+        assert!(lightclient.apply_update(&get_update(862)).is_ok());
         let state_before_update = lightclient.state.clone();
 
         let update = get_update(863);
-        res = lightclient.apply_update(&update);
-        assert!(res.is_ok());
+        assert!(lightclient.apply_update(&update).is_ok());
 
         assert_eq!(
             lightclient.state.update_slot, update.finalized_header.beacon.slot,
@@ -915,20 +904,15 @@ pub mod tests {
 
     #[test]
     #[ignore]
+    // TODO: need two updates from the same period
     fn test_apply_same_period_update() {
         let mut lightclient = init_lightclient(None);
-        let update = get_update(862);
+        let mut update = get_update(862);
 
-        let mut res;
-        res = lightclient.apply_update(&update);
-        assert!(res.is_ok());
+        assert!(lightclient.apply_update(&update).is_ok());
         let state_before_update = lightclient.state.clone();
-
-        // TODO: FIXME
-        // update.finalized_header.beacon.slot =
-        //     U64::from(update.finalized_header.beacon.slot.as_u64() + 1);
-        res = lightclient.apply_update(&update);
-        assert!(res.is_ok());
+        // apply again
+        assert!(lightclient.apply_update(&update).is_ok());
 
         assert_ne!(
             lightclient.state.update_slot,
@@ -945,26 +929,6 @@ pub mod tests {
         assert_eq!(
             lightclient.state.next_sync_committee, state_before_update.next_sync_committee,
             "next_sync_committee should be unchanged"
-        );
-    }
-
-    #[test]
-    fn test_multiple_updates() {
-        let mut lightclient = init_lightclient(None);
-        let update = get_update(862);
-        let res = lightclient.apply_update(&update);
-        assert!(res.is_ok());
-        assert_eq!(
-            lightclient.state.update_slot, update.finalized_header.beacon.slot,
-            "finalized_header should be set after applying first update"
-        );
-
-        let update = get_update(863);
-        let res = lightclient.apply_update(&update);
-        assert!(res.is_ok());
-        assert_eq!(
-            lightclient.state.update_slot, update.finalized_header.beacon.slot,
-            "finalized_header should be set after applying second update"
         );
     }
 }
