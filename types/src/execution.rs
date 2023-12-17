@@ -1,18 +1,20 @@
 use alloy_primitives::Address;
 use alloy_rlp::{Buf, Decodable};
+use serde::Deserialize;
 use ssz_rs::prelude::*;
 use std::cmp::Ordering;
 
 pub const RECEIPTS_ROOT_GINDEX: usize = 3219;
 
-#[derive(Default, Debug, Clone)]
+// TODO: Deserialize only used from tests
+#[derive(Default, Debug, Clone, Deserialize)]
 pub struct ReceiptLog {
     pub address: [u8; 20],
     pub topics: Vec<[u8; 32]>,
     pub data: Vec<u8>,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct ContractCallBase {
     pub source_address: Option<Address>,
     pub destination_chain: Option<String>,

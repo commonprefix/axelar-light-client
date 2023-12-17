@@ -1,12 +1,13 @@
 #[cfg(test)]
 pub mod tests {
+    use std::fs::File;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use crate::lightclient::helpers::test_helpers::{
         get_verification_data_with_block_roots, get_verification_data_with_historical_roots,
     };
     use crate::lightclient::helpers::{
-        extract_logs_from_receipt_proof, is_proof_valid, parse_logs_from_receipt,
+        extract_logs_from_receipt_proof, is_proof_valid, parse_log, parse_logs_from_receipt,
         verify_block_roots_proof, verify_historical_roots_proof, verify_message,
         verify_transaction_proof, verify_trie_proof,
     };
@@ -614,6 +615,56 @@ pub mod tests {
         // failure on invalid log
         let log = ReceiptLog::default();
         assert!(verify_message(&message, &log, &transaction_proof.transaction).is_err());
+    }
+
+    #[test]
+    fn test_verify_parse_log() {
+        let file = File::open("testdata/receipt_log.json").unwrap();
+        let log: ReceiptLog = serde_json::from_reader(file).unwrap();
+
+        let parsing_result = parse_log(&log);
+        assert!(parsing_result.is_ok());
+        let event = parsing_result.unwrap();
+        assert_eq!(
+            event.source_address.unwrap().to_string().to_lowercase(),
+            "0xce16f69375520ab01377ce7b88f5ba8c48f8d666"
+        );
+        assert_eq!(
+            event.destination_chain.unwrap().to_string().to_lowercase(),
+            "fantom"
+        );
+        assert_eq!(
+            event
+                .destination_address
+                .unwrap()
+                .to_string()
+                .to_lowercase(),
+            "0xce16f69375520ab01377ce7b88f5ba8c48f8d666"
+        );
+        assert_eq!(
+            event.payload_hash.unwrap(),
+            [
+                68, 249, 93, 245, 6, 157, 169, 86, 138, 243, 82, 53, 145, 70, 138, 171, 153, 223,
+                14, 249, 200, 50, 140, 182, 107, 223, 224, 230, 18, 217, 208, 55
+            ]
+        );
+
+        // fails to decode without topic 0 (function signature)
+        let mut broken_log = log.clone();
+        broken_log.topics.remove(0);
+        assert!(parse_log(&broken_log).is_err());
+
+        // fails to decode with malformed topics
+        let mut broken_log = log.clone();
+        broken_log.topics.remove(broken_log.topics.len() - 1);
+        assert!(parse_log(&broken_log).is_err());
+        broken_log.topics = vec![];
+        assert!(parse_log(&broken_log).is_err());
+
+        // fails to decode with malformed data
+        let mut broken_log = log.clone();
+        broken_log.data = vec![1, 2, 3];
+        assert!(parse_log(&broken_log).is_err());
     }
 
     #[test]
