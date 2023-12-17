@@ -6,7 +6,6 @@ use std::{
 use alloy_dyn_abi::EventExt;
 use alloy_json_abi::{AbiItem, JsonAbi};
 use cita_trie::{MemoryDB, PatriciaTrie, Trie};
-use cosmwasm_std::StdError;
 use eyre::{anyhow, eyre, Result};
 use types::alloy_primitives::{Address, Bytes, FixedBytes, Log};
 use types::alloy_rlp::encode;

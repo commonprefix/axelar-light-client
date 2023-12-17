@@ -65,6 +65,25 @@ pub fn execute(
             VERIFIED_MESSAGES.save(deps.storage, payload.message.hash_id(), &payload.message)?;
             Ok(Response::new())
         }
+        BatchVerificationData { payload } => {
+            let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
+            let config = CONFIG.load(deps.storage)?;
+            let lc = LightClient::new(&config, Some(state), &env);
+            match execute::process_batch_verification_data(&lc, &payload) {
+                // TODO: return error coming from inside the function
+                Err(_) => return Err(ContractError::InvalidVerificationData),
+                Ok(verified_messages) => {
+                    for message in verified_messages.into_iter() {
+                        match VERIFIED_MESSAGES.save(deps.storage, message.hash_id(), &message) {
+                            Err(..) => continue,
+                            Ok(..) => {}
+                        }
+                    }
+                }
+            }
+            // TODO: return status for each message?
+            Ok(Response::new())
+        }
         VerifyMessages {
             messages: _messages,
         } => Ok(Response::new()),

@@ -74,3 +74,19 @@ pub struct ReceiptProof {
     // Receipts root of execution payload of target block
     pub receipts_root: Root,
 }
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct BatchMessageProof {
+    pub update: UpdateVariant,
+    pub ancestry_proof: AncestryProof,
+    pub target_block: BeaconBlockHeader,
+    pub proofs: Vec<BlockLevelVerificationData>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct BlockLevelVerificationData {
+    pub transaction_proof: TransactionProof,
+    pub receipt_proof: ReceiptProof,
+    // Transaction level batching
+    pub messages: Vec<Message>,
+}
