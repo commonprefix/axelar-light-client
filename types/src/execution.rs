@@ -25,22 +25,6 @@ pub struct ContractCallBase {
 #[derive(Default, Debug)]
 pub struct ReceiptLogs(pub Vec<ReceiptLog>);
 
-impl ReceiptLogs {
-    pub fn contains_topic(&self, topic: &[u8]) -> bool {
-        if topic.len() != 32 {
-            return false; // Or handle this case differently, if necessary
-        }
-
-        let topic_array: [u8; 32] = topic.try_into().unwrap();
-        for log in &self.0 {
-            if log.topics.contains(&topic_array) {
-                return true;
-            }
-        }
-        false
-    }
-}
-
 impl Decodable for ReceiptLogs {
     fn decode(buf: &mut &[u8]) -> Result<Self, alloy_rlp::Error> {
         let rlp_type = *buf.first().ok_or(alloy_rlp::Error::Custom(
