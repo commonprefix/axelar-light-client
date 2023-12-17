@@ -7,9 +7,9 @@ pub mod tests {
         get_verification_data_with_block_roots, get_verification_data_with_historical_roots,
     };
     use crate::lightclient::helpers::{
-        extract_logs_from_receipt_proof, is_proof_valid, parse_log, parse_logs_from_receipt,
-        verify_block_roots_proof, verify_historical_roots_proof, verify_message,
-        verify_transaction_proof, verify_trie_proof,
+        calc_sync_period, extract_logs_from_receipt_proof, is_proof_valid, parse_log,
+        parse_logs_from_receipt, verify_block_roots_proof, verify_historical_roots_proof,
+        verify_message, verify_transaction_proof, verify_trie_proof,
     };
     use crate::{
         lightclient::error::ConsensusError,
@@ -665,6 +665,12 @@ pub mod tests {
         let mut broken_log = log.clone();
         broken_log.data = vec![1, 2, 3];
         assert!(parse_log(&broken_log).is_err());
+    }
+
+    #[test]
+    fn test_calc_sync_period() {
+        let slot: u64 = 7930324;
+        assert_eq!(calc_sync_period(slot), 968);
     }
 
     #[test]
