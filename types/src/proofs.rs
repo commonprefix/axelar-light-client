@@ -73,6 +73,7 @@ pub struct ReceiptProof {
     pub receipt_proof: Vec<Vec<u8>>,
     // Receipts root of execution payload of target block
     pub receipts_root: Root,
+    pub receipt: Vec<u8>
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]

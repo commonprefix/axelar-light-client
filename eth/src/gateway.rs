@@ -79,6 +79,7 @@ impl Gateway {
                     },
                     block_hash: log.block_hash.unwrap(),
                     block_number: log.block_number.unwrap().as_u64(),
+                    tx_hash,
                 };
 
                 Ok(msg)

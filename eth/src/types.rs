@@ -10,6 +10,7 @@ use types::{
 pub struct InternalMessage {
     pub message: Message,
     pub block_hash: H256,
+    pub tx_hash: H256,
     pub block_number: u64,
 }
 

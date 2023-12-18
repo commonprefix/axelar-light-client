@@ -14,7 +14,7 @@ pub trait ExecutionProverAPI {
         receipts: &[TransactionReceipt],
         index: u64,
     ) -> Result<Vec<Vec<u8>>>;
-    fn get_tx_index(&self, receipts: &[TransactionReceipt], cc_id: &CrossChainId) -> Result<u64>;
+    fn get_tx_index(&self, receipts: &[TransactionReceipt], tx_hash: &str) -> Result<u64>;
 }
 
 pub struct ExecutionProver;
@@ -53,23 +53,6 @@ impl ExecutionProverAPI for ExecutionProver {
             .map_err(|e| anyhow!("Failed to generate proof: {:?}", e))?;
 
         Ok(proof)
-    }
-
-    fn get_tx_index(&self, receipts: &[TransactionReceipt], cc_id: &CrossChainId) -> Result<u64> {
-        let tx_hash = cc_id
-            .id
-            .split_once(':')
-            .ok_or_else(|| anyhow!("Invalid CrossChainId format. {:?}", cc_id))?
-            .0;
-
-        let tx_index = receipts
-            .iter()
-            .position(|r| format!("0x{:x}", r.transaction_hash) == tx_hash);
-
-        match tx_index {
-            Some(index) => Ok(index as u64),
-            None => Err(anyhow!("Transaction not found in receipts. {:?}", cc_id)),
-        }
     }
 }
 
@@ -249,3 +232,5 @@ mod tests {
         assert!(result.is_err());
     }
 }
+
+p

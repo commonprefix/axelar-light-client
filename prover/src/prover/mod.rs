@@ -9,14 +9,19 @@ use self::types::ProofAuxiliaryData;
 use crate::prover::{consensus::ConsensusProverAPI, execution::ExecutionProverAPI};
 use consensus_types::{
     consensus::to_beacon_header,
-    proofs::{MessageProof, ReceiptProof, TransactionProof, UpdateVariant},
+    proofs::{
+        BatchMessageProof, Message, MessageProof, ReceiptProof, TransactionLevelVerificationData,
+        TransactionProof, UpdateVariant,
+    },
 };
 use eth::{
     consensus::EthBeaconAPI, execution::EthExecutionAPI, types::InternalMessage,
     utils::calc_slot_from_timestamp,
 };
+use ethers::{types::H256, utils::rlp::encode};
 use eyre::{anyhow, Context, Result};
 use ssz_rs::{Merkleized, Node};
+use std::collections::HashMap;
 
 pub struct Prover<'a> {
     consensus_rpc: &'a dyn EthBeaconAPI,
@@ -46,7 +51,7 @@ impl<'a> Prover<'a> {
         update: UpdateVariant,
     ) -> Result<MessageVerification> {
         let proof_data = self
-            .gather_proof_data(message, &update)
+            .gather_proof_data(message.block_number, &update)
             .await
             .wrap_err(format!(
                 "Failed to gather proof data for message {:?}",
@@ -61,9 +66,16 @@ impl<'a> Prover<'a> {
         } = proof_data;
 
         let block_id = target_beacon_block.hash_tree_root()?.to_string();
-        let tx_index = self
-            .execution_prover
-            .get_tx_index(&receipts, &message.message.cc_id)?;
+        let cc_id = &message.message.cc_id;
+        let tx_hash: &&str = &message
+            .message
+            .cc_id
+            .id
+            .split_once(':')
+            .ok_or_else(|| anyhow!("Invalid CrossChainId format. {:?}", cc_id))?
+            .0;
+        let tx_index = self.execution_prover.get_tx_index(&receipts, tx_hash)?;
+
         let transaction =
             target_beacon_block.body.execution_payload.transactions[tx_index as usize].clone();
 
@@ -138,6 +150,7 @@ impl<'a> Prover<'a> {
                     transaction,
                 },
                 receipt_proof: ReceiptProof {
+                    receipt,
                     receipt_proof,
                     receipts_root_proof: receipts_root_proof.witnesses,
                     receipts_root: Node::from_bytes(
@@ -148,20 +161,153 @@ impl<'a> Prover<'a> {
         })
     }
 
+    // type HighLevelVerification = {
+    //     update: UpdateVariant
+    //     targetBlockLevelVerifications: {
+    //         ancestryProof: AncestryProof
+    //         targetBlock: phase0.BeaconBlock
+    //         transactionLevelVerifications: {
+    //             transaction_proof: TransactionProof
+    //             receipt_proof: ReceiptProof
+    //             message: Message
+    //         }[]
+    //     }[]
+    // }
+
+    /**
+     *
+     */
+
+    pub async fn batch_prove_events(
+        &self,
+        messages: &Vec<InternalMessage>,
+        update: &UpdateVariant,
+    ) -> Result<BatchMessageProof> {
+        let block_num = messages[0].block_number;
+        let block_hash = messages[0].block_hash;
+
+        let same_block_nums = messages.iter().all(|m| m.block_number == block_num);
+        let same_block_hash = messages.iter().all(|m| m.block_hash == block_hash);
+
+        if !same_block_nums || !same_block_hash {
+            return Err(anyhow!("all messages should be in same block"));
+        }
+
+        let proof_data = self
+            .gather_proof_data(block_num, &update)
+            .await
+            .wrap_err(format!("Failed to gather proof data for {:?}", block_num))?;
+
+        let ProofAuxiliaryData {
+            mut target_beacon_block,
+            target_execution_block,
+            receipts,
+            recent_block_header,
+        } = proof_data;
+
+        let ancestry_proof = self
+            .consensus_prover
+            .prove_ancestry(
+                target_beacon_block.slot as usize,
+                recent_block_header.slot as usize,
+                &recent_block_header.state_root.to_string(),
+            )
+            .await
+            .wrap_err(format!(
+                "Failed to generate ancestry proof for block {:?}",
+                block_hash
+            ))?;
+
+        // Group messages by block_hash and tx_id
+        let mut tx_groups: HashMap<H256, Vec<Message>> = HashMap::new();
+        for msg in messages {
+            tx_groups
+                .entry(msg.tx_hash) // Assuming transaction_id method exists
+                .or_insert_with(Vec::new)
+                .push(msg.message.clone());
+        }
+
+        let mut proofs_per_tx: Vec<TransactionLevelVerificationData> = vec![];
+
+        for (tx_hash, messages) in tx_groups.iter() {
+            let tx_index = self
+                .execution_prover
+                .get_tx_index(&receipts, tx_hash.to_string().as_str())?;
+
+            let transaction =
+                target_beacon_block.body.execution_payload.transactions[tx_index as usize].clone();
+            let receipt = encode(&receipts[tx_index as usize].clone());
+
+            let transaction_proof = self
+                .consensus_prover
+                .generate_transaction_proof(&block_hash.to_string().as_str(), tx_index)
+                .await
+                .wrap_err(format!(
+                    "Failed to generate tx proof for block {}, and tx: {}",
+                    block_hash, tx_hash
+                ))?;
+
+            let receipt_proof = self
+                .execution_prover
+                .generate_receipt_proof(&target_execution_block, &receipts, tx_index)
+                .wrap_err(format!(
+                    "Failed to generate receipt proof for block {} and tx: {}",
+                    block_hash, tx_hash
+                ))?;
+
+            let receipts_root_proof = self
+                .consensus_prover
+                .generate_receipts_root_proof(&block_hash.to_string().as_str())
+                .await
+                .wrap_err(format!(
+                    "Failed to generate receipts root proof for block {} and tx: {}",
+                    block_hash, tx_hash
+                ))?;
+
+            let transaction_proof = TransactionProof {
+                transaction_index: tx_index,
+                transaction_gindex: transaction_proof.gindex,
+                transaction_proof: transaction_proof.witnesses,
+                transaction,
+            };
+
+            let receipt_proof = ReceiptProof {
+                receipt: receipt.to_vec(),
+                receipt_proof,
+                receipts_root_proof: receipts_root_proof.witnesses,
+                receipts_root: Node::from_bytes(
+                    target_execution_block.receipts_root.as_bytes().try_into()?,
+                ),
+            };
+
+            proofs_per_tx.push(TransactionLevelVerificationData {
+                transaction_proof,
+                receipt_proof,
+                messages: messages.to_vec(),
+            })
+        }
+
+        let res = BatchMessageProof {
+            update: update.clone(),
+            ancestry_proof,
+            target_block: to_beacon_header(&target_beacon_block)?,
+            proofs: proofs_per_tx,
+        };
+
+        return Ok(res);
+    }
+
     async fn gather_proof_data(
         &self,
-        message: &InternalMessage,
+        target_block_num: u64,
         update: &UpdateVariant,
     ) -> Result<ProofAuxiliaryData> {
         let target_execution_block = self
             .execution_rpc
-            .get_block_with_txs(message.block_number)
+            .get_block_with_txs(target_block_num)
             .await
-            .wrap_err(format!(
-                "Failed to get execution block {}",
-                message.block_number
-            ))?
-            .ok_or_else(|| anyhow!("Could not find execution block {:?}", message.block_number))?;
+            .wrap_err(format!("Failed to get exec block {}", target_block_num))?
+            .ok_or_else(|| anyhow!("Could not find execution block {:?}", target_block_num))?;
 
         let target_block_slot = calc_slot_from_timestamp(target_execution_block.timestamp.as_u64());
 
@@ -169,19 +315,13 @@ impl<'a> Prover<'a> {
             .consensus_rpc
             .get_beacon_block(target_block_slot)
             .await
-            .wrap_err(format!(
-                "Failed to get beacon block {}",
-                message.block_number
-            ))?;
+            .wrap_err(format!("Failed to get beacon block {}", target_block_num))?;
 
         let receipts: Vec<ethers::types::TransactionReceipt> = self
             .execution_rpc
-            .get_block_receipts(message.block_number)
+            .get_block_receipts(target_block_num)
             .await
-            .wrap_err(format!(
-                "Failed to get receipts for block {}",
-                message.block_number
-            ))?;
+            .wrap_err(format!("Failed to get receipts {}", target_block_num))?;
 
         let recent_block_header = match update.clone() {
             UpdateVariant::Finality(update) => update.finalized_header.beacon,
@@ -270,6 +410,7 @@ mod tests {
                 payload_hash: Default::default(),
             },
             block_hash: Default::default(),
+            tx_hash: "test_tx_hash".parse().unwrap(),
             block_number,
         }
     }
@@ -322,7 +463,10 @@ mod tests {
         let message = get_mock_message(target_block_num);
         let update = get_mock_update(false, 1000, 500);
 
-        let result = prover.gather_proof_data(&message, &update).await.unwrap();
+        let result = prover
+            .gather_proof_data(message.block_number, &update)
+            .await
+            .unwrap();
 
         assert_eq!(
             result.target_execution_block,
@@ -363,7 +507,10 @@ mod tests {
         let message = get_mock_message(target_block_num);
         let update = get_mock_update(true, 1000, 500);
 
-        let result = prover.gather_proof_data(&message, &update).await.unwrap();
+        let result = prover
+            .gather_proof_data(message.block_number, &update)
+            .await
+            .unwrap();
 
         assert_eq!(
             result.target_execution_block,
@@ -410,7 +557,9 @@ mod tests {
         let message = get_mock_message(target_block_num);
         let update = get_mock_update(true, 1000, 500);
 
-        let result = prover.gather_proof_data(&message, &update).await;
+        let result = prover
+            .gather_proof_data(message.block_number, &update)
+            .await;
 
         assert!(result.is_err())
     }
@@ -445,7 +594,9 @@ mod tests {
         let message = get_mock_message(target_block_num);
         let update = get_mock_update(true, 1000, 500);
 
-        let result = prover.gather_proof_data(&message, &update).await;
+        let result = prover
+            .gather_proof_data(message.block_number, &update)
+            .await;
 
         assert!(result.is_err())
     }
