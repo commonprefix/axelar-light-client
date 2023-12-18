@@ -269,7 +269,11 @@ pub fn parse_log(log: &ReceiptLog) -> Result<ContractCallBase> {
     Err(eyre!("Couldn't match an event to decode the log"))
 }
 
-pub fn verify_message(message: &Message, log: &ReceiptLog, transaction: &Vec<u8>) -> Result<()> {
+pub fn compare_message_with_log(
+    message: &Message,
+    log: &ReceiptLog,
+    transaction: &Vec<u8>,
+) -> Result<()> {
     let hasher = HasherKeccak::new();
     let transaction_hash = hex::encode(hasher.digest(transaction.as_slice()));
 
@@ -290,7 +294,6 @@ pub fn verify_message(message: &Message, log: &ReceiptLog, transaction: &Vec<u8>
     }
 
     let event = parse_log(log)?;
-    // TODO: improve syntax, find a way to test it
     if event.source_address.is_none()
         || event.destination_address.is_none()
         || event.destination_chain.is_none()

@@ -1,71 +1,111 @@
 use crate::ContractError;
 use cosmwasm_std::{DepsMut, Env, Response};
-use eyre::Result;
+use eyre::{eyre, Result};
 use types::common::ChainConfig;
+use types::execution::ReceiptLogs;
 use types::lightclient::MessageVerification;
-use types::proofs::{BatchMessageProof, Message};
-use types::ssz_rs::Merkleized;
+use types::proofs::{BatchMessageProof, BlockLevelVerificationData, Message};
+use types::ssz_rs::{Merkleized, Node};
+use types::sync_committee_rs::consensus_types::Transaction;
+use types::sync_committee_rs::constants::MAX_BYTES_PER_TRANSACTION;
 use types::{common::Forks, consensus::Update};
 
 use crate::lightclient::helpers::{
-    extract_logs_from_receipt_proof, verify_ancestry_proof, verify_message,
+    compare_message_with_log, extract_logs_from_receipt_proof, verify_ancestry_proof,
     verify_transaction_proof,
 };
 use crate::lightclient::LightClient;
 use crate::state::{CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE};
 
+pub fn verify_message(
+    message: &Message,
+    transaction: &Transaction<MAX_BYTES_PER_TRANSACTION>,
+    logs: &ReceiptLogs,
+) -> Result<()> {
+    let log_index_str = message
+        .cc_id
+        .id
+        .split(':')
+        .nth(1)
+        .ok_or_else(|| eyre!("Missing ':' in message ID"))?;
+    let log_index = log_index_str
+        .parse::<usize>()
+        .map_err(|_| eyre!("Failed to parse log index"))?;
+    let log = logs
+        .0
+        .get(log_index)
+        .ok_or_else(|| eyre!("Log index out of bounds"))?;
+
+    compare_message_with_log(message, log, &transaction)?;
+
+    Ok(())
+}
+
+pub fn verify_block_level_proofs(
+    data: &BlockLevelVerificationData,
+    target_block_root: &Node,
+) -> Vec<(Message, Result<()>)> {
+    let result = verify_transaction_proof(&data.transaction_proof, &target_block_root)
+        .and_then(|_| {
+            extract_logs_from_receipt_proof(
+                &data.receipt_proof,
+                data.transaction_proof.transaction_index,
+                &target_block_root,
+            )
+        })
+        .and_then(|logs| {
+            Ok(data
+                .messages
+                .iter()
+                .map(|message| {
+                    (
+                        message.to_owned(),
+                        verify_message(message, &data.transaction_proof.transaction, &logs),
+                    )
+                })
+                .collect::<Vec<(Message, Result<()>)>>())
+        });
+
+    match result {
+        Ok(proof_results) => proof_results,
+        Err(err) => data
+            .messages
+            .iter()
+            .map(|message| (message.to_owned(), Err(eyre!(err.to_string()))))
+            .collect(),
+    }
+}
+
 pub fn process_batch_verification_data(
     lightclient: &LightClient,
     data: &BatchMessageProof,
-) -> Result<Vec<Message>> {
-    let mut verified: Vec<Message> = vec![];
+) -> Vec<(Message, Result<()>)> {
     let proofs = &data.proofs;
 
-    let recent_block = lightclient.extract_recent_block(&data.update)?;
-    let target_block_root = data.target_block.clone().hash_tree_root()?;
+    let mut target_block_root = Node::default();
+    let mut ancestry_proof_verification = || -> Result<()> {
+        let recent_block = lightclient.extract_recent_block(&data.update)?;
+        target_block_root = data.target_block.clone().hash_tree_root()?;
 
-    verify_ancestry_proof(&data.ancestry_proof, &data.target_block, &recent_block)?;
+        verify_ancestry_proof(&data.ancestry_proof, &data.target_block, &recent_block)?;
+        Ok(())
+    };
 
-    for proof in proofs.iter() {
-        // TODO: wrap everything in something like a try catch
-        let transaction_proof_res =
-            verify_transaction_proof(&proof.transaction_proof, &target_block_root);
-
-        if transaction_proof_res.is_err() {
-            // process the next transaction proof
-            continue;
-        }
-
-        // TODO: improve syntax
-        let receipt_verification_res = extract_logs_from_receipt_proof(
-            &proof.receipt_proof,
-            proof.transaction_proof.transaction_index,
-            &target_block_root,
-        );
-
-        if receipt_verification_res.is_err() {
-            continue;
-        }
-
-        // TODO: handle all unwraps gracefully
-        let logs = receipt_verification_res.unwrap();
-        for message in proof.messages.iter() {
-            let log_index_str = message.cc_id.id.split(':').nth(1).unwrap();
-            let log_index: usize = log_index_str.parse()?;
-            let log = logs.0.get(log_index).unwrap();
-
-            let verification_result =
-                verify_message(message, log, &proof.transaction_proof.transaction);
-
-            if verification_result.is_err() {
-                continue;
-            }
-
-            verified.push(message.clone()); // TODO: try not cloning
-        }
+    match ancestry_proof_verification() {
+        Ok(_) => proofs
+            .iter()
+            .flat_map(|proof| verify_block_level_proofs(proof, &target_block_root))
+            .collect(),
+        Err(err) => proofs
+            .iter()
+            .flat_map(|proof| {
+                proof
+                    .messages
+                    .iter()
+                    .map(|message| (message.clone(), Err(eyre!(err.to_string()))))
+            })
+            .collect(),
     }
-
-    Ok(verified)
 }
 
 pub fn process_verification_data(
@@ -89,7 +129,7 @@ pub fn process_verification_data(
 
     let log_index_str = message.cc_id.id.split(':').nth(1).unwrap();
     let log_index: usize = log_index_str.parse()?;
-    verify_message(
+    compare_message_with_log(
         message,
         logs.0.get(log_index).unwrap(),
         &proofs.transaction_proof.transaction,
