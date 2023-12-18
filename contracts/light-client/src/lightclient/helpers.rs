@@ -1,7 +1,4 @@
-use std::{
-    fmt::{self},
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use alloy_dyn_abi::EventExt;
 use alloy_json_abi::{AbiItem, JsonAbi};
@@ -336,88 +333,6 @@ pub fn hex_str_to_bytes(s: &str) -> Result<Vec<u8>> {
 pub fn calc_sync_period(slot: u64) -> u64 {
     let epoch = slot / 32; // 32 slots per epoch
     epoch / 256 // 256 epochs per sync committee
-}
-
-pub fn from_hex_string<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    struct HexVisitor;
-
-    impl<'de> serde::de::Visitor<'de> for HexVisitor {
-        type Value = Vec<u8>;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("a string representing hex bytes")
-        }
-
-        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
-        {
-            hex::decode(value.trim_start_matches("0x"))
-                .map_err(|err| E::custom(format!("failed to decode hex: {}", err)))
-        }
-    }
-
-    deserializer.deserialize_str(HexVisitor)
-}
-
-pub fn from_hex_array<'de, D>(deserializer: D) -> Result<Vec<Vec<u8>>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    struct HexArrayVisitor;
-
-    impl<'de> serde::de::Visitor<'de> for HexArrayVisitor {
-        type Value = Vec<Vec<u8>>;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("an array of strings representing hex bytes")
-        }
-
-        fn visit_seq<S>(self, mut seq: S) -> Result<Self::Value, S::Error>
-        where
-            S: serde::de::SeqAccess<'de>,
-        {
-            let mut vec = Vec::new();
-            while let Some(hex_str) = seq.next_element::<String>()? {
-                // Adjusted to expect owned String values
-                let bytes = hex::decode(hex_str.trim_start_matches("0x")).map_err(|err| {
-                    serde::de::Error::custom(format!("failed to decode hex: {}", err))
-                })?;
-                vec.push(bytes);
-            }
-            Ok(vec)
-        }
-    }
-
-    deserializer.deserialize_seq(HexArrayVisitor)
-}
-
-pub fn to_hex_array<S>(bytes_array: &Vec<Vec<u8>>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    use serde::ser::SerializeSeq;
-
-    let mut seq = serializer.serialize_seq(Some(bytes_array.len()))?;
-
-    for bytes in bytes_array {
-        let hex_str = hex::encode(bytes);
-        seq.serialize_element(&hex_str)?;
-    }
-
-    // End the sequence and return the result.
-    seq.end()
-}
-
-pub fn to_hex_string<S>(bytes: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    let hex_str = hex::encode(bytes);
-    serializer.serialize_str(&hex_str)
 }
 
 #[cfg(test)]

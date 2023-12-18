@@ -7,9 +7,9 @@ pub mod tests {
         get_verification_data_with_block_roots, get_verification_data_with_historical_roots,
     };
     use crate::lightclient::helpers::{
-        calc_sync_period, extract_logs_from_receipt_proof, is_proof_valid, parse_log,
-        parse_logs_from_receipt, verify_block_roots_proof, verify_historical_roots_proof,
-        verify_message, verify_transaction_proof, verify_trie_proof,
+        calc_sync_period, extract_logs_from_receipt_proof, hex_str_to_bytes, is_proof_valid,
+        parse_log, parse_logs_from_receipt, verify_block_roots_proof,
+        verify_historical_roots_proof, verify_message, verify_transaction_proof, verify_trie_proof,
     };
     use crate::{
         lightclient::error::ConsensusError,
@@ -665,6 +665,34 @@ pub mod tests {
         let mut broken_log = log.clone();
         broken_log.data = vec![1, 2, 3];
         assert!(parse_log(&broken_log).is_err());
+    }
+
+    #[test]
+    fn test_hex_str_to_bytes_with_prefix() {
+        let mut hex_str = "0x1a2b3c";
+        let mut expected_bytes = vec![0x1a, 0x2b, 0x3c];
+        let mut result =
+            hex_str_to_bytes(hex_str).expect("Failed to convert hex string with prefix");
+        assert_eq!(
+            result, expected_bytes,
+            "Bytes do not match expected output for prefixed hex string"
+        );
+
+        hex_str = "1a2b3c";
+        expected_bytes = vec![0x1a, 0x2b, 0x3c];
+        result = hex_str_to_bytes(hex_str).expect("Failed to convert hex string without prefix");
+        assert_eq!(
+            result, expected_bytes,
+            "Bytes do not match expected output for non-prefixed hex string"
+        );
+
+        let invalid_hex_str = "zzz";
+        let result = hex_str_to_bytes(invalid_hex_str);
+        assert!(result.is_err(), "Expected an error for invalid hex string");
+
+        let empty_str = "";
+        let result = hex_str_to_bytes(empty_str).expect("Failed to convert empty string");
+        assert!(result.is_empty(), "Result should be empty for empty string");
     }
 
     #[test]
