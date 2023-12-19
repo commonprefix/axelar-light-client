@@ -36,7 +36,7 @@ pub fn verify_message(
         .get(log_index)
         .ok_or_else(|| eyre!("Log index out of bounds"))?;
 
-    compare_message_with_log(message, log, &transaction)?;
+    compare_message_with_log(message, log, transaction)?;
 
     Ok(())
 }
@@ -45,17 +45,16 @@ pub fn verify_block_level_proofs(
     data: &BlockLevelVerificationData,
     target_block_root: &Node,
 ) -> Vec<(Message, Result<()>)> {
-    let result = verify_transaction_proof(&data.transaction_proof, &target_block_root)
+    let result = verify_transaction_proof(&data.transaction_proof, target_block_root)
         .and_then(|_| {
             extract_logs_from_receipt_proof(
                 &data.receipt_proof,
                 data.transaction_proof.transaction_index,
-                &target_block_root,
+                target_block_root,
             )
         })
-        .and_then(|logs| {
-            Ok(data
-                .messages
+        .map(|logs| {
+            data.messages
                 .iter()
                 .map(|message| {
                     (
@@ -63,7 +62,7 @@ pub fn verify_block_level_proofs(
                         verify_message(message, &data.transaction_proof.transaction, &logs),
                     )
                 })
-                .collect::<Vec<(Message, Result<()>)>>())
+                .collect::<Vec<(Message, Result<()>)>>()
         });
 
     match result {

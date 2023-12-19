@@ -13,6 +13,7 @@ use eyre::Result;
 use crate::execute;
 use cw2::{self, set_contract_version};
 use types::lightclient::Message;
+use types::proofs::CrossChainId;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
