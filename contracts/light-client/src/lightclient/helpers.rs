@@ -4,7 +4,7 @@ use alloy_dyn_abi::EventExt;
 use alloy_json_abi::{AbiItem, JsonAbi};
 use cita_trie::{MemoryDB, PatriciaTrie, Trie};
 use eyre::{anyhow, eyre, Result};
-use types::alloy_primitives::{Address, Bytes, FixedBytes, Log};
+use types::alloy_primitives::{Bytes, FixedBytes, Log};
 use types::alloy_rlp::encode;
 
 use crate::ContractError;
@@ -221,37 +221,29 @@ pub fn parse_log(log: &ReceiptLog) -> Result<ContractCallBase> {
                     if let Some(value) = value {
                         match param.name.as_str() {
                             "sender" => {
-                                // TODO: improve syntax
-                                let parsed_value: Option<Address> = value.as_address();
-                                if parsed_value.is_none() {
-                                    return Err(eyre!("Can't parse 'sender' from topics"));
-                                }
-                                base.source_address = Some(parsed_value.unwrap())
+                                let parsed_value = value
+                                    .as_address()
+                                    .ok_or_else(|| eyre!("Can't parse 'sender' from topics"))?;
+                                base.source_address = Some(parsed_value);
                             }
                             "destinationChain" => {
-                                let parsed_value: Option<&str> = value.as_str();
-                                if parsed_value.is_none() {
-                                    return Err(eyre!(
-                                        "Can't parse 'destinationChain' from topics"
-                                    ));
-                                }
-                                base.destination_chain = Some(parsed_value.unwrap().to_string());
+                                let parsed_value = value.as_str().ok_or_else(|| {
+                                    eyre!("Can't parse 'destinationChain' from topics")
+                                })?;
+                                base.destination_chain = Some(parsed_value.to_string());
                             }
                             "destinationContractAddress" => {
-                                let parsed_value: Option<&str> = value.as_str();
-                                if parsed_value.is_none() {
-                                    return Err(eyre!(
-                                        "Can't parse 'destinationContractAddress' from topics"
-                                    ));
-                                }
-                                base.destination_address = Some(parsed_value.unwrap().to_string());
+                                let parsed_value = value.as_str().ok_or_else(|| {
+                                    eyre!("Can't parse 'destinationContractAddress' from topics")
+                                })?;
+                                base.destination_address = Some(parsed_value.to_string());
                             }
                             "payloadHash" => {
-                                let parsed_value: Option<(&[u8], usize)> = value.as_fixed_bytes();
-                                if parsed_value.is_none() {
-                                    return Err(eyre!("Can't parse 'payloadHash' from topics"));
-                                }
-                                let payload: [u8; 32] = parsed_value.unwrap().0.try_into()?;
+                                let (payload_bytes, _) =
+                                    value.as_fixed_bytes().ok_or_else(|| {
+                                        eyre!("Can't parse 'payloadHash' from topics")
+                                    })?;
+                                let payload: [u8; 32] = payload_bytes.try_into()?;
                                 base.payload_hash = Some(payload);
                             }
                             _ => {}
