@@ -186,7 +186,6 @@ pub mod tests {
                 panic!("Unexpected.")
             }
         };
-        // TODO: improve this
         let update = match verification_data.1.proofs.update {
             UpdateVariant::Finality(update) => update,
             UpdateVariant::Optimistic(..) => {
@@ -642,11 +641,7 @@ pub mod tests {
             compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
                 .is_ok()
         );
-        // TODO: generate [u8; 32] instead of hardcoding
-        modified_message.payload_hash = [
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0,
-        ];
+        modified_message.payload_hash = Default::default();
         assert!(
             compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
                 .is_err()
