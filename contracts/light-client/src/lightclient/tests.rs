@@ -7,9 +7,10 @@ pub mod tests {
         get_verification_data_with_block_roots, get_verification_data_with_historical_roots,
     };
     use crate::lightclient::helpers::{
-        calc_sync_period, extract_logs_from_receipt_proof, hex_str_to_bytes, is_proof_valid,
-        parse_log, parse_logs_from_receipt, verify_block_roots_proof,
-        verify_historical_roots_proof, verify_message, verify_transaction_proof, verify_trie_proof,
+        calc_sync_period, compare_message_with_log, extract_logs_from_receipt_proof,
+        hex_str_to_bytes, is_proof_valid, parse_log, parse_logs_from_receipt,
+        verify_block_roots_proof, verify_historical_roots_proof, verify_transaction_proof,
+        verify_trie_proof,
     };
     use crate::{
         lightclient::error::ConsensusError,
@@ -516,7 +517,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_verify_message() {
+    fn test_compare_message_with_log() {
         let verification_data = get_verification_data_with_block_roots();
         let message = verification_data.1.message;
         let receipt_proof = verification_data.1.proofs.receipt_proof;
@@ -538,7 +539,7 @@ pub mod tests {
         .unwrap();
         let log = logs.0[log_index].clone();
 
-        assert!(verify_message(&message, &log, &transaction_proof.transaction).is_ok());
+        assert!(compare_message_with_log(&message, &log, &transaction_proof.transaction).is_ok());
 
         // test source address check
         let mut modified_log = log.clone();
@@ -549,9 +550,15 @@ pub mod tests {
                 .unwrap()
                 .as_slice()
         );
-        assert!(verify_message(&message, &modified_log, &transaction_proof.transaction).is_ok());
+        assert!(
+            compare_message_with_log(&message, &modified_log, &transaction_proof.transaction)
+                .is_ok()
+        );
         modified_log.address = Address::ZERO.to_vec().try_into().unwrap();
-        assert!(verify_message(&message, &modified_log, &transaction_proof.transaction).is_err());
+        assert!(
+            compare_message_with_log(&message, &modified_log, &transaction_proof.transaction)
+                .is_err()
+        );
 
         // test transaction hash check
         let mut modified_message = message.clone();
@@ -559,11 +566,20 @@ pub mod tests {
             modified_message.cc_id.id.split(':').next().unwrap(),
             "0x39c508536dbb1e48ee05d4c17bab7262bd18951725d3004fc0c58dab147f64c3"
         );
-        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_ok());
+        assert!(
+            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
+                .is_ok()
+        );
         modified_message.cc_id.id = String::from("foo:bar").try_into().unwrap();
-        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_err());
+        assert!(
+            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
+                .is_err()
+        );
         modified_message.cc_id.id = String::from("0x1234567:bar").try_into().unwrap();
-        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_err());
+        assert!(
+            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
+                .is_err()
+        );
 
         // test source_address check
         let mut modified_message = message.clone();
@@ -571,9 +587,15 @@ pub mod tests {
             modified_message.source_address.to_string().to_lowercase(),
             "0xce16f69375520ab01377ce7b88f5ba8c48f8d666"
         );
-        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_ok());
+        assert!(
+            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
+                .is_ok()
+        );
         modified_message.source_address = Address::ZERO.to_string().try_into().unwrap();
-        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_err());
+        assert!(
+            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
+                .is_err()
+        );
 
         // test destination_chain check
         let mut modified_message = message.clone();
@@ -584,9 +606,15 @@ pub mod tests {
                 .to_lowercase(),
             "fantom"
         );
-        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_ok());
+        assert!(
+            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
+                .is_ok()
+        );
         modified_message.destination_chain = String::from("none").try_into().unwrap();
-        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_err());
+        assert!(
+            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
+                .is_err()
+        );
 
         // test destination_address check
         let mut modified_message = message.clone();
@@ -594,9 +622,15 @@ pub mod tests {
             modified_message.destination_address.to_string(),
             "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
         );
-        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_ok());
+        assert!(
+            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
+                .is_ok()
+        );
         modified_message.destination_address = Address::ZERO.to_string().try_into().unwrap();
-        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_err());
+        assert!(
+            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
+                .is_err()
+        );
 
         // test payload_hash check
         let mut modified_message = message.clone();
@@ -604,17 +638,23 @@ pub mod tests {
             hex::encode(modified_message.payload_hash),
             "44f95df5069da9568af3523591468aab99df0ef9c8328cb66bdfe0e612d9d037"
         );
-        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_ok());
+        assert!(
+            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
+                .is_ok()
+        );
         // TODO: generate [u8; 32] instead of hardcoding
         modified_message.payload_hash = [
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0,
         ];
-        assert!(verify_message(&modified_message, &log, &transaction_proof.transaction).is_err());
+        assert!(
+            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
+                .is_err()
+        );
 
         // failure on invalid log
         let log = ReceiptLog::default();
-        assert!(verify_message(&message, &log, &transaction_proof.transaction).is_err());
+        assert!(compare_message_with_log(&message, &log, &transaction_proof.transaction).is_err());
     }
 
     #[test]
@@ -697,8 +737,9 @@ pub mod tests {
 
     #[test]
     fn test_calc_sync_period() {
-        let slot: u64 = 7930324;
-        assert_eq!(calc_sync_period(slot), 968);
+        assert_eq!(calc_sync_period(8191), 0);
+        assert_eq!(calc_sync_period(8192), 1);
+        assert_eq!(calc_sync_period(7930324), 968);
     }
 
     #[test]
