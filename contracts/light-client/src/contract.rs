@@ -69,19 +69,31 @@ pub fn execute(
             let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
             let config = CONFIG.load(deps.storage)?;
             let lc = LightClient::new(&config, Some(state), &env);
-            let res = execute::process_batch_verification_data(&lc, &payload);
-            for message_result in res.iter() {
-                match message_result.1 {
-                    Ok(..) => VERIFIED_MESSAGES.save(
+            let verification_result = execute::process_batch_verification_data(&lc, &payload);
+            for message_result in verification_result.iter() {
+                if message_result.1.is_ok() {
+                    VERIFIED_MESSAGES.save(
                         deps.storage,
                         message_result.0.hash_id(),
                         &message_result.0,
-                    )?,
-                    Err(..) => {}
+                    )?
                 }
             }
-            // TODO: return status for each message?
-            Ok(Response::new())
+            Ok(Response::new().set_data(to_json_binary(
+                &verification_result
+                    .iter()
+                    .map(|result| {
+                        (
+                            result.0.cc_id.to_owned(),
+                            result
+                                .1
+                                .as_ref()
+                                .map(|()| String::from("OK"))
+                                .unwrap_or_else(|e| e.to_string()),
+                        )
+                    })
+                    .collect::<Vec<(CrossChainId, String)>>(),
+            )?))
         }
         VerifyMessages {
             messages: _messages,
