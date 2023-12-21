@@ -79,7 +79,7 @@ impl<'a> Prover<'a> {
 
         let mut update_level_verifications: Vec<BatchedEventProofs> = vec![];
         for (target_block_num, block_groups) in &batch_message_groups {
-            let (exec_block, mut beacon_block) = self.get_block(target_block_num.clone()).await?;
+            let (exec_block, mut beacon_block) = self.get_block(*target_block_num).await?;
             let target_block_slot = calc_slot_from_timestamp(exec_block.timestamp.as_u64());
             let block_hash = beacon_block.hash_tree_root()?;
 
@@ -92,7 +92,7 @@ impl<'a> Prover<'a> {
             };
 
             for (tx_hash, messages) in block_groups {
-                let receipts = self.execution_rpc.get_block_receipts(target_block_num.clone()).await?;
+                let receipts = self.execution_rpc.get_block_receipts(*target_block_num).await?;
                 let tx_index = get_tx_index(&receipts, tx_hash)?;
 
                 let transaction_proof = self.get_transaction_proof(&beacon_block, block_hash, tx_index).await?;
@@ -138,7 +138,7 @@ impl<'a> Prover<'a> {
 
         let receipt_proof = self
             .execution_prover
-            .generate_receipt_proof(&exec_block, &receipts, tx_index)
+            .generate_receipt_proof(exec_block, &receipts, tx_index)
             .wrap_err(format!(
                 "Failed to generate receipt proof for block {} and tx: {}",
                 block_hash, tx_index
@@ -146,7 +146,7 @@ impl<'a> Prover<'a> {
 
         let receipts_root_proof = self
             .consensus_prover
-            .generate_receipts_root_proof(&block_hash.to_string().as_str())
+            .generate_receipts_root_proof(block_hash.to_string().as_str())
             .await
             .wrap_err(format!(
                 "Failed to generate receipts root proof for block {} and tx: {}",
@@ -170,7 +170,7 @@ impl<'a> Prover<'a> {
 
         let proof = self
             .consensus_prover
-            .generate_transaction_proof(&block_hash.to_string().as_str(), tx_index)
+            .generate_transaction_proof(block_hash.to_string().as_str(), tx_index)
             .await
             .wrap_err(format!(
                 "Failed to generate tx proof for block {}, and tx: {}",
@@ -237,7 +237,7 @@ impl<'a> Prover<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
+    
 
     use crate::prover::consensus::MockConsensusProver;
     use crate::prover::execution::MockExecutionProver;
@@ -263,13 +263,13 @@ mod tests {
         if is_optimistic {
             let mut update = OptimisticUpdate::default();
             update.attested_header.beacon.slot = attested_slot;
-            return UpdateVariant::Optimistic(update);
+            UpdateVariant::Optimistic(update)
         } else {
             let mut update = FinalityUpdate::default();
             update.finalized_header.beacon.slot = finality_slot;
             update.attested_header.beacon.slot = attested_slot;
-            return UpdateVariant::Finality(update);
-        };
+            UpdateVariant::Finality(update)
+        }
     }
 
     fn get_mock_block_receipts(tx_hashes: Vec<H256>) -> Result<Vec<TransactionReceipt>> {
@@ -375,12 +375,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_batch_generate_proofs() {
-        let mut mock_update = get_mock_update(true, 1000, 505);
+        let mock_update = get_mock_update(true, 1000, 505);
         let batch_message_groups = get_mock_batch_message_groups();
 
         let get_mock_slot_from_block_num = |block_num| block_num;
 
-        let (mut consensus_rpc, mut execution_rpc, state_prover) = setup();
+        let (mut consensus_rpc, mut execution_rpc, _state_prover) = setup();
         consensus_rpc
             .expect_get_beacon_block()
             .returning(move |i| Ok(get_mock_beacon_block(i)));
@@ -442,16 +442,16 @@ mod tests {
         let update = get_mock_update(true, 1000, 505);
 
         execution_rpc.expect_get_blocks().returning(move |_| {
-            return Ok(vec![
+            Ok(vec![
                 Some(get_mock_exec_block(1, calc_timestamp_from_slot(501))),
                 Some(get_mock_exec_block(2, calc_timestamp_from_slot(502))),
                 Some(get_mock_exec_block(2, calc_timestamp_from_slot(502))),
                 Some(get_mock_exec_block(2, calc_timestamp_from_slot(502))),
                 Some(get_mock_exec_block(3, calc_timestamp_from_slot(503))),
-            ]);
+            ])
         });
 
-        let get_tx_hash = |i| H256::from_low_u64_be(i);
+        let get_tx_hash = H256::from_low_u64_be;
 
         let mock_message1 = get_mock_message(1, get_tx_hash(1));
         let mock_message2 = get_mock_message(2, get_tx_hash(2));
@@ -523,11 +523,11 @@ mod tests {
         let mut execution_rpc = MockExecutionRPC::new();
 
         execution_rpc.expect_get_blocks().returning(move |_| {
-            return Ok(vec![
+            Ok(vec![
                 Some(get_mock_exec_block(5, calc_timestamp_from_slot(501))),
                 None,
                 Some(get_mock_exec_block(7, calc_timestamp_from_slot(503)))
-            ]);
+            ])
         });
 
         let messages = [
@@ -559,11 +559,11 @@ mod tests {
         let mut execution_rpc = MockExecutionRPC::new();
 
         execution_rpc.expect_get_blocks().returning(move |_| {
-            return Ok(vec![
+            Ok(vec![
                 Some(get_mock_exec_block(5, calc_timestamp_from_slot(501))),
                 Some(get_mock_exec_block(6, calc_timestamp_from_slot(502))),
                 Some(get_mock_exec_block(7, calc_timestamp_from_slot(503)))
-            ]);
+            ])
         });
 
         let messages = [

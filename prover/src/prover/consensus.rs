@@ -317,7 +317,7 @@ mod tests {
             .await
             .unwrap();
 
-        let mut invalid_block_root = block_root.clone();
+        let mut invalid_block_root = block_root;
         invalid_block_root.0[31] = 0;
 
         let is_proof_valid = ssz_rs::verify_merkle_proof(
@@ -327,7 +327,7 @@ mod tests {
             &invalid_block_root,
         );
 
-        assert_eq!(is_proof_valid, false)
+        assert!(!is_proof_valid)
     }
 
     #[tokio_test]
@@ -353,7 +353,7 @@ mod tests {
             &block_root,
         );
 
-        assert_eq!(is_proof_valid, false)
+        assert!(!is_proof_valid)
     }
 
     #[tokio_test]
@@ -371,7 +371,7 @@ mod tests {
             .await
             .unwrap();
 
-        let mut invalid_block_root = block_root.clone();
+        let mut invalid_block_root = block_root;
         invalid_block_root.0[31] = 0;
 
         let is_proof_valid = ssz_rs::verify_merkle_proof(
@@ -381,7 +381,7 @@ mod tests {
             &invalid_block_root,
         );
 
-        assert_eq!(is_proof_valid, false)
+        assert!(!is_proof_valid)
     }
 
     #[tokio_test]
@@ -408,7 +408,7 @@ mod tests {
             &block_root,
         );
 
-        assert_eq!(is_proof_valid, false)
+        assert!(!is_proof_valid)
     }
 
     #[tokio_test]
@@ -463,7 +463,7 @@ mod tests {
             &block_root,
         );
 
-        assert_eq!(is_proof_valid, false)
+        assert!(!is_proof_valid)
     }
 
     #[tokio_test]
@@ -483,7 +483,7 @@ mod tests {
             &block_root,
         );
 
-        assert_eq!(is_proof_valid, false)
+        assert!(!is_proof_valid)
     }
 
     #[tokio_test]
@@ -596,7 +596,7 @@ mod tests {
                     &GeneralizedIndex(block_roots_index as usize),
                     &latest_block.state_root,
                 );
-                assert_eq!(is_valid_proof, false)
+                assert!(!is_valid_proof)
             }
             _ => panic!("Expected block roots proof"),
         }
@@ -694,7 +694,7 @@ mod tests {
                     &GeneralizedIndex(block_summary_root_gindex as usize),
                     &latest_block.state_root,
                 );
-                assert_eq!(is_valid_proof, false);
+                assert!(!is_valid_proof);
 
                 // Proof from block_summary_root to the target block
 
@@ -710,7 +710,7 @@ mod tests {
                     &GeneralizedIndex(gindex),
                     &block_summary_root,
                 );
-                assert_eq!(is_valid_proof, false)
+                assert!(!is_valid_proof)
             }
             _ => panic!("Expected block roots proof"),
         }

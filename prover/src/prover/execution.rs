@@ -99,12 +99,9 @@ mod tests {
         mocks::mock_execution_rpc::MockExecutionRPC,
     };
     use cita_trie::{MemoryDB, PatriciaTrie, Trie};
-    use consensus_types::proofs::CrossChainId;
+    
     use eth::execution::EthExecutionAPI;
-    use ethers::{
-        types::{TransactionReceipt, H256},
-        utils::rlp::encode,
-    };
+    use ethers::utils::rlp::encode;
     use eyre::{anyhow, Result};
     use hasher::HasherKeccak;
     use std::sync::Arc;
@@ -130,12 +127,6 @@ mod tests {
             Some(value) => Ok(value),
             None => Err(anyhow!("Invalid proof")),
         }
-    }
-
-    fn get_mock_receipt() -> TransactionReceipt {
-        let mut receipt = TransactionReceipt::default();
-        receipt.transaction_hash = H256::random();
-        receipt
     }
 
     #[tokio_test]

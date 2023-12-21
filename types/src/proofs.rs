@@ -1,7 +1,4 @@
-use std::collections::HashMap;
-
-use crate::consensus::{FinalityUpdate, OptimisticUpdate, Update};
-use alloy_primitives::{BlockNumber, TxHash};
+use crate::consensus::{FinalityUpdate, OptimisticUpdate};
 pub use connection_router::state::{
     Address as AddressType, ChainName, CrossChainId, Message, MessageHash,
 };

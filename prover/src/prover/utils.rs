@@ -37,10 +37,12 @@ pub fn get_tx_hash_from_cc_id(cc_id: &CrossChainId) -> Result<H256> {
     Ok(H256::from_str(tx_hash)?)
 }
 
+#[cfg(test)]
 mod tests {
     use consensus_types::proofs::CrossChainId;
     use ethers::types::{TransactionReceipt, H256};
-    use crate::prover::{utils::{get_tx_index, get_tx_hash_from_cc_id}, execution::ExecutionProver};
+
+    use crate::prover::{execution::ExecutionProver, utils::{get_tx_hash_from_cc_id, get_tx_index}};
 
     fn get_mock_receipt() -> TransactionReceipt {
         let mut receipt = TransactionReceipt::default();
@@ -52,7 +54,7 @@ mod tests {
     #[test]
     fn test_get_tx_index_valid() {
         let receipts = vec![get_mock_receipt(), get_mock_receipt(), get_mock_receipt()];
-        let execution_prover = ExecutionProver::new();
+        let _execution_prover = ExecutionProver::new();
 
         for (i, receipt) in receipts.iter().enumerate() {
             let tx_hash = receipt.transaction_hash;
@@ -73,8 +75,8 @@ mod tests {
 
     #[test]
     fn test_get_tx_index_invalid_cc_id_format() {
-        let receipts = vec![get_mock_receipt()];
-        let execution_prover = ExecutionProver::new();
+        let _receipts = vec![get_mock_receipt()];
+        let _execution_prover = ExecutionProver::new();
 
         let cc_id = CrossChainId {
             id: "invalid_format".parse().unwrap(),

@@ -8,15 +8,15 @@ use crate::prover::state_prover::StateProver;
 use crate::prover::Prover;
 use crate::prover::types::BatchMessageGroups;
 use consensus_types::proofs::UpdateVariant;
-use cosmrs::tendermint::merkle::proof;
+
 use dotenv::dotenv;
 use eth::consensus::EthBeaconAPI;
 use eth::{consensus::ConsensusRPC, execution::ExecutionRPC, gateway::Gateway};
 use prover::types::Config;
-use serde_json::de;
+
 use std::env;
 use std::sync::Arc;
-use std::time::Instant;
+
 use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
 
 #[tokio::main]
