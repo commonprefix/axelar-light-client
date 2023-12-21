@@ -29,7 +29,7 @@ pub trait EthBeaconAPI: Sync + Send + 'static {
     async fn get_latest_beacon_block(&self) -> Result<BeaconBlockAlias, RPCError>;
 }
 
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct ConsensusRPC {
     rpc: String,
 }

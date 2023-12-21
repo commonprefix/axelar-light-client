@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::prover::{
     state_prover::StateProverAPI,
     types::{GindexOrPath, ProofResponse},
@@ -6,6 +8,7 @@ use async_trait::async_trait;
 use consensus_types::{consensus::BeaconStateType, proofs::AncestryProof};
 use eth::consensus::EthBeaconAPI;
 use eyre::{anyhow, Result};
+use mockall::automock;
 use ssz_rs::{get_generalized_index, Node, SszVariableOrIndex, Vector};
 use sync_committee_rs::constants::{
     CAPELLA_FORK_EPOCH, SLOTS_PER_EPOCH, SLOTS_PER_HISTORICAL_ROOT,
@@ -49,16 +52,16 @@ pub trait ConsensusProverAPI {
 }
 
 #[derive(Clone)]
-pub struct ConsensusProver<'a> {
-    state_prover: &'a dyn StateProverAPI,
-    consensus_rpc: &'a dyn EthBeaconAPI,
+pub struct ConsensusProver {
+    state_prover: Arc<dyn StateProverAPI>,
+    consensus_rpc: Arc<dyn EthBeaconAPI>,
 }
 
 /**
  * Generates a merkle proof from the transaction to the beacon block root.
 */
-impl<'a> ConsensusProver<'a> {
-    pub fn new(consensus_rpc: &'a dyn EthBeaconAPI, state_prover: &'a dyn StateProverAPI) -> Self {
+impl ConsensusProver {
+    pub fn new(consensus_rpc: Arc<dyn EthBeaconAPI>, state_prover: Arc<dyn StateProverAPI>) -> Self {
         ConsensusProver {
             state_prover,
             consensus_rpc,
@@ -66,8 +69,9 @@ impl<'a> ConsensusProver<'a> {
     }
 }
 
+#[automock]
 #[async_trait]
-impl<'a> ConsensusProverAPI for ConsensusProver<'_> {
+impl ConsensusProverAPI for ConsensusProver {
     async fn generate_transaction_proof(
         &self,
         block_id: &str,
@@ -242,6 +246,8 @@ impl<'a> ConsensusProverAPI for ConsensusProver<'_> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::{ConsensusProver, ConsensusProverAPI};
     use crate::prover::mocks::mock_consensus_rpc::MockConsensusRPC;
     use crate::prover::mocks::mock_state_prover::MockStateProver;
@@ -256,7 +262,7 @@ mod tests {
 
     async fn setup_block_and_provers(
         consensus_block_number: u64,
-    ) -> (MockConsensusRPC, MockStateProver, BeaconBlockAlias, Node) {
+    ) -> (Arc<MockConsensusRPC>, Arc<MockStateProver>, BeaconBlockAlias, Node) {
         let consensus = MockConsensusRPC::new();
         let state_prover = MockStateProver::new();
         let mut block = consensus
@@ -265,14 +271,14 @@ mod tests {
             .unwrap();
         let block_root = block.hash_tree_root().unwrap();
 
-        (consensus, state_prover, block, block_root)
+        (Arc::new(consensus), Arc::new(state_prover), block, block_root)
     }
 
     #[tokio_test]
     async fn test_transactions_proof_valid() {
         let (consensus, state_prover, mut block, block_root) =
             setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(&consensus, &state_prover);
+        let consensus_prover = ConsensusProver::new(consensus, state_prover);
         let tx_index = 15;
 
         let transaction = &mut block.body.execution_payload.transactions[tx_index];
@@ -297,7 +303,7 @@ mod tests {
     async fn test_transactions_proof_invalid_transaction() {
         let (consensus, state_prover, mut block, block_root) =
             setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(&consensus, &state_prover);
+        let consensus_prover = ConsensusProver::new(consensus, state_prover);
 
         let tx_index = 15;
 
@@ -328,7 +334,7 @@ mod tests {
     async fn test_transactions_proof_wrong_transaction() {
         let (consensus, state_prover, mut block, block_root) =
             setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(&consensus, &state_prover);
+        let consensus_prover = ConsensusProver::new(consensus, state_prover);
         let tx_index = 15;
 
         // Different transaction
@@ -354,7 +360,7 @@ mod tests {
     async fn test_transactions_proof_invalid_block_root() {
         let (consensus, state_prover, mut block, block_root) =
             setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(&consensus, &state_prover);
+        let consensus_prover = ConsensusProver::new(consensus, state_prover);
 
         let tx_index = 15;
         let transaction = &mut block.body.execution_payload.transactions[tx_index];
@@ -382,7 +388,7 @@ mod tests {
     async fn test_transactions_proof_invalid_proof() {
         let (consensus, state_prover, mut block, block_root) =
             setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(&consensus, &state_prover);
+        let consensus_prover = ConsensusProver::new(consensus, state_prover);
         let tx_index = 15;
         let transaction = &mut block.body.execution_payload.transactions[tx_index];
         let node = transaction.hash_tree_root().unwrap();
@@ -409,7 +415,7 @@ mod tests {
     async fn test_receipts_root_proof_valid() {
         let (consensus, state_prover, mut block, block_root) =
             setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(&consensus, &state_prover);
+        let consensus_prover = ConsensusProver::new(consensus, state_prover);
 
         let proof = consensus_prover
             .generate_receipts_root_proof(&block_root.to_string())
@@ -435,7 +441,8 @@ mod tests {
     async fn test_receipts_root_proof_invalid_proof() {
         let (consensus, state_prover, mut block, block_root) =
             setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(&consensus, &state_prover);
+        let consensus_prover = ConsensusProver::new(consensus, state_prover);
+
         let proof = consensus_prover
             .generate_receipts_root_proof(&block_root.to_string())
             .await
@@ -462,7 +469,8 @@ mod tests {
     #[tokio_test]
     async fn test_receipts_root_proof_invalid_receipts_root() {
         let (consensus, state_prover, _, block_root) = setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(&consensus, &state_prover);
+        let consensus_prover = ConsensusProver::new(consensus, state_prover);
+
         let proof = consensus_prover
             .generate_receipts_root_proof(&block_root.to_string())
             .await
@@ -481,12 +489,13 @@ mod tests {
     #[tokio_test]
     async fn test_prove_ancestry() {
         let (consensus, state_prover, _, _) = setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(&consensus, &state_prover);
+        let latest_block_7878867 = consensus.get_beacon_block_header(7878867).await.unwrap();
+        let latest_block_7879376 = consensus.get_beacon_block_header(7879376).await.unwrap();
+        let consensus_prover = ConsensusProver::new(consensus, state_prover);
 
-        let latest_block = consensus.get_beacon_block_header(7878867).await.unwrap();
         let old_block_slot = 7878867 - 1000;
         let proof = consensus_prover
-            .prove_ancestry_with_block_roots(&old_block_slot, &latest_block.state_root.to_string())
+            .prove_ancestry_with_block_roots(&old_block_slot, &latest_block_7878867.state_root.to_string())
             .await
             .unwrap();
 
@@ -500,12 +509,11 @@ mod tests {
             panic!("Expected block roots proof")
         }
 
-        let latest_block = consensus.get_beacon_block_header(7879376).await.unwrap();
         let old_block_slot = 7870916 - 8196;
         let proof = consensus_prover
             .prove_ancestry_with_historical_summaries(
                 &old_block_slot,
-                &latest_block.state_root.to_string(),
+                &latest_block_7879376.state_root.to_string(),
             )
             .await
             .unwrap();
@@ -522,12 +530,13 @@ mod tests {
     #[tokio_test]
     async fn test_block_roots_proof_valid() {
         let (consensus, state_prover, _, _) = setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(&consensus, &state_prover);
         let latest_block = consensus.get_beacon_block_header(7878867).await.unwrap();
         let mut old_block = consensus
             .get_beacon_block_header(7878867 - 1000)
             .await
             .unwrap();
+
+        let consensus_prover = ConsensusProver::new(consensus, state_prover);
 
         let proof = consensus_prover
             .prove_ancestry_with_block_roots(
@@ -557,13 +566,13 @@ mod tests {
     #[tokio_test]
     async fn test_block_roots_proof_invalid_proof() {
         let (consensus, state_prover, _, _) = setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(&consensus, &state_prover);
-
         let latest_block = consensus.get_beacon_block_header(7878867).await.unwrap();
         let mut old_block = consensus
             .get_beacon_block_header(7878867 - 1000)
             .await
             .unwrap();
+
+        let consensus_prover = ConsensusProver::new(consensus, state_prover);
 
         let proof = consensus_prover
             .prove_ancestry_with_block_roots(
@@ -596,13 +605,13 @@ mod tests {
     #[tokio_test]
     async fn test_historical_proof_valid() {
         let (consensus, state_prover, _, _) = setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(&consensus, &state_prover);
-
         let latest_block = consensus.get_beacon_block_header(7879376).await.unwrap();
         let mut old_block = consensus
             .get_beacon_block_header(7870916 - 8196)
             .await
             .unwrap();
+
+        let consensus_prover = ConsensusProver::new(consensus, state_prover);
 
         let proof = consensus_prover
             .prove_ancestry_with_historical_summaries(
@@ -651,13 +660,13 @@ mod tests {
     #[tokio_test]
     async fn test_historical_proof_invalid_proofs() {
         let (consensus, state_prover, _, _) = setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(&consensus, &state_prover);
-
         let latest_block = consensus.get_beacon_block_header(7879376).await.unwrap();
         let mut old_block = consensus
             .get_beacon_block_header(7870916 - 8196)
             .await
             .unwrap();
+
+        let consensus_prover = ConsensusProver::new(consensus, state_prover);
 
         let proof = consensus_prover
             .prove_ancestry_with_historical_summaries(

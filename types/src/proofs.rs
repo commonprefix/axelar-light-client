@@ -1,4 +1,7 @@
-use crate::consensus::{FinalityUpdate, OptimisticUpdate};
+use std::collections::HashMap;
+
+use crate::consensus::{FinalityUpdate, OptimisticUpdate, Update};
+use alloy_primitives::{BlockNumber, TxHash};
 pub use connection_router::state::{
     Address as AddressType, ChainName, CrossChainId, Message, MessageHash,
 };
@@ -22,7 +25,7 @@ pub struct MessageProof {
     pub receipt_proof: ReceiptProof,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Eq)]
 pub enum UpdateVariant {
     // LightClientFinalityUpdate from the beacon API spec.
     Finality(FinalityUpdate),

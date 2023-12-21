@@ -12,6 +12,7 @@ use eth::consensus::EthBeaconAPI;
 use eth::{consensus::ConsensusRPC, execution::ExecutionRPC, gateway::Gateway};
 use prover::types::Config;
 use std::env;
+use std::sync::Arc;
 use std::time::Instant;
 use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
 
@@ -23,7 +24,7 @@ async fn main() {
     let execution: ExecutionRPC = ExecutionRPC::new(config.execution_rpc.clone());
     let state_prover = StateProver::new(config.state_prover_rpc.clone());
     let gateway: Gateway = Gateway::new(config.execution_rpc, config.gateway_addr);
-    let consensus_prover = ConsensusProver::new(&consensus, &state_prover);
+    let consensus_prover = ConsensusProver::new(Arc::new(consensus.clone()), Arc::new(state_prover));
     let execution_prover = ExecutionProver::new();
     let prover = Prover::new(&consensus, &execution, &consensus_prover, &execution_prover);
 
@@ -39,18 +40,21 @@ async fn main() {
 
     let now = Instant::now();
 
-    let proof = prover
-        .prove_event(&mut first_message, UpdateVariant::Finality(finality_update))
-        .await
-        .unwrap();
+    // let proof = prover
+    //     .prove_event(
+    //         first_message.clone(),
+    //         UpdateVariant::Finality(finality_update),
+    //     )
+    //     .await
+    //     .unwrap();
 
-    let proof_json = serde_json::to_string(&proof).unwrap();
-    println!("{}", proof_json);
+    // let proof_json = serde_json::to_string(&proof).unwrap();
+    // println!("{}", proof_json);
 
-    println!(
-        "Generated full proof in {} seconds",
-        now.elapsed().as_secs_f64()
-    );
+    // println!(
+    //     "Generated full proof in {} seconds",
+    //     now.elapsed().as_secs_f64()
+    // );
 }
 
 fn load_prover_config() -> Config {

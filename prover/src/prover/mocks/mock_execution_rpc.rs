@@ -31,7 +31,6 @@ impl EthExecutionAPI for MockExecutionRPC {
             "./src/prover/testdata/execution_blocks/{}.json",
             block_number
         );
-        println!("{}", filename);
         let file = File::open(filename).unwrap();
         let res: Option<Block<Transaction>> = Some(serde_json::from_reader(file).unwrap());
         Ok(res)

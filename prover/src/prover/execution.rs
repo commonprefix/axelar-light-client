@@ -1,5 +1,4 @@
 use cita_trie::Trie;
-use consensus_types::lightclient::CrossChainId;
 use ethers::{
     types::{Block, Transaction, TransactionReceipt, H256},
     utils::rlp::encode,
@@ -14,7 +13,6 @@ pub trait ExecutionProverAPI {
         receipts: &[TransactionReceipt],
         index: u64,
     ) -> Result<Vec<Vec<u8>>>;
-    fn get_tx_index(&self, receipts: &[TransactionReceipt], tx_hash: &str) -> Result<u64>;
 }
 
 pub struct ExecutionProver;
@@ -50,9 +48,9 @@ impl ExecutionProverAPI for ExecutionProver {
         let receipt_index: cosmos_sdk_proto::prost::bytes::BytesMut = encode(&index);
         let proof = trie
             .get_proof(receipt_index.to_vec().as_slice())
-            .map_err(|e| anyhow!("Failed to generate proof: {:?}", e))?;
+            .map_err(|e| anyhow!("Failed to generate proof: {:?}", e));
 
-        Ok(proof)
+        proof
     }
 }
 
@@ -185,52 +183,4 @@ mod tests {
 
         assert!(invalid_proof.is_err());
     }
-
-    #[test]
-    fn test_get_tx_index_valid() {
-        let receipts = vec![get_mock_receipt(), get_mock_receipt(), get_mock_receipt()];
-        let execution_prover = ExecutionProver::new();
-
-        for (i, receipt) in receipts.iter().enumerate() {
-            let cc_id = CrossChainId {
-                id: format!("0x{:x}:15", receipt.transaction_hash)
-                    .parse()
-                    .unwrap(),
-                chain: "ethereum".parse().unwrap(),
-            };
-
-            let index = execution_prover.get_tx_index(&receipts, &cc_id).unwrap();
-            assert_eq!(index, i as u64);
-        }
-    }
-
-    #[test]
-    fn test_get_tx_index_invalid() {
-        let receipts = vec![get_mock_receipt(), get_mock_receipt(), get_mock_receipt()];
-        let random_tx_hash = H256::random();
-        let execution_prover = ExecutionProver::new();
-
-        let cc_id = CrossChainId {
-            id: format!("0x{:x}:15", random_tx_hash).parse().unwrap(),
-            chain: "ethereum".parse().unwrap(),
-        };
-        let index = execution_prover.get_tx_index(&receipts, &cc_id);
-        assert!(index.is_err())
-    }
-
-    #[test]
-    fn test_get_tx_index_invalid_cc_id_format() {
-        let receipts = vec![get_mock_receipt()];
-        let execution_prover = ExecutionProver::new();
-
-        let cc_id = CrossChainId {
-            id: "invalid_format".parse().unwrap(),
-            chain: "ethereum".parse().unwrap(),
-        };
-
-        let result = execution_prover.get_tx_index(&receipts, &cc_id);
-        assert!(result.is_err());
-    }
 }
-
-p
