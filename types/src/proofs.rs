@@ -78,15 +78,20 @@ pub struct ReceiptProof {
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct BatchMessageProof {
     pub update: UpdateVariant,
-    pub ancestry_proof: AncestryProof,
-    pub target_block: BeaconBlockHeader,
-    pub proofs: Vec<BlockLevelVerificationData>,
+    pub update_level_verifications: Vec<BatchedEventProofs>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
-pub struct BlockLevelVerificationData {
+pub struct BatchedEventProofs {
+    pub ancestry_proof: AncestryProof,
+    pub target_block: BeaconBlockHeader,
+    pub tx_level_verification: Vec<BatchedBlockProofs>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct BatchedBlockProofs {
     pub transaction_proof: TransactionProof,
     pub receipt_proof: ReceiptProof,
-    // Transaction level batching
+    // Support multiple messages on a single tx, ie transaction level batching
     pub messages: Vec<Message>,
 }
