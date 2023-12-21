@@ -70,8 +70,16 @@ pub fn execute(
             let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
             let config = CONFIG.load(deps.storage)?;
             let lc = LightClient::new(&config, Some(state), &env);
-            let verification_result = execute::process_batch_verification_data(&lc, &payload);
-            for message_result in verification_result.iter() {
+
+            let results = payload
+                .update_level_verifications
+                .iter()
+                .flat_map(|batched_proofs| {
+                    execute::process_batch_verification_data(&lc, &payload.update, batched_proofs)
+                })
+                .collect::<Vec<(Message, Result<()>)>>();
+
+            for message_result in results.iter() {
                 if message_result.1.is_ok() {
                     VERIFIED_MESSAGES.save(
                         deps.storage,
@@ -80,8 +88,9 @@ pub fn execute(
                     )?
                 }
             }
+
             Ok(Response::new().set_data(to_json_binary(
-                &verification_result
+                &results
                     .iter()
                     .map(|result| {
                         (

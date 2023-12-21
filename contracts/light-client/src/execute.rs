@@ -4,7 +4,7 @@ use eyre::{eyre, Result};
 use types::common::ChainConfig;
 use types::execution::ReceiptLogs;
 use types::lightclient::MessageVerification;
-use types::proofs::{BatchMessageProof, BlockLevelVerificationData, Message};
+use types::proofs::{BatchedBlockProofs, BatchedEventProofs, Message, UpdateVariant};
 use types::ssz_rs::{Merkleized, Node};
 use types::sync_committee_rs::consensus_types::Transaction;
 use types::sync_committee_rs::constants::MAX_BYTES_PER_TRANSACTION;
@@ -42,7 +42,7 @@ pub fn verify_message(
 }
 
 pub fn verify_block_level_proofs(
-    data: &BlockLevelVerificationData,
+    data: &BatchedBlockProofs,
     target_block_root: &Node,
 ) -> Vec<(Message, Result<()>)> {
     let result = verify_transaction_proof(&data.transaction_proof, target_block_root)
@@ -77,13 +77,14 @@ pub fn verify_block_level_proofs(
 
 pub fn process_batch_verification_data(
     lightclient: &LightClient,
-    data: &BatchMessageProof,
+    update: &UpdateVariant,
+    data: &BatchedEventProofs,
 ) -> Vec<(Message, Result<()>)> {
-    let proofs = &data.proofs;
+    let proofs = &data.tx_level_verification;
 
     let mut target_block_root = Node::default();
     let mut ancestry_proof_verification = || -> Result<()> {
-        let recent_block = lightclient.extract_recent_block(&data.update)?;
+        let recent_block = lightclient.extract_recent_block(&update)?;
         target_block_root = data.target_block.clone().hash_tree_root()?;
 
         verify_ancestry_proof(&data.ancestry_proof, &data.target_block, &recent_block)?;
