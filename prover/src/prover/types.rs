@@ -1,8 +1,10 @@
-use consensus_types::consensus::BeaconBlockAlias;
-use ethers::types::{Block, Transaction, TransactionReceipt};
+use consensus_types::{consensus::BeaconBlockAlias, proofs::Message};
+use ethers::types::{Block, Transaction, TransactionReceipt, H256};
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use ssz_rs::{Node, SszVariableOrIndex};
 use sync_committee_rs::consensus_types::BeaconBlockHeader;
+
 
 // Neccessary data for proving a message
 #[derive(Debug)]
@@ -38,3 +40,6 @@ pub struct Config {
     pub historical_roots_enabled: bool,
     pub historical_roots_block_roots_batch_size: u64,
 }
+
+// A map from block number to a map from tx hash to messages
+pub type BatchMessageGroups = IndexMap<u64, IndexMap<H256, Vec<Message>>>;

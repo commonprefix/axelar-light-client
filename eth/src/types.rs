@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use ethers::types::H256;
 use ssz_rs::Node;
 use sync_committee_rs::consensus_types::BeaconBlockHeader;
@@ -7,7 +5,6 @@ use types::{
     consensus::{BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update},
     lightclient::Message,
 };
-
 #[derive(Clone, Debug)]
 pub struct InternalMessage {
     pub message: Message,
@@ -15,9 +12,6 @@ pub struct InternalMessage {
     pub tx_hash: H256,
     pub block_number: u64,
 }
-
-// A map from block number to a map from tx hash to messages
-pub type BatchMessageGroups = HashMap<u64, HashMap<H256, Vec<Message>>>;
 
 pub type UpdateResponse = Vec<UpdateData>;
 

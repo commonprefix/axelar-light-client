@@ -11,18 +11,19 @@ use consensus_types::{
     consensus::{to_beacon_header, BeaconBlockAlias},
     proofs::{
         ReceiptProof,
-        TransactionProof, UpdateVariant, BatchedEventProofs, BatchedBlockProofs, AncestryProof,
+        TransactionProof, UpdateVariant, BatchedEventProofs, BatchedBlockProofs, AncestryProof, BatchMessageProof,
     },
 };
 use eth::{
-    consensus::EthBeaconAPI, execution::EthExecutionAPI, types::{InternalMessage, BatchMessageGroups},
+    consensus::EthBeaconAPI, execution::EthExecutionAPI, types::{InternalMessage},
     utils::calc_slot_from_timestamp,
 };
+use types::BatchMessageGroups;
 use ethers::{types::{Block, Transaction, TransactionReceipt}, utils::rlp::encode};
 use eyre::{anyhow, Context, Result};
 use ssz_rs::{Merkleized, Node};
 use sync_committee_rs::{constants::Root, consensus_types::BeaconBlockHeader};
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 pub struct Prover<'a> {
     consensus_rpc: &'a dyn EthBeaconAPI,
@@ -53,7 +54,7 @@ impl<'a> Prover<'a> {
         };
 
         let messages_before_slot = self.filter_messages_before_slot(messages, recent_block_slot).await?;
-        let mut groups: BatchMessageGroups = HashMap::new();
+        let mut groups: BatchMessageGroups = IndexMap::new();
 
         for message in messages_before_slot {
             let tx_hash = get_tx_hash_from_cc_id(&message.message.cc_id)?;
@@ -61,7 +62,7 @@ impl<'a> Prover<'a> {
 
             groups
                 .entry(block_num)
-                .or_insert_with(HashMap::new)
+                .or_insert_with(IndexMap::new)
                 .entry(tx_hash)
                 .or_insert_with(Vec::new)
                 .push(message.message);
@@ -70,8 +71,8 @@ impl<'a> Prover<'a> {
         Ok(groups)
     }
 
-    async fn batch_generate_proofs(&self, batch_message_groups: BatchMessageGroups, update: UpdateVariant) ->  Result<()> {
-        let recent_block = match update {
+    pub async fn batch_generate_proofs(&self, batch_message_groups: BatchMessageGroups, update: UpdateVariant) ->  Result<BatchMessageProof> {
+        let recent_block = match update.clone() {
             UpdateVariant::Finality(update) => update.finalized_header.beacon,
             UpdateVariant::Optimistic(update) => update.attested_header.beacon,
         };
@@ -109,7 +110,10 @@ impl<'a> Prover<'a> {
             update_level_verifications.push(update_level_verification);
         }
 
-        Ok(())
+        Ok(BatchMessageProof {
+            update,
+            update_level_verifications
+        })
     }
 
     pub async fn get_ancestry_proof(&self, target_block_slot: u64, recent_block: &BeaconBlockHeader) -> Result<AncestryProof> {
@@ -184,7 +188,7 @@ impl<'a> Prover<'a> {
     }
 
     pub async fn get_block(&self, block_num: u64) -> Result<(Block<Transaction>, BeaconBlockAlias)> {
-        let exec_block = self
+        let exec_block: Block<Transaction> = self
             .execution_rpc
             .get_block_with_txs(block_num)
             .await
@@ -235,45 +239,21 @@ impl<'a> Prover<'a> {
 mod tests {
     use std::fs::File;
 
-    use crate::prover::consensus::{ConsensusProver, MockConsensusProver};
+    use crate::prover::consensus::MockConsensusProver;
     use crate::prover::execution::MockExecutionProver;
     use crate::prover::Prover;
 
     use super::state_prover::MockStateProver;
+    use super::types::BatchMessageGroups;
     use consensus_types::consensus::{BeaconBlockAlias, FinalityUpdate, OptimisticUpdate};
-    use consensus_types::proofs::{CrossChainId, Message, UpdateVariant};
+    use consensus_types::proofs::{UpdateVariant, CrossChainId, Message, AncestryProof, BatchMessageProof};
     use eth::consensus::MockConsensusRPC;
-    use eth::error::RPCError;
     use eth::execution::MockExecutionRPC;
     use eth::types::InternalMessage;
     use eth::utils::calc_timestamp_from_slot;
     use ethers::types::{Block, Transaction, TransactionReceipt, H256};
-    use eyre::{anyhow, Result};
-    use mockall::predicate;
-
-    fn get_block_with_txs(block_num: u64) -> Result<Option<Block<Transaction>>> {
-        let filename = format!("./src/prover/testdata/execution_blocks/{}.json", block_num);
-        let file = File::open(filename).unwrap();
-        let res: Option<Block<Transaction>> = Some(serde_json::from_reader(file).unwrap());
-        Ok(res)
-    }
-
-    fn get_block_receipts(block_num: u64) -> Result<Vec<TransactionReceipt>> {
-        let filename = format!(
-            "./src/prover/testdata/execution_blocks/receipts/{}.json",
-            block_num
-        );
-        let file = File::open(filename).unwrap();
-        let res: Vec<TransactionReceipt> = serde_json::from_reader(file).unwrap();
-        Ok(res)
-    }
-
-    fn get_beacon_block(slot: u64) -> Result<BeaconBlockAlias, RPCError> {
-        let filename = format!("./src/prover/testdata/beacon_blocks/{}.json", slot);
-        let file = File::open(filename).unwrap();
-        let res: BeaconBlockAlias = serde_json::from_reader(file).unwrap();
-        Ok(res)
-    }
+    use eyre::Result;
+    use indexmap::IndexMap;
 
     fn get_mock_update(
         is_optimistic: bool,
@@ -292,11 +272,17 @@ mod tests {
         };
     }
 
-    fn get_mock_exec_block(block_number: u64, timestamp: u64) -> Block<H256> {
-        let mut block = Block::default();
-        block.number = Some(ethers::types::U64::from(block_number));
-        block.timestamp = ethers::types::U256::from(timestamp);
-        block
+    fn get_mock_block_receipts(tx_hashes: Vec<H256>) -> Result<Vec<TransactionReceipt>> {
+        let receipts: Vec<TransactionReceipt> = tx_hashes
+            .into_iter()
+            .map(|tx_hash| {
+                let mut receipt = TransactionReceipt::default();
+                receipt.transaction_hash = tx_hash;
+                receipt
+            })
+            .collect();
+
+        Ok(receipts)
     }
 
     fn get_mock_message(block_number: u64, tx_hash: H256) -> InternalMessage {
@@ -318,39 +304,140 @@ mod tests {
     }
 
     fn setup(
-        target_block_slot: u64,
-        target_block_num: u64,
-        mock: bool,
     ) -> (MockConsensusRPC, MockExecutionRPC, MockStateProver) {
-        let mut consensus_rpc = MockConsensusRPC::new();
-        let mut execution_rpc = MockExecutionRPC::new();
+        let consensus_rpc = MockConsensusRPC::new();
+        let execution_rpc = MockExecutionRPC::new();
         let state_prover = MockStateProver::new();
 
-        if mock {
-            consensus_rpc
-                .expect_get_beacon_block()
-                .with(predicate::eq(target_block_slot))
-                .returning(move |_| get_beacon_block(target_block_slot)); // Provide a mock result
-
-            execution_rpc
-                .expect_get_block_with_txs()
-                .with(predicate::eq(target_block_num))
-                .returning(move |_| get_block_with_txs(target_block_num));
-
-            execution_rpc
-                .expect_get_block_receipts()
-                .with(predicate::eq(target_block_num))
-                .returning(move |_| get_block_receipts(target_block_num));
-        }
-
         (consensus_rpc, execution_rpc, state_prover)
+    }
+
+    /*
+        Setup the following batch scenario:
+
+        * block 1 -> tx 1 -> message 1
+        * block 2 -> tx 2 -> message 2
+        *   \            \
+        *    \            -> message 3
+        *     \ 
+        *      --->  tx 3 -> message 4
+        * 
+        * block 3 -> tx 4 -> message 5
+    */
+    fn get_mock_batch_message_groups() -> BatchMessageGroups {
+        let mut groups: BatchMessageGroups = IndexMap::new();
+
+        let mut blockgroup1: IndexMap<H256, Vec<Message>> = IndexMap::new();
+        let mut blockgroup2: IndexMap<H256, Vec<Message>> = IndexMap::new();
+        let mut blockgroup3: IndexMap<H256, Vec<Message>> = IndexMap::new();
+
+        let message1 = get_mock_message(1, H256::from_low_u64_be(1));
+        let message2 = get_mock_message(2, H256::from_low_u64_be(2));
+        let message3 = get_mock_message(2, H256::from_low_u64_be(2));
+        let message4 = get_mock_message(2, H256::from_low_u64_be(3));
+        let message5 = get_mock_message(3, H256::from_low_u64_be(4));
+
+        blockgroup1.insert(message1.tx_hash, vec![message1.message]);
+        blockgroup2.insert(message2.tx_hash, vec![message2.message, message3.message]);
+        blockgroup2.insert(message4.tx_hash, vec![message4.message]);
+        blockgroup3.insert(message5.tx_hash, vec![message5.message]);
+
+        groups.insert(1, blockgroup1);
+        groups.insert(2, blockgroup2);
+        groups.insert(3, blockgroup3);
+
+        groups
+    }
+
+    fn get_mock_beacon_block(slot: u64) -> BeaconBlockAlias {
+        let mut block = BeaconBlockAlias::default();
+        block.slot = slot;
+        block.body.execution_payload.transactions = ssz_rs::List::default();
+        for _ in 1..10 {
+            block.body.execution_payload.transactions.push(sync_committee_rs::consensus_types::Transaction::default());
+        }
+        block
+    }
+  
+    fn get_mock_exec_block(block_number: u64, timestamp: u64) -> Block<H256> {
+        let mut block = Block::default();
+        block.number = Some(ethers::types::U64::from(block_number));
+        block.timestamp = ethers::types::U256::from(timestamp);
+        block
+    }
+
+    fn get_mock_exec_block_with_txs(block_number: u64, timestamp: u64) -> Block<Transaction> {
+        let mut block = Block::<Transaction>::default();
+        block.number = Some(ethers::types::U64::from(block_number));
+        block.timestamp = ethers::types::U256::from(timestamp);
+        block
+    }
+
+    #[tokio::test]
+    async fn test_batch_generate_proofs() {
+        let mut mock_update = get_mock_update(true, 1000, 505);
+        let batch_message_groups = get_mock_batch_message_groups();
+
+        let get_mock_slot_from_block_num = |block_num| block_num;
+
+        let (mut consensus_rpc, mut execution_rpc, state_prover) = setup();
+        consensus_rpc
+            .expect_get_beacon_block()
+            .returning(move |i| Ok(get_mock_beacon_block(i)));
+        execution_rpc
+            .expect_get_block_with_txs()
+            .returning(move |i| Ok(Some(get_mock_exec_block_with_txs(i, calc_timestamp_from_slot(get_mock_slot_from_block_num(i))))));
+        execution_rpc
+            .expect_get_block_receipts()
+            .returning(move |i|  {
+                let tx_hashes = if i == 1 {
+                    vec![H256::from_low_u64_be(1)]
+                }
+                else if i == 2 {
+                    vec![H256::from_low_u64_be(2), H256::from_low_u64_be(3)]
+                }
+                else {
+                    vec![H256::from_low_u64_be(4)]
+                };
+
+                Ok(get_mock_block_receipts(tx_hashes).unwrap())
+        });
+        let mut consensus_prover = MockConsensusProver::new();
+        consensus_prover.expect_prove_ancestry().returning(|_, _, _| Ok(AncestryProof::BlockRoots { block_roots_index: 0, block_root_proof: vec![] }));
+        consensus_prover.expect_generate_transaction_proof().returning(|_, _| Ok(Default::default()));
+        consensus_prover.expect_generate_receipts_root_proof().returning(|_| Ok(Default::default()));
+        let mut execution_prover = MockExecutionProver::new();
+        execution_prover.expect_generate_receipt_proof().returning(|_, _, _| Ok(Default::default()));
+
+        let prover = Prover::new(
+            &consensus_rpc,
+            &execution_rpc,
+            &consensus_prover,
+            &execution_prover,
+        );
+
+        let res = prover.batch_generate_proofs(batch_message_groups, mock_update.clone()).await;
+        assert!(res.is_ok());
+
+        let BatchMessageProof { update, update_level_verifications } = res.unwrap();
+
+        assert_eq!(update, mock_update);
+        assert_eq!(update_level_verifications.len(), 3);
+        assert_eq!(update_level_verifications[0].tx_level_verification.len(), 1);
+        assert_eq!(update_level_verifications[1].tx_level_verification.len(), 2);
+        assert_eq!(update_level_verifications[2].tx_level_verification.len(), 1);
+        assert_eq!(update_level_verifications[0].tx_level_verification[0].messages.len(), 1);
+        assert_eq!(update_level_verifications[1].tx_level_verification[0].messages.len(), 2);
+        assert_eq!(update_level_verifications[1].tx_level_verification[1].messages.len(), 1);
+        assert_eq!(update_level_verifications[2].tx_level_verification[0].messages.len(), 1);
+
+        assert_eq!(update_level_verifications[0].tx_level_verification[0].messages, vec![get_mock_message(1, H256::from_low_u64_be(1)).message]);
     }
 
     #[tokio::test]
     async fn test_batch_messages() {
         let consensus_rpc = MockConsensusRPC::new();
         let mut execution_rpc = MockExecutionRPC::new();
-        let state_prover = MockStateProver::new();
 
         let update = get_mock_update(true, 1000, 505);
 
@@ -434,7 +521,6 @@ mod tests {
     async fn test_filter_messages_before_slot_with_none() {
         let consensus_rpc = MockConsensusRPC::new();
         let mut execution_rpc = MockExecutionRPC::new();
-        let state_prover = MockStateProver::new();
 
         execution_rpc.expect_get_blocks().returning(move |_| {
             return Ok(vec![
@@ -471,7 +557,6 @@ mod tests {
     async fn test_filter_messages_before_slot() {
         let consensus_rpc = MockConsensusRPC::new();
         let mut execution_rpc = MockExecutionRPC::new();
-        let state_prover = MockStateProver::new();
 
         execution_rpc.expect_get_blocks().returning(move |_| {
             return Ok(vec![

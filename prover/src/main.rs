@@ -6,11 +6,14 @@ use crate::prover::consensus::ConsensusProver;
 use crate::prover::execution::ExecutionProver;
 use crate::prover::state_prover::StateProver;
 use crate::prover::Prover;
+use crate::prover::types::BatchMessageGroups;
 use consensus_types::proofs::UpdateVariant;
+use cosmrs::tendermint::merkle::proof;
 use dotenv::dotenv;
 use eth::consensus::EthBeaconAPI;
 use eth::{consensus::ConsensusRPC, execution::ExecutionRPC, gateway::Gateway};
 use prover::types::Config;
+use serde_json::de;
 use std::env;
 use std::sync::Arc;
 use std::time::Instant;
@@ -26,19 +29,41 @@ async fn main() {
     let gateway: Gateway = Gateway::new(config.execution_rpc, config.gateway_addr);
     let consensus_prover = ConsensusProver::new(Arc::new(consensus.clone()), Arc::new(state_prover));
     let execution_prover = ExecutionProver::new();
-    let prover = Prover::new(&consensus, &execution, &consensus_prover, &execution_prover);
 
     let finality_update = consensus.get_finality_update().await.unwrap();
+
     let finality_header_slot = finality_update.finalized_header.beacon.slot;
     let min_slot_in_block_roots = finality_header_slot - SLOTS_PER_HISTORICAL_ROOT as u64 + 1;
-    let interested_messages = gateway
+    let messages = gateway
         .get_messages_in_slot_range(&execution, min_slot_in_block_roots, finality_header_slot)
         .await
         .unwrap();
+    let update = UpdateVariant::Finality(finality_update.clone());
 
-    let mut first_message = interested_messages.first().unwrap().clone();
+    let prover = Prover::new(&consensus, &execution, &consensus_prover, &execution_prover);
 
-    let now = Instant::now();
+    // Get only first ten
+    let res = prover.batch_messages(&messages[0..10].to_vec(), &update.clone()).await.unwrap();
+    debug_print_batch_message_groups(&res);
+    let proofs = prover.batch_generate_proofs(res, update.clone()).await.unwrap();
+    let proofs_json = serde_json::to_string(&proofs).unwrap();
+    println!("{}", proofs_json);
+
+    println!("Proofs: {:?}", proofs);
+    fn debug_print_batch_message_groups(batch_message_groups: &BatchMessageGroups) {
+        for (block_number, message_groups) in batch_message_groups {
+            let block_count = message_groups.len();
+            for (tx_hash, messages) in message_groups {
+                let message_count = messages.len();
+                println!(
+                    "Block number: {}, Block count: {}, Tx hash: {}, Message count: {}",
+                    block_number, block_count, tx_hash, message_count
+                );
+            }
+        }
+    }
+
+    //debug_print_batch_message_groups(&res);
 
     // let proof = prover
     //     .prove_event(
