@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use eyre::Result;
 use ssz_rs::SszVariableOrIndex;
 
+#[derive(Clone)]
 pub struct MockStateProver;
 
 #[allow(dead_code)]

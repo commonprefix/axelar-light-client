@@ -1,23 +1,14 @@
 use crate::prover::types::{GindexOrPath, ProofResponse};
 use async_trait::async_trait;
 use eyre::{anyhow, Result};
+use mockall::automock;
 use retri::{retry, BackoffSettings};
-use serde::de::DeserializeOwned;
 
 use super::utils::parse_path;
 
-pub async fn get<R: DeserializeOwned>(req: &str) -> Result<R> {
-    let bytes = retry(
-        || async { Ok::<_, eyre::Report>(reqwest::get(req).await?.bytes().await?) },
-        BackoffSettings::default(),
-    )
-    .await?;
-
-    Ok(serde_json::from_slice::<R>(&bytes)?)
-}
-
+#[automock]
 #[async_trait]
-pub trait StateProverAPI {
+pub trait StateProverAPI: Sync + Send + 'static {
     async fn get_state_proof(
         &self,
         state_id: &str,
@@ -30,6 +21,7 @@ pub trait StateProverAPI {
     ) -> Result<ProofResponse>;
 }
 
+#[derive(Clone)]
 pub struct StateProver {
     rpc: String,
 }
@@ -40,6 +32,7 @@ impl StateProver {
     }
 }
 
+#[automock]
 #[async_trait]
 impl StateProverAPI for StateProver {
     async fn get_state_proof(
@@ -60,9 +53,9 @@ impl StateProverAPI for StateProver {
             ),
         };
 
-        let res = get::<ProofResponse>(&req).await;
+        let res = get(&req).await;
         if res.is_err() {
-            return Err(anyhow!("Failed to get block proof: {:?} {:?}", req, res));
+            return Err(anyhow!("Failed to get state proof: {:?} {:?}", req, res));
         }
 
         res
@@ -86,11 +79,21 @@ impl StateProverAPI for StateProver {
             ),
         };
 
-        let res = get::<ProofResponse>(&req).await;
+        let res = get(&req).await;
         if res.is_err() {
             return Err(anyhow!("Failed to get block proof: {:?} {:?}", req, res));
         }
 
         res
     }
+}
+
+async fn get(req: &str) -> Result<ProofResponse> {
+    let bytes = retry(
+        || async { Ok::<_, eyre::Report>(reqwest::get(req).await?.bytes().await?) },
+        BackoffSettings::default(),
+    )
+    .await?;
+
+    Ok(serde_json::from_slice::<ProofResponse>(&bytes)?)
 }

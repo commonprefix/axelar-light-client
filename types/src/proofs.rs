@@ -1,7 +1,5 @@
 use crate::consensus::{FinalityUpdate, OptimisticUpdate};
-pub use connection_router::state::{
-    Address as AddressType, ChainName, CrossChainId, Message, MessageHash,
-};
+pub use connection_router::state::{Address as AddressType, ChainName, CrossChainId, Message};
 use ssz_rs::Node;
 use sync_committee_rs::{
     consensus_types::{BeaconBlockHeader, Transaction},
@@ -22,7 +20,7 @@ pub struct MessageProof {
     pub receipt_proof: ReceiptProof,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Eq)]
 pub enum UpdateVariant {
     // LightClientFinalityUpdate from the beacon API spec.
     Finality(FinalityUpdate),
@@ -53,7 +51,13 @@ pub enum AncestryProof {
     },
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+impl Default for UpdateVariant {
+    fn default() -> Self {
+        UpdateVariant::Finality(FinalityUpdate::default())
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
 pub struct TransactionProof {
     // Same index of transaction to transaction trie and from receipt to receipt trie
     pub transaction_index: u64,
@@ -73,22 +77,23 @@ pub struct ReceiptProof {
     pub receipt_proof: Vec<Vec<u8>>,
     // Receipts root of execution payload of target block
     pub receipts_root: Root,
+    pub receipt: Vec<u8>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, Debug)]
 pub struct BatchVerificationData {
     pub update: UpdateVariant,
     pub target_blocks: Vec<BlockProofsBatch>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, Debug, Clone)]
 pub struct BlockProofsBatch {
     pub ancestry_proof: AncestryProof,
     pub target_block: BeaconBlockHeader,
     pub transactions_proofs: Vec<TransactionProofsBatch>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, Debug, Clone)]
 pub struct TransactionProofsBatch {
     pub transaction_proof: TransactionProof,
     pub receipt_proof: ReceiptProof,
