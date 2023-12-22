@@ -393,6 +393,16 @@ pub mod test_helpers {
         (bootstrap, verification_data)
     }
 
+    pub fn get_batched_data() -> (Bootstrap, BatchVerificationData) {
+        let verification_file = File::open(format!("testdata/batched.json")).unwrap();
+        let verification_data: BatchVerificationData =
+            serde_json::from_reader(verification_file).unwrap();
+
+        let bootstrap_file = File::open(format!("testdata/batched_bootstrap.json")).unwrap();
+        let bootstrap: Bootstrap = serde_json::from_reader(bootstrap_file).unwrap();
+        (bootstrap, verification_data)
+    }
+
     pub fn get_config() -> ChainConfig {
         let genesis_root_bytes: [u8; 32] =
             hex_str_to_bytes("0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95")

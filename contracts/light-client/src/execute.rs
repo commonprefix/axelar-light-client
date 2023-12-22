@@ -202,18 +202,28 @@ pub fn update_forks(deps: DepsMut, forks: Forks) -> Result<Response> {
 
 #[cfg(test)]
 mod tests {
-    use crate::execute;
+    use crate::execute::{self, process_block_proofs, process_transaction_proofs, verify_message};
+    use crate::lightclient::helpers::extract_logs_from_receipt_proof;
     use crate::lightclient::helpers::test_helpers::{
-        get_verification_data_with_block_roots, get_verification_data_with_historical_roots,
+        get_batched_data, get_verification_data_with_block_roots,
+        get_verification_data_with_historical_roots,
     };
     use crate::lightclient::tests::tests::init_lightclient;
+    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::DepsMut;
+    use eyre::{eyre, Result};
+    use types::consensus::FinalityUpdate;
+    use types::execution::ReceiptLogs;
+    use types::proofs::{BlockProofsBatch, Message, UpdateVariant};
+    use types::ssz_rs::Merkleized;
+
+    use super::process_batch_data;
 
     #[test]
     fn test_verification_with_historical_roots() {
         let data = get_verification_data_with_historical_roots();
         let lightclient = init_lightclient(Some(data.0));
         let res = execute::process_verification_data(&lightclient, &data.1);
-        println!("{res:?}");
         assert!(res.is_ok());
     }
 
@@ -222,7 +232,194 @@ mod tests {
         let data = get_verification_data_with_block_roots();
         let lightclient = init_lightclient(Some(data.0));
         let res = execute::process_verification_data(&lightclient, &data.1);
-        println!("{res:?}");
         assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_verify_message() {
+        let verification_data = get_verification_data_with_block_roots();
+        let proofs = verification_data.1.proofs;
+
+        let mock_compare_ok = |_: &_, _: &_, _: &_| Ok(());
+        let mock_compare_err = |_: &_, _: &_, _: &_| Err(eyre!("always fail"));
+
+        let mut message = verification_data.1.message.clone();
+        message.cc_id.id = String::from("broken_id").try_into().unwrap();
+        assert_eq!(
+            verify_message(
+                &message,
+                &proofs.transaction_proof.transaction,
+                &ReceiptLogs::default(),
+                &mock_compare_ok
+            )
+            .unwrap_err()
+            .to_string(),
+            "Missing ':' in message ID"
+        );
+
+        message.cc_id.id = String::from("foo:bar").try_into().unwrap();
+        assert_eq!(
+            verify_message(
+                &message,
+                &proofs.transaction_proof.transaction,
+                &ReceiptLogs::default(),
+                &mock_compare_ok
+            )
+            .unwrap_err()
+            .to_string(),
+            "Failed to parse log index"
+        );
+
+        message = verification_data.1.message;
+        assert_eq!(
+            verify_message(
+                &message,
+                &proofs.transaction_proof.transaction,
+                &ReceiptLogs::default(),
+                &mock_compare_ok
+            )
+            .unwrap_err()
+            .to_string(),
+            "Log index out of bounds"
+        );
+
+        let logs = extract_logs_from_receipt_proof(
+            &proofs.receipt_proof,
+            proofs.transaction_proof.transaction_index,
+            &proofs.target_block.clone().hash_tree_root().unwrap(),
+        )
+        .unwrap();
+        // returns the result of the compare function (OK)
+        assert!(verify_message(
+            &message,
+            &proofs.transaction_proof.transaction,
+            &logs,
+            &mock_compare_ok
+        )
+        .is_ok());
+
+        // returns the result of the compare function (Err)
+        assert!(verify_message(
+            &message,
+            &proofs.transaction_proof.transaction,
+            &logs,
+            &mock_compare_err
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_process_transaction_proofs() {
+        let data = get_batched_data().1;
+
+        let block_proofs = data
+            .target_blocks
+            .get(0)
+            .expect("No block proofs available");
+        let transaction_proofs = block_proofs
+            .transactions_proofs
+            .get(0)
+            .expect("No transaction proofs available")
+            .clone();
+        let messages = transaction_proofs.messages.clone();
+
+        let target_block_root = block_proofs.target_block.clone().hash_tree_root().unwrap();
+
+        let res = process_transaction_proofs(&transaction_proofs, &target_block_root);
+        assert_valid_messages(&messages, &res);
+
+        let mut corrupted_proofs = transaction_proofs.clone();
+        corrupted_proofs.messages[0].cc_id.id = "invalid".to_string().try_into().unwrap();
+        let messages = corrupted_proofs.messages.clone();
+        let res = process_transaction_proofs(&corrupted_proofs, &target_block_root);
+        assert_invalid_messages(&messages, &res);
+    }
+
+    fn extract_messages_from_block(target_block: &BlockProofsBatch) -> Vec<Message> {
+        target_block
+            .transactions_proofs
+            .iter()
+            .flat_map(|transaction_proofs| transaction_proofs.messages.iter())
+            .cloned() // Clone here if necessary
+            .collect()
+    }
+
+    fn assert_valid_messages(messages: &[Message], res: &Vec<(Message, Result<()>)>) {
+        assert!(res.len() > 0);
+        assert_eq!(res.len(), messages.len());
+        for (index, message) in messages.iter().enumerate() {
+            assert_eq!(res[index].0, *message);
+            assert!(res[index].1.is_ok());
+        }
+    }
+
+    fn corrupt_messages(target_block: &mut BlockProofsBatch) {
+        for tx in target_block.transactions_proofs.iter_mut() {
+            for message in tx.messages.iter_mut() {
+                message.cc_id.id = "invalid".to_string().try_into().unwrap();
+            }
+        }
+    }
+
+    fn assert_invalid_messages(messages: &[Message], res: &Vec<(Message, Result<()>)>) {
+        assert!(res.len() > 0);
+        assert_eq!(res.len(), messages.len());
+        for (index, message) in messages.iter().enumerate() {
+            assert_eq!(res[index].0, *message);
+            assert_eq!(
+                res[index].1.as_ref().unwrap_err().to_string(),
+                "Missing ':' in message ID"
+            );
+        }
+    }
+
+    #[test]
+    fn test_process_block_proofs() {
+        let mut data = get_batched_data().1;
+
+        for target_block in data.target_blocks.iter_mut() {
+            let messages = extract_messages_from_block(target_block);
+
+            let res = process_block_proofs(&data.update, target_block);
+            assert_valid_messages(&messages, &res);
+
+            corrupt_messages(target_block);
+            let messages = extract_messages_from_block(target_block);
+            let res = process_block_proofs(&data.update, target_block);
+            assert_invalid_messages(&messages, &res);
+        }
+    }
+
+    #[test]
+    fn test_process_batch_data() {
+        let (bootstrap, mut data) = get_batched_data();
+        let lc = init_lightclient(Some(bootstrap));
+        let mut deps = mock_dependencies();
+
+        let res = process_batch_data(deps.as_mut(), &lc, &data);
+        let messages = data
+            .target_blocks
+            .iter()
+            .flat_map(|target_block| extract_messages_from_block(target_block))
+            .collect::<Vec<Message>>();
+
+        assert!(res.is_ok());
+        assert_valid_messages(&messages, &res.unwrap());
+
+        let mut corrupt_data = data.clone();
+        corrupt_data.update = UpdateVariant::Finality(FinalityUpdate::default());
+        assert!(process_batch_data(deps.as_mut(), &lc, &corrupt_data).is_err());
+
+        for target_block in data.target_blocks.iter_mut() {
+            corrupt_messages(target_block);
+        }
+        let messages = data
+            .target_blocks
+            .iter()
+            .flat_map(|target_block| extract_messages_from_block(target_block))
+            .collect::<Vec<Message>>();
+        let res = process_batch_data(deps.as_mut(), &lc, &data);
+        assert!(res.is_ok());
+        assert_invalid_messages(&messages, &res.unwrap());
     }
 }
