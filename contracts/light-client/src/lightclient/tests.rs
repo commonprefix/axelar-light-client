@@ -10,7 +10,7 @@ pub mod tests {
         calc_sync_period, compare_message_with_log, extract_logs_from_receipt_proof,
         hex_str_to_bytes, is_proof_valid, parse_log, parse_logs_from_receipt,
         verify_block_roots_proof, verify_historical_roots_proof, verify_transaction_proof,
-        verify_trie_proof,
+        verify_trie_proof
     };
     use crate::{
         lightclient::error::ConsensusError,
