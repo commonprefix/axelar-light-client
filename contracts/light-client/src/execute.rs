@@ -18,11 +18,13 @@ use crate::lightclient::helpers::{
 use crate::lightclient::{LightClient, Verification};
 use crate::state::{CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE, VERIFIED_MESSAGES};
 
+type MessageLogCompareFn = dyn Fn(&Message, &ReceiptLog, &Vec<u8>) -> Result<()>;
+
 fn verify_message(
     message: &Message,
     transaction: &Transaction<MAX_BYTES_PER_TRANSACTION>,
     logs: &ReceiptLogs,
-    compare_fn: &dyn Fn(&Message, &ReceiptLog, &Vec<u8>) -> Result<()>,
+    compare_fn: &MessageLogCompareFn,
 ) -> Result<()> {
     let log_index_str = message
         .cc_id
@@ -90,7 +92,7 @@ fn process_block_proofs(
 
     let mut target_block_root = Node::default();
     let mut ancestry_proof_verification = || -> Result<()> {
-        let recent_block = extract_recent_block(&update);
+        let recent_block = extract_recent_block(update);
         target_block_root = data.target_block.clone().hash_tree_root()?;
 
         verify_ancestry_proof(&data.ancestry_proof, &data.target_block, &recent_block)?;
@@ -124,7 +126,7 @@ pub fn process_batch_data(
         UpdateVariant::Optimistic(update) => update,
     };
 
-    update.verify(&lightclient)?;
+    update.verify(lightclient)?;
 
     let results = data
         .target_blocks
@@ -138,7 +140,7 @@ pub fn process_batch_data(
         }
     }
 
-    return Ok(results);
+    Ok(results)
 }
 
 pub fn light_client_update(
