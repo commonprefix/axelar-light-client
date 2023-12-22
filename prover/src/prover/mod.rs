@@ -141,7 +141,7 @@ impl<'a> Prover<'a> {
 
         let receipt_proof = self
             .execution_prover
-            .generate_receipt_proof(exec_block, &receipts, tx_index)
+            .generate_receipt_proof(exec_block, receipts, tx_index)
             .wrap_err(format!(
                 "Failed to generate receipt proof for block {} and tx: {}",
                 block_hash, tx_index
@@ -321,7 +321,7 @@ mod tests {
         let mock_update = get_mock_update(true, 1000, 505);
         let batch_message_groups = get_mock_batch_message_groups();
 
-        let (consensus_rpc, execution_rpc, _state_prover) = setup();
+        let (_consensus_rpc, _execution_rpc, _state_prover) = setup();
 
         let mut consensus_prover = MockConsensusProver::new();
         consensus_prover.expect_prove_ancestry().returning(|_, _, _| Ok(AncestryProof::BlockRoots { block_roots_index: 0, block_root_proof: vec![] }));
@@ -354,7 +354,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_batch_messages() {
-        let consensus_rpc = MockConsensusRPC::new();
+        let _consensus_rpc = MockConsensusRPC::new();
         let mut execution_rpc = MockExecutionRPC::new();
 
         let update = get_mock_update(true, 1000, 505);
@@ -393,7 +393,7 @@ mod tests {
             &execution_prover,
         );
 
-        let result = prover.batch_messages(&messages.to_vec(), &update).await.unwrap();
+        let result = prover.batch_messages(messages.as_ref(), &update).await.unwrap();
 
         assert_eq!(result.len(), 3);
         assert_eq!(result.get(&1).unwrap().len(), 1);

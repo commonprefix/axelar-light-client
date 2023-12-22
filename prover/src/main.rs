@@ -45,7 +45,7 @@ async fn main() {
     let prover = Prover::new(&consensus_prover, &execution_prover);
 
     // Get only first ten
-    let res = prover.batch_messages(&messages[0..10].to_vec(), &update.clone()).await.unwrap();
+    let res = prover.batch_messages(&messages[0..10], &update.clone()).await.unwrap();
     debug_print_batch_message_groups(&res);
     let proofs = prover.batch_generate_proofs(res, update.clone()).await.unwrap();
     let proofs_json = serde_json::to_string(&proofs).unwrap();

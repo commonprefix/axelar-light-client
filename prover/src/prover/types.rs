@@ -1,4 +1,4 @@
-use consensus_types::{consensus::BeaconBlockAlias, proofs::Message};
+use consensus_types::consensus::BeaconBlockAlias;
 use eth::types::InternalMessage;
 use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use indexmap::IndexMap;
