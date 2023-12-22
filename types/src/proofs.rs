@@ -1,6 +1,6 @@
 use crate::consensus::{FinalityUpdate, OptimisticUpdate};
 pub use connection_router::state::{
-    Address as AddressType, ChainName, CrossChainId, Message, MessageHash,
+    Address as AddressType, ChainName, CrossChainId, Message,
 };
 use ssz_rs::Node;
 use sync_committee_rs::{
