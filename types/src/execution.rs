@@ -1,5 +1,6 @@
 use alloy_primitives::Address;
 use alloy_rlp::{Buf, Decodable};
+use eyre::Result;
 use serde::Deserialize;
 use ssz_rs::prelude::*;
 use std::cmp::Ordering;

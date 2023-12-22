@@ -11,7 +11,7 @@ use sync_committee_rs::constants::{
 
 pub use sync_committee_rs::consensus_types::BeaconBlockHeader;
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
 pub struct BeaconHeader {
     pub beacon: BeaconBlockHeader,
 }
@@ -90,7 +90,7 @@ impl Update {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
 pub struct FinalityUpdate {
     pub attested_header: BeaconHeader,
     pub finalized_header: BeaconHeader,
