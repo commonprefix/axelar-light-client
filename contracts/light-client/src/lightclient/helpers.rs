@@ -10,7 +10,7 @@ use types::alloy_rlp::encode;
 use crate::ContractError;
 use hasher::{Hasher, HasherKeccak};
 use types::execution::{ReceiptLogs, RECEIPTS_ROOT_GINDEX};
-use types::proofs::{AncestryProof, ReceiptProof, TransactionProof};
+use types::proofs::{AncestryProof, ReceiptProof, TransactionProof, UpdateVariant};
 use types::ssz_rs::{
     get_generalized_index, is_valid_merkle_branch, verify_merkle_proof, GeneralizedIndex,
     Merkleized, Node, SszVariableOrIndex, Vector,
@@ -307,6 +307,13 @@ pub fn compare_message_with_log(
         return Err(eyre!("Invalid message"));
     }
     Ok(())
+}
+
+pub fn extract_recent_block(update: &UpdateVariant) -> BeaconBlockHeader {
+    match update {
+        UpdateVariant::Finality(update) => update.finalized_header.beacon.clone(),
+        UpdateVariant::Optimistic(update) => update.attested_header.beacon.clone(),
+    }
 }
 
 pub fn branch_to_nodes(branch: Vec<Bytes32>) -> Result<Vec<Node>> {

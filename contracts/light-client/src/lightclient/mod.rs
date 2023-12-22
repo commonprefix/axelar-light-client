@@ -206,19 +206,6 @@ impl LightClient {
         Ok(())
     }
 
-    pub fn extract_recent_block(&self, update: &UpdateVariant) -> Result<BeaconBlockHeader> {
-        match update {
-            UpdateVariant::Finality(update) => {
-                update.verify(self)?;
-                Ok(update.finalized_header.beacon.clone())
-            }
-            UpdateVariant::Optimistic(update) => {
-                update.verify(self)?;
-                Ok(update.attested_header.beacon.clone())
-            }
-        }
-    }
-
     fn is_current_committee_proof_valid(
         &self,
         attested_header: &BeaconBlockHeader,
