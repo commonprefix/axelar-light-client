@@ -53,6 +53,12 @@ pub enum AncestryProof {
     },
 }
 
+impl Default for UpdateVariant {
+    fn default() -> Self {
+        UpdateVariant::Finality(FinalityUpdate::default())
+    }
+}
+
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
 pub struct TransactionProof {
     // Same index of transaction to transaction trie and from receipt to receipt trie
@@ -84,14 +90,14 @@ pub struct BatchMessageProof {
 }
 
 #[derive(serde::Serialize, Debug, Clone)]
-pub struct BatchedEventProofs {
+pub struct BlockProofsBatch {
     pub ancestry_proof: AncestryProof,
     pub target_block: BeaconBlockHeader,
     pub transactions_proofs: Vec<TransactionProofsBatch>,
 }
 
 #[derive(serde::Serialize, Debug, Clone)]
-pub struct BatchedBlockProofs {
+pub struct TransactionProofsBatch {
     pub transaction_proof: TransactionProof,
     pub receipt_proof: ReceiptProof,
     // Support multiple messages on a single tx, ie transaction level batching

@@ -11,7 +11,7 @@ use consensus_types::{
     consensus::{to_beacon_header, BeaconBlockAlias},
     proofs::{
         ReceiptProof,
-        TransactionProof, UpdateVariant, BatchedEventProofs, BatchedBlockProofs, AncestryProof, BatchMessageProof,
+        TransactionProof, UpdateVariant, AncestryProof, BatchMessageProof, BlockProofsBatch, TransactionProofsBatch,
     },
 };
 use eth::types::InternalMessage;
@@ -72,16 +72,16 @@ impl<'a> Prover<'a> {
             UpdateVariant::Optimistic(update) => update.attested_header.beacon,
         };
 
-        let mut update_level_verifications: Vec<BatchedEventProofs> = vec![];
+        let mut block_proofs_batch: Vec<BlockProofsBatch> = vec![];
         for (_, block_groups) in &batch_message_groups {
             let (mut beacon_block, exec_block, receipts) = Self::get_block_of_batch(block_groups).unwrap();
             let block_hash = beacon_block.hash_tree_root()?;
 
             let ancestry_proof = self.get_ancestry_proof(beacon_block.slot, &recent_block).await?;
-            let mut update_level_verification = BatchedEventProofs {
+            let mut block_proof = BlockProofsBatch {
                 ancestry_proof,
                 target_block: to_beacon_header(&beacon_block)?,
-                tx_level_verification: vec![],
+                transactions_proofs: vec![],
             };
 
             for (tx_hash, messages) in block_groups {
@@ -90,21 +90,21 @@ impl<'a> Prover<'a> {
                 let transaction_proof = self.get_transaction_proof(&beacon_block, block_hash, tx_index).await?;
                 let receipt_proof = self.get_receipt_proof(&exec_block, block_hash, &receipts, tx_index).await?;
 
-                let tx_level_verification = BatchedBlockProofs {
+                let tx_level_verification = TransactionProofsBatch {
                     transaction_proof,
                     receipt_proof,
                     messages: messages.iter().map(|m| m.message.clone()).collect()
                 };
 
-                update_level_verification.tx_level_verification.push(tx_level_verification);
+                block_proof.transactions_proofs.push(tx_level_verification);
             }
 
-            update_level_verifications.push(update_level_verification);
+            block_proofs_batch.push(block_proof);
         }
 
         Ok(BatchMessageProof {
             update,
-            update_level_verifications,
+            target_blocks: block_proofs_batch,
         })
     }
 
@@ -339,17 +339,17 @@ mod tests {
         let res = prover.batch_generate_proofs(batch_message_groups, mock_update.clone()).await;
         assert!(res.is_ok());
 
-        let BatchMessageProof { update, update_level_verifications } = res.unwrap();
+        let BatchMessageProof { update, target_blocks } = res.unwrap();
 
         assert_eq!(update, mock_update);
-        assert_eq!(update_level_verifications.len(), 3);
-        assert_eq!(update_level_verifications[0].tx_level_verification.len(), 1);
-        assert_eq!(update_level_verifications[1].tx_level_verification.len(), 2);
-        assert_eq!(update_level_verifications[2].tx_level_verification.len(), 1);
-        assert_eq!(update_level_verifications[0].tx_level_verification[0].messages.len(), 1);
-        assert_eq!(update_level_verifications[1].tx_level_verification[0].messages.len(), 2);
-        assert_eq!(update_level_verifications[1].tx_level_verification[1].messages.len(), 1);
-        assert_eq!(update_level_verifications[2].tx_level_verification[0].messages.len(), 1);
+        assert_eq!(target_blocks.len(), 3);
+        assert_eq!(target_blocks[0].transactions_proofs.len(), 1);
+        assert_eq!(target_blocks[1].transactions_proofs.len(), 2);
+        assert_eq!(target_blocks[2].transactions_proofs.len(), 1);
+        assert_eq!(target_blocks[0].transactions_proofs[0].messages.len(), 1);
+        assert_eq!(target_blocks[1].transactions_proofs[0].messages.len(), 2);
+        assert_eq!(target_blocks[1].transactions_proofs[1].messages.len(), 1);
+        assert_eq!(target_blocks[2].transactions_proofs[0].messages.len(), 1);
     }
 
     #[tokio::test]
