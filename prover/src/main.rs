@@ -6,18 +6,14 @@ use crate::prover::consensus::ConsensusProver;
 use crate::prover::execution::ExecutionProver;
 use crate::prover::state_prover::StateProver;
 use crate::prover::Prover;
-use crate::prover::types::BatchMessageGroups;
 use crate::prover::utils::debug_print_batch_message_groups;
 use consensus_types::proofs::UpdateVariant;
-
 use dotenv::dotenv;
 use eth::consensus::EthBeaconAPI;
 use eth::{consensus::ConsensusRPC, execution::ExecutionRPC, gateway::Gateway};
 use prover::types::Config;
-
 use std::env;
 use std::sync::Arc;
-
 use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
 
 #[tokio::main]

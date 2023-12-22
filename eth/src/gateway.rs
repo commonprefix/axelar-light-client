@@ -9,6 +9,7 @@ use ethers::types::{Filter, Transaction, TransactionReceipt, Block};
 use ethers::types::{Address, Log, H256, U256};
 use eyre::{eyre, Context};
 use eyre::Result;
+use futures::future::join_all;
 use types::consensus::BeaconBlockAlias;
 use std::sync::Arc;
 use types::lightclient::{CrossChainId, Message};
@@ -39,6 +40,7 @@ impl Gateway {
         Self { consensus, execution, address }
     }
 
+
     pub async fn get_contract_call_with_token_messages(
         &self,
         from_block: u64,
@@ -47,64 +49,80 @@ impl Gateway {
         let logs = self
             .get_contract_call_with_token_logs(from_block, to_block)
             .await?;
-
+    
         let events = Self::decode_contract_call_with_token_logs(&logs)?;
 
-        let mut messages = Vec::<InternalMessage>::new();
-
-        for (log, event) in logs.iter().zip(events) {
-                if log.transaction_hash.is_none()
-                    || log.log_index.is_none()
-                    || log.transaction_index.is_none()
-                    || log.block_hash.is_none()
-                    || log.block_number.is_none()
-                {
-                    println!("Missing fields in log: {:?}", log);
-                    continue;
+        let message_futures = logs.into_iter()
+            .zip(events)
+            .map(|(log, event)| {
+                println!("Working on log {}", log.log_index.unwrap());
+                async move {
+                    match self.generate_internal_message(&log, &event).await {
+                        Ok(message) => Some(message),
+                        Err(error) => {
+                            eprintln!("Error generating internal message for log {:#?}: {:#?}", log, error);
+                            None
+                        }
+                    }
                 }
+            });
 
-                let tx_hash = log.transaction_hash.unwrap();
-                let log_index = log.log_index.unwrap();
-                let block_number = log.block_number.unwrap();
-                let tx_index = log.transaction_index.unwrap();
-
-                let block_data = self.get_full_block(block_number.as_u64()).await;
-                if block_data.is_err() {
-                    println!("Failed to get block data for {:?} {:?}", block_number, block_data.err());
-                    continue;
-                }
-
-                let (exec_block, beacon_block, receipts) = block_data?;
-
-                let transaction_log_index = if log.transaction_index.is_none() {
-                    self.calculate_tx_log_index(log_index.as_u64(), tx_index.as_u64(), &receipts)
-                } else {
-                    log.transaction_index.unwrap().as_u64()
-                };
-
-                let cc_id = CrossChainId {
-                    chain: "ethereum".parse().unwrap(),
-                    id: format!("0x{:x}:{}", tx_hash, transaction_log_index).parse().unwrap(),
-                };
-
-                let msg = InternalMessage {
-                    message: Message {
-                        cc_id,
-                        source_address: format!("0x{:x}", event.sender).parse().unwrap(),
-                        destination_chain: event.destination_chain.parse().unwrap(),
-                        destination_address: event.destination_contract_address.parse().unwrap(),
-                        payload_hash: event.payload_hash.into(),
-                    },
-                    exec_block: exec_block.clone(),
-                    beacon_block: beacon_block.clone(),
-                    receipts: receipts.clone(),
-                    tx_hash,
-                };
-
-                messages.push(msg);
-        } 
+        let messages = join_all(message_futures)
+            .await
+            .into_iter()
+            .filter_map(|message| message)
+            .collect();
 
         Ok(messages)
+    }
+
+    async fn generate_internal_message(&self, log: &Log, event: &ContractCallWithToken) -> Result<InternalMessage> {
+        if log.transaction_hash.is_none()
+            || log.log_index.is_none()
+            || log.transaction_index.is_none()
+            || log.block_hash.is_none()
+            || log.block_number.is_none()
+        {
+            return Err(eyre!("Missing fields in log: {:?}", log));
+        }
+
+        let tx_hash = log.transaction_hash.unwrap();
+        let log_index = log.log_index.unwrap();
+        let block_number = log.block_number.unwrap();
+        let tx_index = log.transaction_index.unwrap();
+
+        let block_data = self.get_full_block(block_number.as_u64()).await;
+        if block_data.is_err() {
+            return Err(eyre!("Failed to get block data for {:?} {:?}", block_number, block_data.err()));
+        }
+        let (exec_block, beacon_block, receipts) = block_data?;
+
+        let transaction_log_index = if log.transaction_index.is_none() {
+            self.calculate_tx_log_index(log_index.as_u64(), tx_index.as_u64(), &receipts)
+        } else {
+            log.transaction_index.unwrap().as_u64()
+        };
+
+        let cc_id = CrossChainId {
+            chain: "ethereum".parse().unwrap(),
+            id: format!("0x{:x}:{}", tx_hash, transaction_log_index).parse().unwrap(),
+        };
+
+        let msg = InternalMessage {
+            message: Message {
+                cc_id,
+                source_address: format!("0x{:x}", event.sender).parse().unwrap(),
+                destination_chain: event.destination_chain.parse().unwrap(),
+                destination_address: event.destination_contract_address.parse().unwrap(),
+                payload_hash: event.payload_hash.into(),
+            },
+            exec_block: exec_block.clone(),
+            beacon_block: beacon_block.clone(),
+            receipts: receipts.clone(),
+            tx_hash,
+        };
+
+        Ok(msg)
     }
 
     fn calculate_tx_log_index(&self, log_index: u64, tx_index: u64, receipts: &Vec<TransactionReceipt>) -> u64 {
