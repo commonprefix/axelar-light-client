@@ -1,4 +1,5 @@
 use consensus_types::{consensus::BeaconBlockAlias, proofs::Message};
+use eth::types::InternalMessage;
 use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -42,4 +43,4 @@ pub struct Config {
 }
 
 // A map from block number to a map from tx hash to messages
-pub type BatchMessageGroups = IndexMap<u64, IndexMap<H256, Vec<Message>>>;
+pub type BatchMessageGroups = IndexMap<u64, IndexMap<H256, Vec<InternalMessage>>>;

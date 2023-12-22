@@ -59,7 +59,7 @@ pub fn to_beacon_header(block: &BeaconBlockAlias) -> eyre::Result<BeaconBlockHea
     })
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct Bootstrap {
     pub header: BeaconHeader,
     pub current_sync_committee: SyncCommittee<SYNC_COMMITTEE_SIZE>,

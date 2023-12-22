@@ -26,21 +26,23 @@ async fn main() {
     let consensus: ConsensusRPC = ConsensusRPC::new(config.consensus_rpc.clone());
     let execution: ExecutionRPC = ExecutionRPC::new(config.execution_rpc.clone());
     let state_prover = StateProver::new(config.state_prover_rpc.clone());
-    let gateway: Gateway = Gateway::new(config.execution_rpc, config.gateway_addr);
+    let gateway: Gateway = Gateway::new(consensus.clone(), execution, config.execution_rpc.clone(), config.gateway_addr);
     let consensus_prover = ConsensusProver::new(Arc::new(consensus.clone()), Arc::new(state_prover));
     let execution_prover = ExecutionProver::new();
 
     let finality_update = consensus.get_finality_update().await.unwrap();
 
+    let execution: ExecutionRPC = ExecutionRPC::new(config.execution_rpc.clone());
     let finality_header_slot = finality_update.finalized_header.beacon.slot;
     let min_slot_in_block_roots = finality_header_slot - SLOTS_PER_HISTORICAL_ROOT as u64 + 1;
     let messages = gateway
         .get_messages_in_slot_range(&execution, min_slot_in_block_roots, finality_header_slot)
         .await
         .unwrap();
+    // let messages: Vec<_> = messages.iter().filter(|m| m.beacon_block.slot < finality_update.finalized_header.beacon.slot).cloned().collect();
     let update = UpdateVariant::Finality(finality_update.clone());
 
-    let prover = Prover::new(&consensus, &execution, &consensus_prover, &execution_prover);
+    let prover = Prover::new(&consensus_prover, &execution_prover);
 
     // Get only first ten
     let res = prover.batch_messages(&messages[0..10].to_vec(), &update.clone()).await.unwrap();
