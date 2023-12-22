@@ -164,21 +164,6 @@ mod tests {
     use mockall::predicate::*;
     use mockall::*;
 
-    // Utility function to create a vector of Results
-    fn create_mock_roots(success_count: usize, error_count: usize) -> Vec<Result<Root, RPCError>> {
-        let mut roots = Vec::new();
-
-        for _ in 0..success_count {
-            roots.push(Ok(Root::default()));
-        }
-
-        for _ in 0..error_count {
-            roots.push(Err(RPCError::UnknownError("Mock Error".to_string())));
-        }
-
-        roots
-    }
-
     mock! {
         ConsensusRPC {}
         #[async_trait]

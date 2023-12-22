@@ -9,7 +9,7 @@ use ethers::types::{Filter, Transaction, TransactionReceipt, Block};
 use ethers::types::{Address, Log, H256, U256};
 use eyre::{eyre, Context};
 use eyre::Result;
-use types::consensus::{self, BeaconBlockAlias};
+use types::consensus::BeaconBlockAlias;
 use std::sync::Arc;
 use types::lightclient::{CrossChainId, Message};
 
