@@ -6,14 +6,15 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::lightclient::helpers::calc_sync_period;
+use crate::lightclient::Verification;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::{lightclient::LightClient, state::*};
 use eyre::Result;
 
-use crate::execute;
+use crate::execute::{self, process_batch_data};
 use cw2::{self, set_contract_version};
 use types::lightclient::Message;
-use types::proofs::CrossChainId;
+use types::proofs::{CrossChainId, UpdateVariant};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -71,26 +72,16 @@ pub fn execute(
             let config = CONFIG.load(deps.storage)?;
             let lc = LightClient::new(&config, Some(state), &env);
 
-            let results = payload
-                .update_level_verifications
-                .iter()
-                .flat_map(|batched_proofs| {
-                    execute::process_batch_verification_data(&lc, &payload.update, batched_proofs)
-                })
-                .collect::<Vec<(Message, Result<()>)>>();
-
-            for message_result in results.iter() {
-                if message_result.1.is_ok() {
-                    VERIFIED_MESSAGES.save(
-                        deps.storage,
-                        message_result.0.hash_id(),
-                        &message_result.0,
-                    )?
-                }
+            let results = process_batch_data(deps, &lc, &payload);
+            if let Err(err) = results {
+                return Err(ContractError::Std(StdError::GenericErr {
+                    msg: err.to_string(),
+                }));
             }
 
             Ok(Response::new().set_data(to_json_binary(
                 &results
+                    .unwrap()
                     .iter()
                     .map(|result| {
                         (

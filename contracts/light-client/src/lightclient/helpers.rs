@@ -342,6 +342,7 @@ pub mod test_helpers {
     use std::fs::File;
 
     use types::lightclient::MessageVerification;
+    use types::proofs::BatchVerificationData;
     use types::ssz_rs::Node;
     use types::{
         common::{ChainConfig, Fork, Forks},

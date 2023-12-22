@@ -2,25 +2,28 @@ use crate::ContractError;
 use cosmwasm_std::{DepsMut, Env, Response};
 use eyre::{eyre, Result};
 use types::common::ChainConfig;
-use types::execution::ReceiptLogs;
+use types::execution::{ReceiptLog, ReceiptLogs};
 use types::lightclient::MessageVerification;
-use types::proofs::{BatchedBlockProofs, BatchedEventProofs, Message, UpdateVariant};
+use types::proofs::{
+    BatchVerificationData, BlockProofsBatch, Message, TransactionProofsBatch, UpdateVariant,
+};
 use types::ssz_rs::{Merkleized, Node};
 use types::sync_committee_rs::consensus_types::Transaction;
 use types::sync_committee_rs::constants::MAX_BYTES_PER_TRANSACTION;
 use types::{common::Forks, consensus::Update};
 
 use crate::lightclient::helpers::{
-    compare_message_with_log, extract_logs_from_receipt_proof, verify_ancestry_proof,
-    verify_transaction_proof,
+    compare_message_with_log, extract_logs_from_receipt_proof, extract_recent_block,
+    verify_ancestry_proof, verify_transaction_proof,
 };
-use crate::lightclient::LightClient;
-use crate::state::{CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE};
+use crate::lightclient::{LightClient, Verification};
+use crate::state::{CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE, VERIFIED_MESSAGES};
 
-pub fn verify_message(
+fn verify_message(
     message: &Message,
     transaction: &Transaction<MAX_BYTES_PER_TRANSACTION>,
     logs: &ReceiptLogs,
+    compare_fn: &dyn Fn(&Message, &ReceiptLog, &Vec<u8>) -> Result<()>,
 ) -> Result<()> {
     let log_index_str = message
         .cc_id
@@ -36,13 +39,13 @@ pub fn verify_message(
         .get(log_index)
         .ok_or_else(|| eyre!("Log index out of bounds"))?;
 
-    compare_message_with_log(message, log, transaction)?;
+    compare_fn(message, log, transaction)?;
 
     Ok(())
 }
 
-pub fn verify_block_level_proofs(
-    data: &BatchedBlockProofs,
+fn process_transaction_proofs(
+    data: &TransactionProofsBatch,
     target_block_root: &Node,
 ) -> Vec<(Message, Result<()>)> {
     let result = verify_transaction_proof(&data.transaction_proof, target_block_root)
@@ -59,7 +62,12 @@ pub fn verify_block_level_proofs(
                 .map(|message| {
                     (
                         message.to_owned(),
-                        verify_message(message, &data.transaction_proof.transaction, &logs),
+                        verify_message(
+                            message,
+                            &data.transaction_proof.transaction,
+                            &logs,
+                            &compare_message_with_log,
+                        ),
                     )
                 })
                 .collect::<Vec<(Message, Result<()>)>>()
@@ -75,16 +83,15 @@ pub fn verify_block_level_proofs(
     }
 }
 
-pub fn process_batch_verification_data(
-    lightclient: &LightClient,
+fn process_block_proofs(
     update: &UpdateVariant,
-    data: &BatchedEventProofs,
+    data: &BlockProofsBatch,
 ) -> Vec<(Message, Result<()>)> {
-    let proofs = &data.tx_level_verification;
+    let transactions_proofs = &data.transactions_proofs;
 
     let mut target_block_root = Node::default();
     let mut ancestry_proof_verification = || -> Result<()> {
-        let recent_block = lightclient.extract_recent_block(&update)?;
+        let mut recent_block = extract_recent_block(&update);
         target_block_root = data.target_block.clone().hash_tree_root()?;
 
         verify_ancestry_proof(&data.ancestry_proof, &data.target_block, &recent_block)?;
@@ -92,11 +99,11 @@ pub fn process_batch_verification_data(
     };
 
     match ancestry_proof_verification() {
-        Ok(_) => proofs
+        Ok(_) => transactions_proofs
             .iter()
-            .flat_map(|proof| verify_block_level_proofs(proof, &target_block_root))
+            .flat_map(|proof| process_transaction_proofs(proof, &target_block_root))
             .collect(),
-        Err(err) => proofs
+        Err(err) => transactions_proofs
             .iter()
             .flat_map(|proof| {
                 proof
@@ -108,6 +115,33 @@ pub fn process_batch_verification_data(
     }
 }
 
+pub fn process_batch_data(
+    deps: DepsMut,
+    lightclient: &LightClient,
+    data: &BatchVerificationData,
+) -> Result<Vec<(Message, Result<()>)>> {
+    let update: &dyn Verification = match &data.update {
+        UpdateVariant::Finality(update) => update,
+        UpdateVariant::Optimistic(update) => update,
+    };
+
+    update.verify(&lightclient)?;
+
+    let results = data
+        .target_blocks
+        .iter()
+        .flat_map(|block_proofs_batch| process_block_proofs(&data.update, block_proofs_batch))
+        .collect::<Vec<(Message, Result<()>)>>();
+
+    for message_result in results.iter() {
+        if message_result.1.is_ok() {
+            VERIFIED_MESSAGES.save(deps.storage, message_result.0.hash_id(), &message_result.0)?
+        }
+    }
+
+    return Ok(results);
+}
+
 pub fn process_verification_data(
     lightclient: &LightClient,
     data: &MessageVerification,
@@ -115,7 +149,7 @@ pub fn process_verification_data(
     let message = &data.message;
     let proofs = &data.proofs;
 
-    let recent_block = lightclient.extract_recent_block(&proofs.update)?;
+    let recent_block = extract_recent_block(&proofs.update);
     let target_block_root = proofs.target_block.clone().hash_tree_root()?;
 
     verify_ancestry_proof(&proofs.ancestry_proof, &proofs.target_block, &recent_block)?;
