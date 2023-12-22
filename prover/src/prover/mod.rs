@@ -3,7 +3,7 @@ pub mod execution;
 mod mocks;
 pub mod state_prover;
 pub mod types;
-mod utils;
+pub mod utils;
 
 use self::utils::{get_tx_hash_from_cc_id, get_tx_index};
 use crate::prover::{consensus::ConsensusProverAPI, execution::ExecutionProverAPI};

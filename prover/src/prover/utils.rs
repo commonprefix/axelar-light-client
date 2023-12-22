@@ -5,6 +5,8 @@ use ethers::types::{TransactionReceipt, H256};
 use eyre::{Result, anyhow};
 use ssz_rs::SszVariableOrIndex;
 
+use super::types::BatchMessageGroups;
+
 pub fn parse_path(path: &Vec<SszVariableOrIndex>) -> String {
     let mut path_str = String::new();
     for p in path {
@@ -35,6 +37,19 @@ pub fn get_tx_hash_from_cc_id(cc_id: &CrossChainId) -> Result<H256> {
         .0;
     
     Ok(H256::from_str(tx_hash)?)
+}
+
+pub fn debug_print_batch_message_groups(batch_message_groups: &BatchMessageGroups) {
+    for (block_number, message_groups) in batch_message_groups {
+        let block_count = message_groups.len();
+        for (tx_hash, messages) in message_groups {
+            let message_count = messages.len();
+            println!(
+                "Block number: {}, Block count: {}, Tx hash: {}, Message count: {}",
+                block_number, block_count, tx_hash, message_count
+            );
+        }
+    }
 }
 
 #[cfg(test)]

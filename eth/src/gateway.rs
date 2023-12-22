@@ -3,8 +3,8 @@ use crate::execution::{EthExecutionAPI, ExecutionRPC};
 use crate::types::InternalMessage;
 use crate::utils::calc_slot_from_timestamp;
 use ethers::abi::{Bytes, RawLog};
-use ethers::prelude::{EthEvent, Http};
-use ethers::providers::{Middleware, Provider};
+use ethers::prelude::EthEvent;
+use ethers::providers::Middleware;
 use ethers::types::{Filter, Transaction, TransactionReceipt, Block};
 use ethers::types::{Address, Log, H256, U256};
 use eyre::{eyre, Context};
@@ -16,7 +16,6 @@ use types::lightclient::{CrossChainId, Message};
 pub struct Gateway {
     consensus: Arc<ConsensusRPC>,
     execution: Arc<ExecutionRPC>,
-    client: Arc<Provider<Http>>,
     address: Address,
 }
 
@@ -34,15 +33,10 @@ pub struct ContractCallWithToken {
 }
 
 impl Gateway {
-    pub fn new(consensus: ConsensusRPC, execution: ExecutionRPC, rpc: String, address: String) -> Self {
+    pub fn new(consensus: Arc<ConsensusRPC>, execution: Arc<ExecutionRPC>, address: String) -> Self {
         let address = address.parse::<Address>().unwrap();
 
-        let provider = Provider::<Http>::try_from(rpc).unwrap();
-        let client = Arc::new(provider);
-        let execution = Arc::new(execution);
-        let consensus = Arc::new(consensus);
-
-        Self { consensus, execution, client, address }
+        Self { consensus, execution, address }
     }
 
     pub async fn get_contract_call_with_token_messages(
@@ -156,7 +150,7 @@ impl Gateway {
             .from_block(from_block)
             .to_block(to_block);
 
-        Ok(self.client.get_logs(&filter).await?)
+        Ok(self.execution.provider.get_logs(&filter).await?)
     }
 
     fn decode_contract_call_with_token_logs(logs: &Vec<Log>) -> Result<Vec<ContractCallWithToken>> {
@@ -176,13 +170,12 @@ impl Gateway {
 
     pub async fn get_messages_in_slot_range(
         &self,
-        execution: &dyn EthExecutionAPI,
         from_slot: u64,
         to_slot: u64,
     ) -> Result<Vec<InternalMessage>> {
         // TODO: Move that out of the code
         const BLOCK_RANGE: u64 = 500;
-        let latest_block_number = execution.get_latest_block_number().await?;
+        let latest_block_number = self.execution.get_latest_block_number().await?;
 
         let messages = self
             .get_contract_call_with_token_messages(
@@ -197,7 +190,7 @@ impl Gateway {
             .map(|message| message.exec_block.number.unwrap().as_u64())
             .collect::<Vec<u64>>();
 
-        let blocks = execution.get_blocks(&block_heights).await?;
+        let blocks = self.execution.get_blocks(&block_heights).await?;
 
         let filtered_messages = messages
             .into_iter()
