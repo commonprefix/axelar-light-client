@@ -53,12 +53,6 @@ pub enum AncestryProof {
     },
 }
 
-impl Default for UpdateVariant {
-    fn default() -> Self {
-        UpdateVariant::Finality(FinalityUpdate::default())
-    }
-}
-
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
 pub struct TransactionProof {
     // Same index of transaction to transaction trie and from receipt to receipt trie
