@@ -7,7 +7,6 @@ use error::ConsensusError;
 use eyre::Result;
 use helpers::is_proof_valid;
 use milagro_bls::{AggregateSignature, PublicKey};
-use types::proofs::UpdateVariant;
 use types::ssz_rs::prelude::*;
 use types::sync_committee_rs::{
     consensus_types::{BeaconBlockHeader, ForkData, SyncCommittee},

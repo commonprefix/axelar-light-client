@@ -3,7 +3,6 @@ use cosmwasm_std::{DepsMut, Env, Response};
 use eyre::{eyre, Result};
 use types::common::ChainConfig;
 use types::execution::{ReceiptLog, ReceiptLogs};
-use types::lightclient::MessageVerification;
 use types::proofs::{
     BatchVerificationData, BlockProofsBatch, Message, TransactionProofsBatch, UpdateVariant,
 };
@@ -91,7 +90,7 @@ fn process_block_proofs(
 
     let mut target_block_root = Node::default();
     let mut ancestry_proof_verification = || -> Result<()> {
-        let mut recent_block = extract_recent_block(&update);
+        let recent_block = extract_recent_block(&update);
         target_block_root = data.target_block.clone().hash_tree_root()?;
 
         verify_ancestry_proof(&data.ancestry_proof, &data.target_block, &recent_block)?;
@@ -142,35 +141,6 @@ pub fn process_batch_data(
     return Ok(results);
 }
 
-pub fn process_verification_data(
-    lightclient: &LightClient,
-    data: &MessageVerification,
-) -> Result<()> {
-    let message = &data.message;
-    let proofs = &data.proofs;
-
-    let recent_block = extract_recent_block(&proofs.update);
-    let target_block_root = proofs.target_block.clone().hash_tree_root()?;
-
-    verify_ancestry_proof(&proofs.ancestry_proof, &proofs.target_block, &recent_block)?;
-    verify_transaction_proof(&proofs.transaction_proof, &target_block_root)?;
-
-    let logs = extract_logs_from_receipt_proof(
-        &proofs.receipt_proof,
-        proofs.transaction_proof.transaction_index,
-        &target_block_root,
-    )?;
-
-    let log_index_str = message.cc_id.id.split(':').nth(1).unwrap();
-    let log_index: usize = log_index_str.parse()?;
-    compare_message_with_log(
-        message,
-        logs.0.get(log_index).unwrap(),
-        &proofs.transaction_proof.transaction,
-    )?;
-    Ok(())
-}
-
 pub fn light_client_update(
     deps: DepsMut,
     env: &Env,
@@ -204,13 +174,9 @@ pub fn update_forks(deps: DepsMut, forks: Forks) -> Result<Response> {
 mod tests {
     use crate::execute::{self, process_block_proofs, process_transaction_proofs, verify_message};
     use crate::lightclient::helpers::extract_logs_from_receipt_proof;
-    use crate::lightclient::helpers::test_helpers::{
-        get_batched_data, get_verification_data_with_block_roots,
-        get_verification_data_with_historical_roots,
-    };
+    use crate::lightclient::helpers::test_helpers::get_batched_data;
     use crate::lightclient::tests::tests::init_lightclient;
     use cosmwasm_std::testing::mock_dependencies;
-    use cosmwasm_std::DepsMut;
     use eyre::{eyre, Result};
     use types::consensus::FinalityUpdate;
     use types::execution::ReceiptLogs;
@@ -220,30 +186,15 @@ mod tests {
     use super::process_batch_data;
 
     #[test]
-    fn test_verification_with_historical_roots() {
-        let data = get_verification_data_with_historical_roots();
-        let lightclient = init_lightclient(Some(data.0));
-        let res = execute::process_verification_data(&lightclient, &data.1);
-        assert!(res.is_ok());
-    }
-
-    #[test]
-    fn test_verification_with_block_roots() {
-        let data = get_verification_data_with_block_roots();
-        let lightclient = init_lightclient(Some(data.0));
-        let res = execute::process_verification_data(&lightclient, &data.1);
-        assert!(res.is_ok());
-    }
-
-    #[test]
     fn test_verify_message() {
-        let verification_data = get_verification_data_with_block_roots();
-        let proofs = verification_data.1.proofs;
+        let verification_data = get_batched_data().1;
+        let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
+        let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
 
         let mock_compare_ok = |_: &_, _: &_, _: &_| Ok(());
         let mock_compare_err = |_: &_, _: &_, _: &_| Err(eyre!("always fail"));
 
-        let mut message = verification_data.1.message.clone();
+        let mut message = proofs.messages.get(0).unwrap().clone();
         message.cc_id.id = String::from("broken_id").try_into().unwrap();
         assert_eq!(
             verify_message(
@@ -270,7 +221,7 @@ mod tests {
             "Failed to parse log index"
         );
 
-        message = verification_data.1.message;
+        message = proofs.messages.get(0).unwrap().clone();
         assert_eq!(
             verify_message(
                 &message,
@@ -286,7 +237,11 @@ mod tests {
         let logs = extract_logs_from_receipt_proof(
             &proofs.receipt_proof,
             proofs.transaction_proof.transaction_index,
-            &proofs.target_block.clone().hash_tree_root().unwrap(),
+            &target_block_proofs
+                .target_block
+                .clone()
+                .hash_tree_root()
+                .unwrap(),
         )
         .unwrap();
         // returns the result of the compare function (OK)

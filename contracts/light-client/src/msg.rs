@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use types::lightclient::{Message, MessageVerification};
+use types::lightclient::Message;
 use types::proofs::BatchVerificationData;
 use types::{
     common::{ChainConfig, Forks},
@@ -17,7 +17,6 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     LightClientUpdate { period: u64, update: Update },
     UpdateForks { forks: Forks },
-    EventVerificationData { payload: MessageVerification },
     BatchVerificationData { payload: BatchVerificationData },
     VerifyMessages { messages: Vec<Message> },
 }

@@ -6,7 +6,6 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::lightclient::helpers::calc_sync_period;
-use crate::lightclient::Verification;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::{lightclient::LightClient, state::*};
 use eyre::Result;
@@ -14,7 +13,7 @@ use eyre::Result;
 use crate::execute::{self, process_batch_data};
 use cw2::{self, set_contract_version};
 use types::lightclient::Message;
-use types::proofs::{CrossChainId, UpdateVariant};
+use types::proofs::CrossChainId;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -57,16 +56,6 @@ pub fn execute(
         // TODO: only admin should do that
         UpdateForks { forks } => execute::update_forks(deps, forks)
             .map_err(|e| ContractError::Std(StdError::GenericErr { msg: e.to_string() })),
-        EventVerificationData { payload } => {
-            let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
-            let config = CONFIG.load(deps.storage)?;
-            let lc = LightClient::new(&config, Some(state), &env);
-            if execute::process_verification_data(&lc, &payload).is_err() {
-                return Err(ContractError::InvalidVerificationData);
-            }
-            VERIFIED_MESSAGES.save(deps.storage, payload.message.hash_id(), &payload.message)?;
-            Ok(Response::new())
-        }
         BatchVerificationData { payload } => {
             let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
             let config = CONFIG.load(deps.storage)?;

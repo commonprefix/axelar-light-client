@@ -341,8 +341,7 @@ pub fn calc_sync_period(slot: u64) -> u64 {
 pub mod test_helpers {
     use std::fs::File;
 
-    use types::lightclient::MessageVerification;
-    use types::proofs::BatchVerificationData;
+    use types::proofs::{BatchVerificationData, TransactionProofsBatch, UpdateVariant};
     use types::ssz_rs::Node;
     use types::{
         common::{ChainConfig, Fork, Forks},
@@ -367,32 +366,6 @@ pub mod test_helpers {
         update
     }
 
-    pub fn get_verification_data_with_block_roots() -> (Bootstrap, MessageVerification) {
-        let verification_file =
-            File::open(format!("testdata/verification/finality_block_roots.json")).unwrap();
-        let verification_data: MessageVerification =
-            serde_json::from_reader(verification_file).unwrap();
-
-        let bootstrap_file =
-            File::open(format!("testdata/verification/bootstrap_block_roots.json")).unwrap();
-        let bootstrap: Bootstrap = serde_json::from_reader(bootstrap_file).unwrap();
-        (bootstrap, verification_data)
-    }
-
-    pub fn get_verification_data_with_historical_roots() -> (Bootstrap, MessageVerification) {
-        let verification_file = File::open(format!(
-            "testdata/verification/finality_historical_roots.json"
-        ))
-        .unwrap();
-        let verification_data: MessageVerification =
-            serde_json::from_reader(verification_file).unwrap();
-
-        let bootstrap_file =
-            File::open(format!("testdata/verification/bootstrap_block_roots.json")).unwrap();
-        let bootstrap: Bootstrap = serde_json::from_reader(bootstrap_file).unwrap();
-        (bootstrap, verification_data)
-    }
-
     pub fn get_batched_data() -> (Bootstrap, BatchVerificationData) {
         let verification_file = File::open(format!(
             "testdata/verification/batched_finality_blockroots.json"
@@ -404,6 +377,19 @@ pub mod test_helpers {
         let bootstrap_file = File::open(format!("testdata/verification/bootstrap.json")).unwrap();
         let bootstrap: Bootstrap = serde_json::from_reader(bootstrap_file).unwrap();
         (bootstrap, verification_data)
+    }
+
+    pub fn get_finality_update() -> UpdateVariant {
+        let verification_file = File::open(format!("testdata/verification/update.json")).unwrap();
+        serde_json::from_reader(verification_file).unwrap()
+    }
+
+    pub fn get_transaction_proofs() -> TransactionProofsBatch {
+        let verification_file = File::open(format!(
+            "testdata/verification/transaction_proofs_batch.json"
+        ))
+        .unwrap();
+        serde_json::from_reader(verification_file).unwrap()
     }
 
     pub fn get_config() -> ChainConfig {
