@@ -25,15 +25,15 @@ use ssz_rs::{Merkleized, Node};
 use sync_committee_rs::{consensus_types::BeaconBlockHeader, constants::Root};
 use types::BatchMessageGroups;
 
-pub struct Prover<'a> {
-    consensus_prover: &'a dyn ConsensusProverAPI,
-    execution_prover: &'a dyn ExecutionProverAPI,
+pub struct Prover {
+    consensus_prover: Box<dyn ConsensusProverAPI>,
+    execution_prover: Box<dyn ExecutionProverAPI>,
 }
 
-impl<'a> Prover<'a> {
+impl Prover {
     pub fn new(
-        consensus_prover: &'a dyn ConsensusProverAPI,
-        execution_prover: &'a dyn ExecutionProverAPI,
+        consensus_prover: Box<dyn ConsensusProverAPI>,
+        execution_prover: Box<dyn ExecutionProverAPI>,
     ) -> Self {
         Prover {
             consensus_prover,
@@ -396,7 +396,7 @@ mod tests {
             .expect_generate_receipt_proof()
             .returning(|_, _, _| Ok(Default::default()));
 
-        let prover = Prover::new(&consensus_prover, &execution_prover);
+        let prover = Prover::new(Box::new(consensus_prover), Box::new(execution_prover));
 
         let res = prover
             .batch_generate_proofs(batch_message_groups, mock_update.clone())
@@ -455,7 +455,7 @@ mod tests {
         let consensus_prover = MockConsensusProver::new();
         let execution_prover = MockExecutionProver::new();
 
-        let prover = Prover::new(&consensus_prover, &execution_prover);
+        let prover = Prover::new(Box::new(consensus_prover), Box::new(execution_prover));
 
         let result = prover
             .batch_messages(messages.as_ref(), &update)

@@ -1,5 +1,7 @@
 use crate::consensus::{FinalityUpdate, OptimisticUpdate};
-pub use connection_router::state::{Address as AddressType, ChainName, CrossChainId, Message};
+pub use connection_router::state::{
+    Address as AddressType, ChainName, CrossChainId, Message,
+};
 use ssz_rs::Node;
 use sync_committee_rs::{
     consensus_types::{BeaconBlockHeader, Transaction},
@@ -77,7 +79,7 @@ pub struct ReceiptProof {
     pub receipt_proof: Vec<Vec<u8>>,
     // Receipts root of execution payload of target block
     pub receipts_root: Root,
-    pub receipt: Vec<u8>,
+    pub receipt: Vec<u8>
 }
 
 #[derive(serde::Serialize, Debug)]

@@ -3681,6 +3681,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
 
 [[package]]
+name = "relayer"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "dotenv",
+ "eth",
+ "prover",
+ "serde",
+ "serde_json",
+ "sync-committee-primitives",
+ "tokio",
+ "types",
+]
+
+[[package]]
 name = "report"
 version = "0.1.0"
 source = "git+https://github.com/axelarnetwork/axelar-amplifier#21155dc6f716c4eb72033edab7c06ae4982c0e99"

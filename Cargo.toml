@@ -4,7 +4,8 @@ members = [
   "contracts/light-client",
   "types",
   "eth",
-  "prover"
+  "prover",
+  "relayer"
 ]
 
 [profile.release]

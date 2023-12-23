@@ -15,6 +15,7 @@ pub trait ExecutionProverAPI {
     ) -> Result<Vec<Vec<u8>>>;
 }
 
+#[derive(Clone)]
 pub struct ExecutionProver;
 
 impl ExecutionProver {

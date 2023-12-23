@@ -1,32 +1,27 @@
-mod prover;
 mod types;
-mod wasm;
 
-use crate::prover::consensus::ConsensusProver;
-use crate::prover::execution::ExecutionProver;
-use crate::prover::state_prover::StateProver;
-use crate::prover::Prover;
-use crate::prover::utils::debug_print_batch_message_groups;
 use consensus_types::proofs::UpdateVariant;
 use dotenv::dotenv;
 use eth::consensus::EthBeaconAPI;
 use eth::{consensus::ConsensusRPC, execution::ExecutionRPC, gateway::Gateway};
-use prover::types::Config;
+use prover::init_prover;
+use prover::prover::types::ProverConfig;
+use prover::prover::utils::debug_print_batch_message_groups;
+use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
+use types::Config;
 use std::env;
 use std::sync::Arc;
-use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
 
 #[tokio::main]
 async fn main() {
     let config = load_prover_config();
 
+    let prover_config = ProverConfig::from(config.clone());
+    let prover = init_prover(prover_config);
+
     let consensus= Arc::new(ConsensusRPC::new(config.consensus_rpc.clone()));
     let execution= Arc::new(ExecutionRPC::new(config.execution_rpc.clone()));
-    let state_prover = Arc::new(StateProver::new(config.state_prover_rpc.clone()));
-
     let gateway: Gateway = Gateway::new(consensus.clone(), execution.clone(), config.gateway_addr);
-    let consensus_prover = ConsensusProver::new(consensus.clone(), state_prover.clone());
-    let execution_prover = ExecutionProver::new();
 
     let finality_update = consensus.get_finality_update().await.unwrap();
     let update = UpdateVariant::Finality(finality_update.clone());
@@ -38,8 +33,6 @@ async fn main() {
         .get_messages_in_slot_range(min_slot_in_block_roots, finality_header_slot)
         .await
         .unwrap();
-
-    let prover = Prover::new(&consensus_prover, &execution_prover);
 
     // Get only first ten
     let res = prover.batch_messages(&messages[0..10], &update.clone()).await.unwrap();
