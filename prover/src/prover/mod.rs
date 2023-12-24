@@ -469,29 +469,29 @@ mod tests {
             result.get(&1).unwrap().get(&get_tx_hash(1)).unwrap(),
             &vec![mock_message1]
         );
-        // assert_eq!(
-        //     result
-        //         .get(&2)
-        //         .unwrap()
-        //         .get(&get_tx_hash(2))
-        //         .unwrap(),
-        //     &vec![mock_message2.message, mock_message3.message]
-        // );
-        // assert_eq!(
-        //     result
-        //         .get(&2)
-        //         .unwrap()
-        //         .get(&get_tx_hash(3))
-        //         .unwrap(),
-        //     &vec![mock_message4.message]
-        // );
-        // assert_eq!(
-        //     result
-        //         .get(&3)
-        //         .unwrap()
-        //         .get(&get_tx_hash(4))
-        //         .unwrap(),
-        //     &vec![mock_message5.message]
-        // );
+        assert_eq!(
+            result
+                .get(&2)
+                .unwrap()
+                .get(&get_tx_hash(2))
+                .unwrap(),
+            &vec![mock_message2, mock_message3]
+        );
+        assert_eq!(
+            result
+                .get(&2)
+                .unwrap()
+                .get(&get_tx_hash(3))
+                .unwrap(),
+            &vec![mock_message4]
+        );
+        assert_eq!(
+            result
+                .get(&3)
+                .unwrap()
+                .get(&get_tx_hash(4))
+                .unwrap(),
+            &vec![mock_message5]
+        );
     }
 }

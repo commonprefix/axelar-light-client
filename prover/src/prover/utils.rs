@@ -56,10 +56,11 @@ pub fn debug_print_batch_message_groups(batch_message_groups: &BatchMessageGroup
 mod tests {
     use consensus_types::proofs::CrossChainId;
     use ethers::types::{TransactionReceipt, H256};
+    use ssz_rs::SszVariableOrIndex;
 
     use crate::prover::{
         execution::ExecutionProver,
-        utils::{get_tx_hash_from_cc_id, get_tx_index},
+        utils::{get_tx_hash_from_cc_id, get_tx_index, parse_path},
     };
 
     fn get_mock_receipt() -> TransactionReceipt {
@@ -102,5 +103,32 @@ mod tests {
 
         let result = get_tx_hash_from_cc_id(&cc_id);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_path_names_only() {
+        let path = vec![
+            SszVariableOrIndex::Name("a"),
+            SszVariableOrIndex::Name("b"),
+        ];
+        assert_eq!(parse_path(&path), "a,b");
+    }
+
+    #[test]
+    fn test_parse_path_indexes_only() {
+        let path = vec![
+            SszVariableOrIndex::Index(1),
+            SszVariableOrIndex::Index(2),
+        ];
+        assert_eq!(parse_path(&path), "1,2");
+    }
+
+    #[test]
+    fn test_parse_path_mixed() {
+        let path = vec![
+            SszVariableOrIndex::Name("a"),
+            SszVariableOrIndex::Index(1),
+        ];
+        assert_eq!(parse_path(&path), "a,1");
     }
 }
