@@ -18,7 +18,7 @@ pub struct ProofAuxiliaryData {
     pub recent_block_header: BeaconBlockHeader,
 }
 
-#[derive(Deserialize, Debug, Serialize, Default, Clone)]
+#[derive(PartialEq, Deserialize, Debug, Serialize, Default, Clone)]
 pub struct ProofResponse {
     pub gindex: u64,
     pub witnesses: Vec<Node>,

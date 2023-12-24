@@ -96,3 +96,93 @@ async fn get(req: &str) -> Result<ProofResponse> {
         )
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use crate::prover::{
+        state_prover::{MockStateProver, StateProverAPI},
+        types::{GindexOrPath, ProofResponse},
+    };
+    use mockall::predicate::eq;
+
+    #[tokio::test]
+    async fn test_get_state_proof() {
+        let mut mock = MockStateProver::new();
+
+        let expected_response = Arc::new(ProofResponse::default());
+
+        mock.expect_get_state_proof()
+            .with(eq("state_id"), eq(GindexOrPath::Gindex(1)))
+            .times(1)
+            .returning({
+                let expected_response = expected_response.clone();
+                move |_, _| Ok((*expected_response).clone())
+            });
+
+        let result = mock
+            .get_state_proof("state_id", &GindexOrPath::Gindex(1))
+            .await
+            .unwrap();
+        assert_eq!(result, *expected_response);
+    }
+
+    #[tokio::test]
+    async fn test_get_state_proof_error() {
+        let mut mock = MockStateProver::new();
+
+        // Simulate an error response
+        let error_message = "State proof error";
+        mock.expect_get_state_proof()
+            .with(eq("state_id"), eq(GindexOrPath::Gindex(1)))
+            .times(1)
+            .returning(move |_, _| Err(eyre::eyre!(error_message)));
+
+        let result = mock
+            .get_state_proof("state_id", &GindexOrPath::Gindex(1))
+            .await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), error_message);
+    }
+
+    #[tokio::test]
+    async fn test_get_block_proof() {
+        let mut mock = MockStateProver::new();
+
+        let expected_response = Arc::new(ProofResponse::default());
+
+        mock.expect_get_block_proof()
+            .with(eq("block_id"), eq(GindexOrPath::Gindex(1)))
+            .times(1)
+            .returning({
+                let expected_response = expected_response.clone();
+                move |_, _| Ok((*expected_response).clone())
+            });
+
+        let result = mock
+            .get_block_proof("block_id", GindexOrPath::Gindex(1))
+            .await
+            .unwrap();
+        assert_eq!(result, *expected_response);
+    }
+
+    #[tokio::test]
+    async fn test_get_block_proof_error() {
+        let mut mock = MockStateProver::new();
+
+        // Simulate an error response
+        let error_message = "Block proof error";
+        mock.expect_get_block_proof()
+            .with(eq("block_id"), eq(GindexOrPath::Gindex(1)))
+            .times(1)
+            .returning(move |_, _| Err(eyre::eyre!(error_message)));
+
+        // Test the function and expect an error
+        let result = mock
+            .get_block_proof("block_id", GindexOrPath::Gindex(1))
+            .await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), error_message);
+    }
+}
