@@ -53,12 +53,7 @@ impl StateProverAPI for StateProver {
             ),
         };
 
-        let res = get(&req).await;
-        if res.is_err() {
-            return Err(anyhow!("Failed to get state proof: {:?} {:?}", req, res));
-        }
-
-        res
+        get(&req).await.or_else(|e| Err(anyhow!("Failed to get state proof: {:?} {:?}", req, e)))
     }
 
     async fn get_block_proof(
@@ -79,12 +74,7 @@ impl StateProverAPI for StateProver {
             ),
         };
 
-        let res = get(&req).await;
-        if res.is_err() {
-            return Err(anyhow!("Failed to get block proof: {:?} {:?}", req, res));
-        }
-
-        res
+        get(&req).await.or_else(|e| Err(anyhow!("Failed to get block proof: {:?} {:?}", req, e)))
     }
 }
 
@@ -95,5 +85,6 @@ async fn get(req: &str) -> Result<ProofResponse> {
     )
     .await?;
 
-    Ok(serde_json::from_slice::<ProofResponse>(&bytes)?)
+    serde_json::from_slice::<ProofResponse>(&bytes)
+        .or_else(|_| Err(anyhow!("Failed to parse response: {:?}", std::str::from_utf8(&bytes))))
 }
