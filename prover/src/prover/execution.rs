@@ -106,7 +106,7 @@ mod tests {
         mocks::mock_execution_rpc::MockExecutionRPC,
     };
     use cita_trie::{MemoryDB, PatriciaTrie, Trie};
-    
+
     use eth::execution::EthExecutionAPI;
     use ethers::utils::rlp::encode;
     use eyre::{anyhow, Result};

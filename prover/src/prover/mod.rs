@@ -11,10 +11,9 @@ use consensus_types::{
     consensus::{to_beacon_header, BeaconBlockAlias},
     proofs::{
         AncestryProof, BatchVerificationData, BlockProofsBatch, ReceiptProof, TransactionProof,
-        TransactionProofsBatch, UpdateVariant
+        TransactionProofsBatch, UpdateVariant,
     },
 };
-use types::EnrichedMessage;
 use ethers::{
     types::{Block, Transaction, TransactionReceipt, H256},
     utils::rlp::encode,
@@ -24,6 +23,7 @@ use indexmap::IndexMap;
 use ssz_rs::{Merkleized, Node};
 use sync_committee_rs::{consensus_types::BeaconBlockHeader, constants::Root};
 use types::BatchMessageGroups;
+use types::EnrichedMessage;
 
 pub struct Prover {
     consensus_prover: Box<dyn ConsensusProverAPI>,
@@ -245,7 +245,7 @@ mod tests {
     use super::types::{BatchMessageGroups, EnrichedMessage};
     use consensus_types::consensus::{BeaconBlockAlias, FinalityUpdate, OptimisticUpdate};
     use consensus_types::proofs::{
-        AncestryProof, BatchVerificationData, CrossChainId, Message, UpdateVariant
+        AncestryProof, BatchVerificationData, CrossChainId, Message, UpdateVariant,
     };
     use eth::consensus::MockConsensusRPC;
     use eth::execution::MockExecutionRPC;

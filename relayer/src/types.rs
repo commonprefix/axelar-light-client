@@ -28,9 +28,8 @@ pub struct Config {
     pub gateway_addr: String,
     pub historical_roots_enabled: bool,
     pub historical_roots_block_roots_batch_size: u64,
-    pub verification_method: VerificationMethod 
+    pub verification_method: VerificationMethod,
 }
-
 
 impl From<Config> for ProverConfig {
     fn from(config: Config) -> Self {

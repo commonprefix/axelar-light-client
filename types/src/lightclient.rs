@@ -1,6 +1,4 @@
-pub use connection_router::state::{
-    Address as AddressType, ChainName, CrossChainId, Message,
-};
+pub use connection_router::state::{Address as AddressType, ChainName, CrossChainId, Message};
 use sync_committee_rs::{consensus_types::SyncCommittee, constants::SYNC_COMMITTEE_SIZE};
 
 #[derive(serde::Serialize, serde::Deserialize, Default, PartialEq, Debug, Clone)]

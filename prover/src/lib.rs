@@ -1,9 +1,12 @@
 pub mod prover;
 pub mod types;
 
-use std::sync::Arc;
 use eth::consensus::ConsensusRPC;
-use prover::{types::ProverConfig, state_prover::StateProver, consensus::ConsensusProver, execution::ExecutionProver};
+use prover::{
+    consensus::ConsensusProver, execution::ExecutionProver, state_prover::StateProver,
+    types::ProverConfig,
+};
+use std::sync::Arc;
 
 pub fn init_prover(prover_config: ProverConfig) -> prover::Prover {
     let consensus = Arc::new(ConsensusRPC::new(prover_config.consensus_rpc.clone()));
