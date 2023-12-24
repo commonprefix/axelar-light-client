@@ -20,13 +20,10 @@ sync-committee-rs = {package = "sync-committee-primitives", git = "https://githu
 thiserror = "1.0.50"
 async-trait = "0.1.74"
 cosmos-sdk-proto = {version = "0.20.0", features = ["cosmwasm"]}
-cosmrs = "0.15.0"
 futures = "0.3.23"
 tokio = {version = "1.4.0", features = ["rt", "rt-multi-thread", "macros"]}
 tonic = "0.10.2"
 cita_trie = "5.0.1"
-tree_hash = { git = "https://github.com/synapseweb3/lighthouse", rev = "be911e6" }
 hasher = "0.1.4"
-dotenv = "0.15.0"
 mockall = "0.11.4"
 indexmap = "2.1.0"

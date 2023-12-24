@@ -33,7 +33,6 @@ async fn main() {
     let min_slot_in_block_roots = finality_header_slot - SLOTS_PER_HISTORICAL_ROOT as u64 + 1;
     let messages = consume_messages(&gateway, min_slot_in_block_roots, finality_header_slot, 10).await; 
 
-
     // Get only first ten
     let res = prover.batch_messages(&messages[0..10], &update.clone()).await.unwrap();
     debug_print_batch_message_groups(&res);

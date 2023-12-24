@@ -1,5 +1,3 @@
-use consensus_types::{proofs::Message, consensus::BeaconBlockAlias};
-use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use prover::prover::types::ProverConfig;
 pub use std::str::FromStr;
 
