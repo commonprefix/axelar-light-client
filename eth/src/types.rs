@@ -1,19 +1,6 @@
-use ethers::types::{H256, Transaction, Block, TransactionReceipt};
 use ssz_rs::Node;
 use sync_committee_rs::consensus_types::BeaconBlockHeader;
-use types::{
-    consensus::{BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update},
-    lightclient::Message,
-};
-#[derive(Clone, Debug, PartialEq)]
-pub struct InternalMessage {
-    pub message: Message,
-    pub tx_hash: H256,
-    pub exec_block: Block<Transaction>,
-    pub beacon_block: BeaconBlockAlias,
-    pub receipts: Vec<TransactionReceipt>,
-}
-
+use types::consensus::{BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update};
 pub type UpdateResponse = Vec<UpdateData>;
 
 #[derive(serde::Deserialize)]

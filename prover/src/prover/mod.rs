@@ -11,10 +11,10 @@ use consensus_types::{
     consensus::{to_beacon_header, BeaconBlockAlias},
     proofs::{
         AncestryProof, BatchVerificationData, BlockProofsBatch, ReceiptProof, TransactionProof,
-        TransactionProofsBatch, UpdateVariant,
+        TransactionProofsBatch, UpdateVariant
     },
 };
-use eth::types::InternalMessage;
+use types::EnrichedMessage;
 use ethers::{
     types::{Block, Transaction, TransactionReceipt, H256},
     utils::rlp::encode,
@@ -43,7 +43,7 @@ impl Prover {
 
     pub async fn batch_messages(
         &self,
-        messages: &[InternalMessage],
+        messages: &[EnrichedMessage],
         update: &UpdateVariant,
     ) -> Result<BatchMessageGroups> {
         let recent_block_slot = match update {
@@ -130,7 +130,7 @@ impl Prover {
     }
 
     pub fn get_block_of_batch(
-        batch: &IndexMap<H256, Vec<InternalMessage>>,
+        batch: &IndexMap<H256, Vec<EnrichedMessage>>,
     ) -> Result<
         (
             BeaconBlockAlias,
@@ -242,14 +242,13 @@ mod tests {
     use crate::prover::Prover;
 
     use super::state_prover::MockStateProver;
-    use super::types::BatchMessageGroups;
+    use super::types::{BatchMessageGroups, EnrichedMessage};
     use consensus_types::consensus::{BeaconBlockAlias, FinalityUpdate, OptimisticUpdate};
     use consensus_types::proofs::{
-        AncestryProof, BatchVerificationData, CrossChainId, Message, UpdateVariant,
+        AncestryProof, BatchVerificationData, CrossChainId, Message, UpdateVariant
     };
     use eth::consensus::MockConsensusRPC;
     use eth::execution::MockExecutionRPC;
-    use eth::types::InternalMessage;
     use ethers::types::{Block, Transaction, TransactionReceipt, H256};
     use indexmap::IndexMap;
 
@@ -270,8 +269,8 @@ mod tests {
         }
     }
 
-    fn get_mock_message(slot: u64, block_number: u64, tx_hash: H256) -> InternalMessage {
-        InternalMessage {
+    fn get_mock_message(slot: u64, block_number: u64, tx_hash: H256) -> EnrichedMessage {
+        EnrichedMessage {
             message: Message {
                 cc_id: CrossChainId {
                     chain: "ethereum".parse().unwrap(),
