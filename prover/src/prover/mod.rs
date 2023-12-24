@@ -197,7 +197,7 @@ impl Prover {
             ))?;
 
         let receipt_proof = ReceiptProof {
-            receipt: receipt.to_vec(),
+            receipt: hex::encode(receipt.to_vec()),
             receipt_proof,
             receipts_root_proof: receipts_root_proof.witnesses,
             receipts_root: Node::from_bytes(exec_block.receipts_root.as_bytes().try_into()?),

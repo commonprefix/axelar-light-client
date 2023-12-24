@@ -74,10 +74,10 @@ pub struct ReceiptProof {
     // Proof from receipts root to beacon block
     pub receipts_root_proof: Vec<Node>,
     // Proof from receipt to receipts root trie
-    pub receipt_proof: Vec<Vec<u8>>,
+    pub receipt_proof: Vec<String>,
     // Receipts root of execution payload of target block
     pub receipts_root: Root,
-    pub receipt: Vec<u8>,
+    pub receipt: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
