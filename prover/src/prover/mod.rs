@@ -470,27 +470,15 @@ mod tests {
             &vec![mock_message1]
         );
         assert_eq!(
-            result
-                .get(&2)
-                .unwrap()
-                .get(&get_tx_hash(2))
-                .unwrap(),
+            result.get(&2).unwrap().get(&get_tx_hash(2)).unwrap(),
             &vec![mock_message2, mock_message3]
         );
         assert_eq!(
-            result
-                .get(&2)
-                .unwrap()
-                .get(&get_tx_hash(3))
-                .unwrap(),
+            result.get(&2).unwrap().get(&get_tx_hash(3)).unwrap(),
             &vec![mock_message4]
         );
         assert_eq!(
-            result
-                .get(&3)
-                .unwrap()
-                .get(&get_tx_hash(4))
-                .unwrap(),
+            result.get(&3).unwrap().get(&get_tx_hash(4)).unwrap(),
             &vec![mock_message5]
         );
     }

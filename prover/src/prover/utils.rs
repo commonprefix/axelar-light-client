@@ -107,28 +107,19 @@ mod tests {
 
     #[test]
     fn test_parse_path_names_only() {
-        let path = vec![
-            SszVariableOrIndex::Name("a"),
-            SszVariableOrIndex::Name("b"),
-        ];
+        let path = vec![SszVariableOrIndex::Name("a"), SszVariableOrIndex::Name("b")];
         assert_eq!(parse_path(&path), "a,b");
     }
 
     #[test]
     fn test_parse_path_indexes_only() {
-        let path = vec![
-            SszVariableOrIndex::Index(1),
-            SszVariableOrIndex::Index(2),
-        ];
+        let path = vec![SszVariableOrIndex::Index(1), SszVariableOrIndex::Index(2)];
         assert_eq!(parse_path(&path), "1,2");
     }
 
     #[test]
     fn test_parse_path_mixed() {
-        let path = vec![
-            SszVariableOrIndex::Name("a"),
-            SszVariableOrIndex::Index(1),
-        ];
+        let path = vec![SszVariableOrIndex::Name("a"), SszVariableOrIndex::Index(1)];
         assert_eq!(parse_path(&path), "a,1");
     }
 }
