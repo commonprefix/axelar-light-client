@@ -46,7 +46,7 @@ impl ExecutionProverAPI for ExecutionProver {
             ));
         }
 
-        let receipt_index: cosmos_sdk_proto::prost::bytes::BytesMut = encode(&index);
+        let receipt_index = encode(&index);
         let proof = trie
             .get_proof(receipt_index.to_vec().as_slice())
             .map_err(|e| anyhow!("Failed to generate proof: {:?}", e));

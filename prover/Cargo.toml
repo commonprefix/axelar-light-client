@@ -19,10 +19,8 @@ ssz-rs = {git = "https://github.com/commonprefix/ssz-rs", branch = "main"}
 sync-committee-rs = {package = "sync-committee-primitives", git = "https://github.com/commonprefix/sync-committee-rs", branch = "cp_changes", default-features = false, features = ["serialize"]}
 thiserror = "1.0.50"
 async-trait = "0.1.74"
-cosmos-sdk-proto = {version = "0.20.0", features = ["cosmwasm"]}
 futures = "0.3.23"
 tokio = {version = "1.4.0", features = ["rt", "rt-multi-thread", "macros"]}
-tonic = "0.10.2"
 cita_trie = "5.0.1"
 hasher = "0.1.4"
 mockall = "0.11.4"

@@ -1,5 +1,6 @@
 mod types;
 mod consumer;
+mod wasm;
 
 use std::str::FromStr;
 use consensus_types::proofs::UpdateVariant;

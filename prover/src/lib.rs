@@ -1,6 +1,5 @@
 pub mod prover;
 pub mod types;
-pub mod wasm;
 
 use std::sync::Arc;
 use eth::consensus::ConsensusRPC;
