@@ -66,9 +66,9 @@ impl Prover {
 
             groups
                 .entry(message.exec_block.number.unwrap().as_u64())
-                .or_insert_with(IndexMap::new)
+                .or_default()
                 .entry(tx_hash)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(message.clone());
         }
 
@@ -174,7 +174,7 @@ impl Prover {
         &self,
         exec_block: &Block<Transaction>,
         block_hash: Root,
-        receipts: &Vec<TransactionReceipt>,
+        receipts: &[TransactionReceipt],
         tx_index: u64,
     ) -> Result<ReceiptProof> {
         let receipt = encode(&receipts[tx_index as usize].clone());

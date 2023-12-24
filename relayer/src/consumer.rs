@@ -70,7 +70,7 @@ impl Gateway {
         let messages = join_all(message_futures)
             .await
             .into_iter()
-            .filter_map(|message| message)
+            .flatten()
             .collect();
 
         Ok(messages)

@@ -18,6 +18,12 @@ pub trait ExecutionProverAPI {
 #[derive(Clone)]
 pub struct ExecutionProver;
 
+impl Default for ExecutionProver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ExecutionProver {
     pub fn new() -> Self {
         ExecutionProver {}
