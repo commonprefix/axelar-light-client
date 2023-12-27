@@ -5,13 +5,13 @@ use crate::utils::calc_slot_from_timestamp;
 use ethers::abi::{Bytes, RawLog};
 use ethers::prelude::EthEvent;
 use ethers::providers::Middleware;
-use ethers::types::{Filter, Transaction, TransactionReceipt, Block};
 use ethers::types::{Address, Log, H256, U256};
-use eyre::{eyre, Context};
+use ethers::types::{Block, Filter, Transaction, TransactionReceipt};
 use eyre::Result;
+use eyre::{eyre, Context};
 use futures::future::join_all;
-use types::consensus::BeaconBlockAlias;
 use std::sync::Arc;
+use types::consensus::BeaconBlockAlias;
 use types::lightclient::{CrossChainId, Message};
 
 pub struct Gateway {
@@ -34,12 +34,19 @@ pub struct ContractCallWithToken {
 }
 
 impl Gateway {
-    pub fn new(consensus: Arc<ConsensusRPC>, execution: Arc<ExecutionRPC>, address: String) -> Self {
+    pub fn new(
+        consensus: Arc<ConsensusRPC>,
+        execution: Arc<ExecutionRPC>,
+        address: String,
+    ) -> Self {
         let address = address.parse::<Address>().unwrap();
 
-        Self { consensus, execution, address }
+        Self {
+            consensus,
+            execution,
+            address,
+        }
     }
-
 
     pub async fn get_contract_call_with_token_messages(
         &self,
@@ -49,34 +56,39 @@ impl Gateway {
         let logs = self
             .get_contract_call_with_token_logs(from_block, to_block)
             .await?;
-    
+
         let events = Self::decode_contract_call_with_token_logs(&logs)?;
 
-        let message_futures = logs.into_iter()
-            .zip(events)
-            .map(|(log, event)| {
-                println!("Working on log {}", log.log_index.unwrap());
-                async move {
-                    match self.generate_internal_message(&log, &event).await {
-                        Ok(message) => Some(message),
-                        Err(error) => {
-                            eprintln!("Error generating internal message for log {:#?}: {:#?}", log, error);
-                            None
-                        }
+        let message_futures = logs.into_iter().zip(events).map(|(log, event)| {
+            println!("Working on log {}", log.log_index.unwrap());
+            async move {
+                match self.generate_internal_message(&log, &event).await {
+                    Ok(message) => Some(message),
+                    Err(error) => {
+                        eprintln!(
+                            "Error generating internal message for log {:#?}: {:#?}",
+                            log, error
+                        );
+                        None
                     }
                 }
-            });
+            }
+        });
 
         let messages = join_all(message_futures)
             .await
             .into_iter()
-            .filter_map(|message| message)
+            .flatten()
             .collect();
 
         Ok(messages)
     }
 
-    async fn generate_internal_message(&self, log: &Log, event: &ContractCallWithToken) -> Result<InternalMessage> {
+    async fn generate_internal_message(
+        &self,
+        log: &Log,
+        event: &ContractCallWithToken,
+    ) -> Result<InternalMessage> {
         if log.transaction_hash.is_none()
             || log.log_index.is_none()
             || log.transaction_index.is_none()
@@ -93,7 +105,11 @@ impl Gateway {
 
         let block_data = self.get_full_block(block_number.as_u64()).await;
         if block_data.is_err() {
-            return Err(eyre!("Failed to get block data for {:?} {:?}", block_number, block_data.err()));
+            return Err(eyre!(
+                "Failed to get block data for {:?} {:?}",
+                block_number,
+                block_data.err()
+            ));
         }
         let (exec_block, beacon_block, receipts) = block_data?;
 
@@ -105,7 +121,9 @@ impl Gateway {
 
         let cc_id = CrossChainId {
             chain: "ethereum".parse().unwrap(),
-            id: format!("0x{:x}:{}", tx_hash, transaction_log_index).parse().unwrap(),
+            id: format!("0x{:x}:{}", tx_hash, transaction_log_index)
+                .parse()
+                .unwrap(),
         };
 
         let msg = InternalMessage {
@@ -125,7 +143,12 @@ impl Gateway {
         Ok(msg)
     }
 
-    fn calculate_tx_log_index(&self, log_index: u64, tx_index: u64, receipts: &Vec<TransactionReceipt>) -> u64 {
+    fn calculate_tx_log_index(
+        &self,
+        log_index: u64,
+        tx_index: u64,
+        receipts: &[TransactionReceipt],
+    ) -> u64 {
         let mut logs_before_tx = 0;
         for idx in 0..tx_index {
             logs_before_tx += receipts.get(idx as usize).unwrap().logs.len();
@@ -134,7 +157,14 @@ impl Gateway {
         log_index - logs_before_tx as u64
     }
 
-    async fn get_full_block(&self, block_number: u64) -> Result<(Block<Transaction>, BeaconBlockAlias, Vec<TransactionReceipt>)> {
+    async fn get_full_block(
+        &self,
+        block_number: u64,
+    ) -> Result<(
+        Block<Transaction>,
+        BeaconBlockAlias,
+        Vec<TransactionReceipt>,
+    )> {
         let exec_block = self
             .execution
             .get_block_with_txs(block_number)
@@ -151,7 +181,7 @@ impl Gateway {
             .wrap_err(eyre!("failed to get beacon block {}", block_number))?;
 
         let receipts = self.execution.get_block_receipts(block_number).await?;
-        
+
         Ok((exec_block, beacon_block, receipts))
     }
 
@@ -225,5 +255,4 @@ impl Gateway {
 
         Ok(filtered_messages)
     }
-
 }
