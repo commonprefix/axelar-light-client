@@ -8,12 +8,14 @@ use prover::{
 };
 use std::sync::Arc;
 
-pub fn init_prover(prover_config: ProverConfig) -> prover::Prover {
+type ProverAlias = prover::Prover<ConsensusProver<ConsensusRPC, StateProver>, ExecutionProver>;
+
+pub fn init_prover(prover_config: ProverConfig) -> ProverAlias {
     let consensus = Arc::new(ConsensusRPC::new(prover_config.consensus_rpc.clone()));
 
     let state_prover = StateProver::new(prover_config.state_prover_rpc.clone());
     let consensus_prover = ConsensusProver::new(consensus.clone(), state_prover.clone());
     let execution_prover = ExecutionProver::new();
 
-    prover::Prover::new(Box::new(consensus_prover), Box::new(execution_prover))
+    prover::Prover::new(consensus_prover, execution_prover)
 }

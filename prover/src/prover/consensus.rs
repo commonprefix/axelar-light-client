@@ -61,10 +61,7 @@ pub struct ConsensusProver<CR: EthBeaconAPI, SP: StateProverAPI> {
  * Generates a merkle proof from the transaction to the beacon block root.
 */
 impl<CR: EthBeaconAPI, SP: StateProverAPI> ConsensusProver<CR, SP> {
-    pub fn new(
-        consensus_rpc: Arc<CR>,
-        state_prover: SP,
-    ) -> Self {
+    pub fn new(consensus_rpc: Arc<CR>, state_prover: SP) -> Self {
         ConsensusProver {
             consensus_rpc,
             state_prover,
@@ -279,12 +276,7 @@ mod tests {
             .unwrap();
         let block_root = block.hash_tree_root().unwrap();
 
-        (
-            Arc::new(consensus),
-            state_prover,
-            block,
-            block_root,
-        )
+        (Arc::new(consensus), state_prover, block, block_root)
     }
 
     #[tokio_test]
