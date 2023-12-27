@@ -14,10 +14,7 @@ use consensus_types::{
         TransactionProofsBatch, UpdateVariant,
     },
 };
-use ethers::{
-    types::{Block, Transaction, TransactionReceipt, H256},
-    utils::rlp::encode,
-};
+use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use eyre::{anyhow, Context, Result};
 use indexmap::IndexMap;
 use ssz_rs::{Merkleized, Node};
@@ -177,8 +174,6 @@ impl Prover {
         receipts: &[TransactionReceipt],
         tx_index: u64,
     ) -> Result<ReceiptProof> {
-        let receipt = encode(&receipts[tx_index as usize].clone());
-
         let receipt_proof = self
             .execution_prover
             .generate_receipt_proof(exec_block, receipts, tx_index)
@@ -197,7 +192,6 @@ impl Prover {
             ))?;
 
         let receipt_proof = ReceiptProof {
-            receipt: receipt.to_vec(),
             receipt_proof,
             receipts_root_proof: receipts_root_proof.witnesses,
             receipts_root: Node::from_bytes(exec_block.receipts_root.as_bytes().try_into()?),

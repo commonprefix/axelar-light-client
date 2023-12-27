@@ -1,5 +1,8 @@
 use crate::consensus::{FinalityUpdate, OptimisticUpdate};
 pub use connection_router::state::{Address as AddressType, ChainName, CrossChainId, Message};
+use eyre::Result;
+use serde::de::Error as SerdeError;
+use serde::{Deserialize, Deserializer, Serializer};
 use ssz_rs::Node;
 use sync_committee_rs::{
     consensus_types::{BeaconBlockHeader, Transaction},
@@ -74,10 +77,13 @@ pub struct ReceiptProof {
     // Proof from receipts root to beacon block
     pub receipts_root_proof: Vec<Node>,
     // Proof from receipt to receipts root trie
+    #[serde(
+        serialize_with = "hex_array_serializer",
+        deserialize_with = "hex_array_deserializer"
+    )]
     pub receipt_proof: Vec<Vec<u8>>,
     // Receipts root of execution payload of target block
     pub receipts_root: Root,
-    pub receipt: Vec<u8>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -99,4 +105,22 @@ pub struct TransactionProofsBatch {
     pub receipt_proof: ReceiptProof,
     // Support multiple messages on a single tx, ie transaction level batching
     pub messages: Vec<Message>,
+}
+
+fn hex_array_deserializer<'de, D>(deserializer: D) -> Result<Vec<Vec<u8>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let strs = Vec::<String>::deserialize(deserializer)?;
+    strs.into_iter()
+        .map(|s| hex::decode(s).map_err(SerdeError::custom))
+        .collect()
+}
+
+fn hex_array_serializer<S>(bytes_array: &[Vec<u8>], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let hex_strings: Vec<String> = bytes_array.iter().map(hex::encode).collect();
+    serializer.collect_seq(hex_strings)
 }
