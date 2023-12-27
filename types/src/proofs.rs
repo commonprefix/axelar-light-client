@@ -113,7 +113,7 @@ where
 {
     let strs = Vec::<String>::deserialize(deserializer)?;
     strs.into_iter()
-        .map(|s| hex::decode(&s).map_err(SerdeError::custom))
+        .map(|s| hex::decode(s).map_err(SerdeError::custom))
         .collect()
 }
 
@@ -121,6 +121,6 @@ fn hex_array_serializer<S>(bytes_array: &[Vec<u8>], serializer: S) -> Result<S::
 where
     S: Serializer,
 {
-    let hex_strings: Vec<String> = bytes_array.iter().map(|bytes| hex::encode(bytes)).collect();
+    let hex_strings: Vec<String> = bytes_array.iter().map(hex::encode).collect();
     serializer.collect_seq(hex_strings)
 }
