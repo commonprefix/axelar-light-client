@@ -47,9 +47,8 @@ async fn main() {
         .await
         .unwrap();
     let proofs_json = serde_json::to_string(&proofs).unwrap();
-    println!("{}", proofs_json);
 
-    println!("Proofs: {:?}", proofs);
+    println!("Proofs: {}", proofs_json);
 }
 
 async fn consume_messages(
