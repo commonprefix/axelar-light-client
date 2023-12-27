@@ -368,7 +368,7 @@ mod tests {
 
         let (_consensus_rpc, _execution_rpc, _state_prover) = setup();
 
-        let mut consensus_prover = MockConsensusProver::new();
+        let mut consensus_prover = MockConsensusProver::<MockConsensusRPC, MockStateProver>::new();
         consensus_prover
             .expect_prove_ancestry()
             .returning(|_, _, _| {
@@ -445,7 +445,7 @@ mod tests {
             mock_message5.clone(),
         ];
 
-        let consensus_prover = MockConsensusProver::new();
+        let consensus_prover = MockConsensusProver::<MockConsensusRPC, MockStateProver>::new();
         let execution_prover = MockExecutionProver::new();
 
         let prover = Prover::new(Box::new(consensus_prover), Box::new(execution_prover));
