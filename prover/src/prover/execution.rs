@@ -1,6 +1,5 @@
 use cita_trie::Trie;
 use ethers::{
-    core::k256::elliptic_curve::generic_array::iter,
     types::{Block, Transaction, TransactionReceipt, H256},
     utils::rlp::encode,
 };
