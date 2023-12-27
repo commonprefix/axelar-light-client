@@ -113,10 +113,10 @@ impl Gateway {
         }
         let (exec_block, beacon_block, receipts) = block_data?;
 
-        let transaction_log_index = if log.transaction_index.is_none() {
+        let transaction_log_index = if log.transaction_log_index.is_none() {
             self.calculate_tx_log_index(log_index.as_u64(), tx_index.as_u64(), &receipts)
         } else {
-            log.transaction_index.unwrap().as_u64()
+            log.transaction_log_index.unwrap().as_u64()
         };
 
         let cc_id = CrossChainId {
