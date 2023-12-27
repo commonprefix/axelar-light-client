@@ -78,18 +78,6 @@ pub struct Update {
     pub signature_slot: u64,
 }
 
-impl Update {
-    pub fn into_finality_update(&self) -> FinalityUpdate {
-        FinalityUpdate {
-            attested_header: self.attested_header.clone(),
-            finalized_header: self.finalized_header.clone(),
-            finality_branch: self.finality_branch.clone(),
-            sync_aggregate: self.sync_aggregate.clone(),
-            signature_slot: self.signature_slot,
-        }
-    }
-}
-
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default, Eq)]
 pub struct FinalityUpdate {
     pub attested_header: BeaconHeader,
@@ -100,12 +88,14 @@ pub struct FinalityUpdate {
     pub signature_slot: u64,
 }
 
-impl FinalityUpdate {
-    pub fn into_optimistic_update(&self) -> OptimisticUpdate {
-        OptimisticUpdate {
-            attested_header: self.attested_header.clone(),
-            sync_aggregate: self.sync_aggregate.clone(),
-            signature_slot: self.signature_slot,
+impl From<&Update> for FinalityUpdate {
+    fn from(value: &Update) -> Self {
+        FinalityUpdate {
+            attested_header: value.attested_header.clone(),
+            finalized_header: value.finalized_header.clone(),
+            finality_branch: value.finality_branch.clone(),
+            sync_aggregate: value.sync_aggregate.clone(),
+            signature_slot: value.signature_slot,
         }
     }
 }
@@ -116,4 +106,14 @@ pub struct OptimisticUpdate {
     pub sync_aggregate: SyncAggregate<SYNC_COMMITTEE_SIZE>,
     #[serde(with = "sync_committee_rs::serde::as_string")]
     pub signature_slot: u64,
+}
+
+impl From<&FinalityUpdate> for OptimisticUpdate {
+    fn from(value: &FinalityUpdate) -> Self {
+        OptimisticUpdate {
+            attested_header: value.attested_header.clone(),
+            sync_aggregate: value.sync_aggregate.clone(),
+            signature_slot: value.signature_slot,
+        }
+    }
 }
