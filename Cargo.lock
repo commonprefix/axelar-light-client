@@ -5035,6 +5035,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
+ "axelar-wasm-std",
  "connection-router",
  "eyre",
  "hex",
