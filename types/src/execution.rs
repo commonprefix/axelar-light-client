@@ -1,9 +1,13 @@
 use alloy_primitives::Address;
 use alloy_rlp::{Buf, Decodable};
+use eyre::Result;
+use serde::Deserialize;
 use ssz_rs::prelude::*;
 use std::cmp::Ordering;
 
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub const RECEIPTS_ROOT_GINDEX: usize = 3219;
+
+#[derive(Default, Debug, Clone, Deserialize)]
 pub struct ReceiptLog {
     pub address: [u8; 20],
     pub topics: Vec<[u8; 32]>,
@@ -20,22 +24,6 @@ pub struct ContractCallBase {
 
 #[derive(Default, Debug)]
 pub struct ReceiptLogs(pub Vec<ReceiptLog>);
-
-impl ReceiptLogs {
-    pub fn contains_topic(&self, topic: &[u8]) -> bool {
-        if topic.len() != 32 {
-            return false; // Or handle this case differently, if necessary
-        }
-
-        let topic_array: [u8; 32] = topic.try_into().unwrap();
-        for log in &self.0 {
-            if log.topics.contains(&topic_array) {
-                return true;
-            }
-        }
-        false
-    }
-}
 
 impl Decodable for ReceiptLogs {
     fn decode(buf: &mut &[u8]) -> Result<Self, alloy_rlp::Error> {

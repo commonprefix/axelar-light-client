@@ -1,12 +1,12 @@
 use cosmwasm_schema::cw_serde;
-
-use types::lightclient::{Message, MessageVerification};
+use types::lightclient::Message;
+use types::proofs::BatchVerificationData;
 use types::{
     common::{ChainConfig, Forks},
     consensus::{Bootstrap, Update},
 };
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct InstantiateMsg {
     pub bootstrap: Bootstrap,
     pub config: ChainConfig,
@@ -17,13 +17,13 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     LightClientUpdate { period: u64, update: Update },
     UpdateForks { forks: Forks },
-    EventVerificationData { payload: MessageVerification },
+    BatchVerificationData { payload: BatchVerificationData },
     VerifyMessages { messages: Vec<Message> },
 }
 
 #[cw_serde]
 pub enum QueryMsg {
-    SyncCommittee { period: u64 },
+    SyncCommittee {},
     LightClientState {},
     Config {},
     Version {},

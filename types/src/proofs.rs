@@ -1,14 +1,12 @@
 use crate::consensus::{FinalityUpdate, OptimisticUpdate};
-pub use connection_router::state::{
-    Address as AddressType, ChainName, CrossChainId, Message, MessageHash,
-};
+pub use connection_router::state::{Address as AddressType, ChainName, CrossChainId, Message};
 use ssz_rs::Node;
 use sync_committee_rs::{
     consensus_types::{BeaconBlockHeader, Transaction},
     constants::{Root, MAX_BYTES_PER_TRANSACTION},
 };
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct MessageProof {
     // Proof from sync committee signed block to a recent block (either finalized or optimistic)
     pub update: UpdateVariant,
@@ -22,7 +20,7 @@ pub struct MessageProof {
     pub receipt_proof: ReceiptProof,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Eq)]
 pub enum UpdateVariant {
     // LightClientFinalityUpdate from the beacon API spec.
     Finality(FinalityUpdate),
@@ -30,7 +28,7 @@ pub enum UpdateVariant {
     Optimistic(OptimisticUpdate),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub enum AncestryProof {
     // This variant defines the proof data for a beacon chain header in the `state.block_roots`.
     BlockRoots {
@@ -53,6 +51,12 @@ pub enum AncestryProof {
     },
 }
 
+impl Default for UpdateVariant {
+    fn default() -> Self {
+        UpdateVariant::Finality(FinalityUpdate::default())
+    }
+}
+
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
 pub struct TransactionProof {
     // Same index of transaction to transaction trie and from receipt to receipt trie
@@ -65,14 +69,34 @@ pub struct TransactionProof {
     pub transaction: Transaction<MAX_BYTES_PER_TRANSACTION>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct ReceiptProof {
-    // Actual receipt
-    pub receipt: Vec<u8>,
     // Proof from receipts root to beacon block
     pub receipts_root_proof: Vec<Node>,
     // Proof from receipt to receipts root trie
     pub receipt_proof: Vec<Vec<u8>>,
     // Receipts root of execution payload of target block
     pub receipts_root: Root,
+    pub receipt: Vec<u8>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct BatchVerificationData {
+    pub update: UpdateVariant,
+    pub target_blocks: Vec<BlockProofsBatch>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct BlockProofsBatch {
+    pub ancestry_proof: AncestryProof,
+    pub target_block: BeaconBlockHeader,
+    pub transactions_proofs: Vec<TransactionProofsBatch>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct TransactionProofsBatch {
+    pub transaction_proof: TransactionProof,
+    pub receipt_proof: ReceiptProof,
+    // Support multiple messages on a single tx, ie transaction level batching
+    pub messages: Vec<Message>,
 }

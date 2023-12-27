@@ -2,10 +2,7 @@ use async_trait::async_trait;
 use consensus_types::consensus::{
     BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update,
 };
-use eth::{
-    consensus::{CustomConsensusApi, EthBeaconAPI},
-    error::RPCError,
-};
+use eth::{consensus::EthBeaconAPI, error::RPCError};
 use eyre::Result;
 use serde_json;
 use ssz_rs::Vector;
@@ -15,32 +12,13 @@ use sync_committee_rs::{
     constants::{Root, SLOTS_PER_HISTORICAL_ROOT},
 };
 
+#[derive(Clone)]
 pub struct MockConsensusRPC;
 
 #[allow(dead_code)]
 impl MockConsensusRPC {
     pub fn new() -> Self {
         MockConsensusRPC {}
-    }
-}
-
-#[async_trait]
-impl CustomConsensusApi for MockConsensusRPC {
-    async fn get_block_roots_tree(
-        &self,
-        _start_slot: u64,
-    ) -> Result<Vector<Root, SLOTS_PER_HISTORICAL_ROOT>, RPCError> {
-        let file = File::open("./src/prover/testdata/block_roots.json").unwrap();
-        let tree: Vector<Root, SLOTS_PER_HISTORICAL_ROOT> = serde_json::from_reader(file).unwrap();
-        return Ok(tree);
-    }
-
-    async fn get_latest_beacon_block_header(&self) -> Result<BeaconBlockHeader, RPCError> {
-        unimplemented!();
-    }
-
-    async fn get_latest_beacon_block(&self) -> Result<BeaconBlockAlias, RPCError> {
-        unimplemented!();
     }
 }
 
@@ -58,6 +36,23 @@ impl EthBeaconAPI for MockConsensusRPC {
         let file = File::open(filename).unwrap();
         let res: BeaconBlockAlias = serde_json::from_reader(file).unwrap();
         Ok(res)
+    }
+
+    async fn get_block_roots_tree(
+        &self,
+        _start_slot: u64,
+    ) -> Result<Vector<Root, SLOTS_PER_HISTORICAL_ROOT>, RPCError> {
+        let file = File::open("./src/prover/testdata/block_roots.json").unwrap();
+        let tree: Vector<Root, SLOTS_PER_HISTORICAL_ROOT> = serde_json::from_reader(file).unwrap();
+        return Ok(tree);
+    }
+
+    async fn get_latest_beacon_block_header(&self) -> Result<BeaconBlockHeader, RPCError> {
+        unimplemented!();
+    }
+
+    async fn get_latest_beacon_block(&self) -> Result<BeaconBlockAlias, RPCError> {
+        unimplemented!();
     }
 
     async fn get_block_root(&self, _slot: u64) -> Result<Root, RPCError> {

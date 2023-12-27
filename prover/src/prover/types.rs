@@ -1,10 +1,13 @@
 use consensus_types::consensus::BeaconBlockAlias;
-use ethers::types::{Block, Transaction, TransactionReceipt};
+use eth::types::InternalMessage;
+use ethers::types::{Block, Transaction, TransactionReceipt, H256};
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use ssz_rs::{Node, SszVariableOrIndex};
 use sync_committee_rs::consensus_types::BeaconBlockHeader;
 
 // Neccessary data for proving a message
+#[derive(Debug)]
 pub struct ProofAuxiliaryData {
     // Target execution block that contains the transaction/log.
     pub target_execution_block: Block<Transaction>,
@@ -16,14 +19,14 @@ pub struct ProofAuxiliaryData {
     pub recent_block_header: BeaconBlockHeader,
 }
 
-#[derive(Deserialize, Debug, Serialize, Default)]
+#[derive(Deserialize, Debug, Serialize, Default, Clone)]
 pub struct ProofResponse {
     pub gindex: u64,
     pub witnesses: Vec<Node>,
     pub leaf: Node,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum GindexOrPath {
     Gindex(usize),
     Path(Vec<SszVariableOrIndex>),
@@ -37,3 +40,6 @@ pub struct Config {
     pub historical_roots_enabled: bool,
     pub historical_roots_block_roots_batch_size: u64,
 }
+
+// A map from block number to a map from tx hash to messages
+pub type BatchMessageGroups = IndexMap<u64, IndexMap<H256, Vec<InternalMessage>>>;

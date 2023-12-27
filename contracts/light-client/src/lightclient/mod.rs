@@ -7,8 +7,8 @@ use error::ConsensusError;
 use eyre::Result;
 use helpers::is_proof_valid;
 use milagro_bls::{AggregateSignature, PublicKey};
-use ssz_rs::prelude::*;
-use sync_committee_rs::{
+use types::ssz_rs::prelude::*;
+use types::sync_committee_rs::{
     consensus_types::{BeaconBlockHeader, ForkData, SyncCommittee},
     constants::{BlsSignature, Bytes32, SYNC_COMMITTEE_SIZE},
     util::SigningData,
@@ -87,7 +87,7 @@ impl Verification for OptimisticUpdate {
             return Err(ConsensusError::InvalidTimestamp);
         }
 
-        let store_period = calc_sync_period(lightclient.state.finalized_header.slot);
+        let store_period = calc_sync_period(lightclient.state.update_slot);
         let update_sig_period = calc_sync_period(self.signature_slot);
 
         let valid_period = if lightclient.state.next_sync_committee.is_some() {
@@ -106,7 +106,7 @@ impl Verification for OptimisticUpdate {
         let update_has_next_committee = lightclient.state.next_sync_committee.is_none()
             && update_attested_period == store_period;
 
-        if self.attested_header.beacon.slot <= lightclient.state.finalized_header.slot
+        if self.attested_header.beacon.slot <= lightclient.state.update_slot
             && !update_has_next_committee
         {
             return Err(ConsensusError::NotRelevant);
@@ -148,10 +148,10 @@ impl LightClient {
         }
     }
 
-    pub fn bootstrap(&mut self, mut bootstrap: Bootstrap) -> Result<(), ConsensusError> {
+    pub fn bootstrap(&mut self, bootstrap: &Bootstrap) -> Result<(), ConsensusError> {
         let committee_valid = self.is_current_committee_proof_valid(
             &bootstrap.header.beacon,
-            &mut bootstrap.current_sync_committee,
+            &bootstrap.current_sync_committee,
             &bootstrap.current_sync_committee_branch,
         );
 
@@ -160,11 +160,9 @@ impl LightClient {
         }
 
         self.state = LightClientState {
-            finalized_header: bootstrap.header.beacon,
-            current_sync_committee: bootstrap.current_sync_committee,
+            update_slot: bootstrap.header.beacon.slot,
+            current_sync_committee: bootstrap.current_sync_committee.clone(),
             next_sync_committee: None,
-            previous_max_active_participants: 0,
-            current_max_active_participants: 0,
         };
 
         Ok(())
@@ -175,9 +173,6 @@ impl LightClient {
 
         let committee_bits = self.get_bits(&update.sync_aggregate.sync_committee_bits);
 
-        self.state.current_max_active_participants =
-            u64::max(self.state.current_max_active_participants, committee_bits);
-
         let update_finalized_slot = update.finalized_header.beacon.slot;
         let update_attested_period = calc_sync_period(update.attested_header.beacon.slot);
         let update_finalized_period = calc_sync_period(update_finalized_slot);
@@ -186,26 +181,23 @@ impl LightClient {
 
         let should_apply_update = {
             let has_majority = committee_bits * 3 >= 512 * 2;
-            let update_is_newer = update_finalized_slot > self.state.finalized_header.slot;
+            let update_is_newer = update_finalized_slot > self.state.update_slot;
             let good_update = update_is_newer || update_has_finalized_next_committee;
             has_majority && good_update
         };
 
         if should_apply_update {
-            let store_period = calc_sync_period(self.state.finalized_header.slot);
+            let store_period = calc_sync_period(self.state.update_slot);
 
             if self.state.next_sync_committee.is_none() {
                 self.state.next_sync_committee = Some(update.next_sync_committee.clone());
             } else if update_finalized_period == store_period + 1 {
                 self.state.current_sync_committee = self.state.next_sync_committee.clone().unwrap();
                 self.state.next_sync_committee = Some(update.next_sync_committee.clone());
-                self.state.previous_max_active_participants =
-                    self.state.current_max_active_participants;
-                self.state.current_max_active_participants = 0;
             }
 
-            if update_finalized_slot > self.state.finalized_header.slot {
-                self.state.finalized_header = update.finalized_header.beacon.clone();
+            if update_finalized_slot > self.state.update_slot {
+                self.state.update_slot = update.finalized_header.beacon.slot;
                 self.log_finality_update(update);
             }
         }
@@ -216,12 +208,12 @@ impl LightClient {
     fn is_current_committee_proof_valid(
         &self,
         attested_header: &BeaconBlockHeader,
-        current_committee: &mut SyncCommittee<SYNC_COMMITTEE_SIZE>,
+        current_committee: &SyncCommittee<SYNC_COMMITTEE_SIZE>,
         current_committee_branch: &[Bytes32],
     ) -> bool {
         is_proof_valid(
             &attested_header.state_root,
-            current_committee,
+            &mut current_committee.clone(),
             current_committee_branch,
             5,
             22,
@@ -397,17 +389,6 @@ impl LightClient {
         println!(
             "finalized slot             slot={}",
             update.finalized_header.beacon.slot,
-        );
-    }
-
-    pub fn log_state(&self) {
-        let period = calc_sync_period(self.state.finalized_header.slot);
-        let body_root = &self.state.finalized_header.body_root.as_ref();
-        println!(
-            "client: slot: {:?} period: {:?}, finalized_block_hash: {:?}",
-            &self.state.finalized_header.slot,
-            period,
-            hex::encode(body_root)
         );
     }
 }

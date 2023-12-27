@@ -1,7 +1,7 @@
 use std::fs::File;
 
 use async_trait::async_trait;
-use eth::execution::ExecutionAPI;
+use eth::execution::EthExecutionAPI;
 use ethers::types::{Block, Filter, Log, Transaction, TransactionReceipt, H256, U64};
 use eyre::Result;
 
@@ -15,7 +15,7 @@ impl MockExecutionRPC {
 }
 
 #[async_trait]
-impl ExecutionAPI for MockExecutionRPC {
+impl EthExecutionAPI for MockExecutionRPC {
     async fn get_block_receipts(&self, block_number: u64) -> Result<Vec<TransactionReceipt>> {
         let filename = format!(
             "./src/prover/testdata/execution_blocks/receipts/{}.json",
@@ -31,7 +31,6 @@ impl ExecutionAPI for MockExecutionRPC {
             "./src/prover/testdata/execution_blocks/{}.json",
             block_number
         );
-        println!("{}", filename);
         let file = File::open(filename).unwrap();
         let res: Option<Block<Transaction>> = Some(serde_json::from_reader(file).unwrap());
         Ok(res)

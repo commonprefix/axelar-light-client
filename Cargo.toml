@@ -1,10 +1,19 @@
 [workspace]
 resolver = "2"
-
 members = [
   "contracts/light-client",
-  "trie-verifier",
   "types",
   "eth",
   "prover"
 ]
+
+[profile.release]
+codegen-units = 1
+debug = false
+debug-assertions = false
+incremental = false
+lto = true
+opt-level = 's'
+overflow-checks = true
+panic = 'abort'
+rpath = false
