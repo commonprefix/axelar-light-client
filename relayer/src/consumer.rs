@@ -1,7 +1,8 @@
-use crate::consensus::{ConsensusRPC, EthBeaconAPI};
-use crate::execution::{EthExecutionAPI, ExecutionRPC};
-use crate::types::InternalMessage;
-use crate::utils::calc_slot_from_timestamp;
+use consensus_types::consensus::BeaconBlockAlias;
+use consensus_types::lightclient::{CrossChainId, Message};
+use eth::consensus::{ConsensusRPC, EthBeaconAPI};
+use eth::execution::{EthExecutionAPI, ExecutionRPC};
+use eth::utils::calc_slot_from_timestamp;
 use ethers::abi::{Bytes, RawLog};
 use ethers::prelude::EthEvent;
 use ethers::providers::Middleware;
@@ -10,9 +11,8 @@ use ethers::types::{Block, Filter, Transaction, TransactionReceipt};
 use eyre::Result;
 use eyre::{eyre, Context};
 use futures::future::join_all;
+use prover::prover::types::EnrichedMessage;
 use std::sync::Arc;
-use types::consensus::BeaconBlockAlias;
-use types::lightclient::{CrossChainId, Message};
 
 pub struct Gateway {
     consensus: Arc<ConsensusRPC>,
@@ -52,7 +52,7 @@ impl Gateway {
         &self,
         from_block: u64,
         to_block: u64,
-    ) -> Result<Vec<InternalMessage>> {
+    ) -> Result<Vec<EnrichedMessage>> {
         let logs = self
             .get_contract_call_with_token_logs(from_block, to_block)
             .await?;
@@ -88,7 +88,7 @@ impl Gateway {
         &self,
         log: &Log,
         event: &ContractCallWithToken,
-    ) -> Result<InternalMessage> {
+    ) -> Result<EnrichedMessage> {
         if log.transaction_hash.is_none()
             || log.log_index.is_none()
             || log.transaction_index.is_none()
@@ -126,7 +126,7 @@ impl Gateway {
                 .unwrap(),
         };
 
-        let msg = InternalMessage {
+        let msg = EnrichedMessage {
             message: Message {
                 cc_id,
                 source_address: format!("0x{:x}", event.sender).parse().unwrap(),
@@ -220,7 +220,7 @@ impl Gateway {
         &self,
         from_slot: u64,
         to_slot: u64,
-    ) -> Result<Vec<InternalMessage>> {
+    ) -> Result<Vec<EnrichedMessage>> {
         // TODO: Move that out of the code
         const BLOCK_RANGE: u64 = 500;
         let latest_block_number = self.execution.get_latest_block_number().await?;
@@ -249,7 +249,7 @@ impl Gateway {
                     (slot >= from_slot && slot < to_slot).then_some(message)
                 })
             })
-            .collect::<Vec<InternalMessage>>();
+            .collect::<Vec<EnrichedMessage>>();
 
         println!("Messages in range: {:?}", filtered_messages.len());
 

@@ -1,45 +1,39 @@
-mod prover;
+mod consumer;
 mod types;
 mod wasm;
 
-use crate::prover::consensus::ConsensusProver;
-use crate::prover::execution::ExecutionProver;
-use crate::prover::state_prover::StateProver;
-use crate::prover::utils::debug_print_batch_message_groups;
-use crate::prover::Prover;
 use consensus_types::proofs::UpdateVariant;
+use consumer::Gateway;
 use dotenv::dotenv;
 use eth::consensus::EthBeaconAPI;
-use eth::{consensus::ConsensusRPC, execution::ExecutionRPC, gateway::Gateway};
-use prover::types::Config;
+use eth::{consensus::ConsensusRPC, execution::ExecutionRPC};
+use prover::init_prover;
+use prover::prover::types::{EnrichedMessage, ProverConfig};
+use prover::prover::utils::debug_print_batch_message_groups;
 use std::env;
+use std::str::FromStr;
 use std::sync::Arc;
 use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
+use types::{Config, VerificationMethod};
 
 #[tokio::main]
 async fn main() {
     let config = load_prover_config();
 
+    let prover_config = ProverConfig::from(config.clone());
+    let prover = init_prover(prover_config);
+
     let consensus = Arc::new(ConsensusRPC::new(config.consensus_rpc.clone()));
     let execution = Arc::new(ExecutionRPC::new(config.execution_rpc.clone()));
-    let state_prover = Arc::new(StateProver::new(config.state_prover_rpc.clone()));
-
     let gateway: Gateway = Gateway::new(consensus.clone(), execution.clone(), config.gateway_addr);
-    let consensus_prover = ConsensusProver::new(consensus.clone(), state_prover.clone());
-    let execution_prover = ExecutionProver::new();
 
     let finality_update = consensus.get_finality_update().await.unwrap();
     let update = UpdateVariant::Finality(finality_update.clone());
     let finality_header_slot = finality_update.finalized_header.beacon.slot;
 
     let min_slot_in_block_roots = finality_header_slot - SLOTS_PER_HISTORICAL_ROOT as u64 + 1;
-
-    let messages = gateway
-        .get_messages_in_slot_range(min_slot_in_block_roots, finality_header_slot)
-        .await
-        .unwrap();
-
-    let prover = Prover::new(&consensus_prover, &execution_prover);
+    let messages =
+        consume_messages(&gateway, min_slot_in_block_roots, finality_header_slot, 10).await;
 
     // Get only first ten
     let res = prover
@@ -58,6 +52,15 @@ async fn main() {
     println!("Proofs: {:?}", proofs);
 }
 
+async fn consume_messages(
+    gateway: &Gateway,
+    from: u64,
+    to: u64,
+    limit: u64,
+) -> Vec<EnrichedMessage> {
+    gateway.get_messages_in_slot_range(from, to).await.unwrap()[0..limit as usize].to_vec()
+}
+
 fn load_prover_config() -> Config {
     dotenv().ok();
 
@@ -68,5 +71,11 @@ fn load_prover_config() -> Config {
         gateway_addr: env::var("GATEWAY_ADDR").expect("Missing GATEWAY_ADDR from .env"),
         historical_roots_enabled: true,
         historical_roots_block_roots_batch_size: 1000,
+        verification_method: VerificationMethod::from_str(
+            env::var("VERIFICATION_METHOD")
+                .expect("VERIFICATION not found")
+                .as_str(),
+        )
+        .unwrap(),
     }
 }

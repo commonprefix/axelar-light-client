@@ -14,7 +14,6 @@ use consensus_types::{
         TransactionProofsBatch, UpdateVariant,
     },
 };
-use eth::types::InternalMessage;
 use ethers::{
     types::{Block, Transaction, TransactionReceipt, H256},
     utils::rlp::encode,
@@ -24,16 +23,17 @@ use indexmap::IndexMap;
 use ssz_rs::{Merkleized, Node};
 use sync_committee_rs::{consensus_types::BeaconBlockHeader, constants::Root};
 use types::BatchMessageGroups;
+use types::EnrichedMessage;
 
-pub struct Prover<'a> {
-    consensus_prover: &'a dyn ConsensusProverAPI,
-    execution_prover: &'a dyn ExecutionProverAPI,
+pub struct Prover {
+    consensus_prover: Box<dyn ConsensusProverAPI>,
+    execution_prover: Box<dyn ExecutionProverAPI>,
 }
 
-impl<'a> Prover<'a> {
+impl Prover {
     pub fn new(
-        consensus_prover: &'a dyn ConsensusProverAPI,
-        execution_prover: &'a dyn ExecutionProverAPI,
+        consensus_prover: Box<dyn ConsensusProverAPI>,
+        execution_prover: Box<dyn ExecutionProverAPI>,
     ) -> Self {
         Prover {
             consensus_prover,
@@ -43,7 +43,7 @@ impl<'a> Prover<'a> {
 
     pub async fn batch_messages(
         &self,
-        messages: &[InternalMessage],
+        messages: &[EnrichedMessage],
         update: &UpdateVariant,
     ) -> Result<BatchMessageGroups> {
         let recent_block_slot = match update {
@@ -66,9 +66,9 @@ impl<'a> Prover<'a> {
 
             groups
                 .entry(message.exec_block.number.unwrap().as_u64())
-                .or_insert_with(IndexMap::new)
+                .or_default()
                 .entry(tx_hash)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(message.clone());
         }
 
@@ -130,7 +130,7 @@ impl<'a> Prover<'a> {
     }
 
     pub fn get_block_of_batch(
-        batch: &IndexMap<H256, Vec<InternalMessage>>,
+        batch: &IndexMap<H256, Vec<EnrichedMessage>>,
     ) -> Result<
         (
             BeaconBlockAlias,
@@ -242,14 +242,13 @@ mod tests {
     use crate::prover::Prover;
 
     use super::state_prover::MockStateProver;
-    use super::types::BatchMessageGroups;
+    use super::types::{BatchMessageGroups, EnrichedMessage};
     use consensus_types::consensus::{BeaconBlockAlias, FinalityUpdate, OptimisticUpdate};
     use consensus_types::proofs::{
         AncestryProof, BatchVerificationData, CrossChainId, Message, UpdateVariant,
     };
     use eth::consensus::MockConsensusRPC;
     use eth::execution::MockExecutionRPC;
-    use eth::types::InternalMessage;
     use ethers::types::{Block, Transaction, TransactionReceipt, H256};
     use indexmap::IndexMap;
 
@@ -270,8 +269,8 @@ mod tests {
         }
     }
 
-    fn get_mock_message(slot: u64, block_number: u64, tx_hash: H256) -> InternalMessage {
-        InternalMessage {
+    fn get_mock_message(slot: u64, block_number: u64, tx_hash: H256) -> EnrichedMessage {
+        EnrichedMessage {
             message: Message {
                 cc_id: CrossChainId {
                     chain: "ethereum".parse().unwrap(),
@@ -396,7 +395,7 @@ mod tests {
             .expect_generate_receipt_proof()
             .returning(|_, _, _| Ok(Default::default()));
 
-        let prover = Prover::new(&consensus_prover, &execution_prover);
+        let prover = Prover::new(Box::new(consensus_prover), Box::new(execution_prover));
 
         let res = prover
             .batch_generate_proofs(batch_message_groups, mock_update.clone())
@@ -455,7 +454,7 @@ mod tests {
         let consensus_prover = MockConsensusProver::new();
         let execution_prover = MockExecutionProver::new();
 
-        let prover = Prover::new(&consensus_prover, &execution_prover);
+        let prover = Prover::new(Box::new(consensus_prover), Box::new(execution_prover));
 
         let result = prover
             .batch_messages(messages.as_ref(), &update)
@@ -470,29 +469,17 @@ mod tests {
             result.get(&1).unwrap().get(&get_tx_hash(1)).unwrap(),
             &vec![mock_message1]
         );
-        // assert_eq!(
-        //     result
-        //         .get(&2)
-        //         .unwrap()
-        //         .get(&get_tx_hash(2))
-        //         .unwrap(),
-        //     &vec![mock_message2.message, mock_message3.message]
-        // );
-        // assert_eq!(
-        //     result
-        //         .get(&2)
-        //         .unwrap()
-        //         .get(&get_tx_hash(3))
-        //         .unwrap(),
-        //     &vec![mock_message4.message]
-        // );
-        // assert_eq!(
-        //     result
-        //         .get(&3)
-        //         .unwrap()
-        //         .get(&get_tx_hash(4))
-        //         .unwrap(),
-        //     &vec![mock_message5.message]
-        // );
+        assert_eq!(
+            result.get(&2).unwrap().get(&get_tx_hash(2)).unwrap(),
+            &vec![mock_message2, mock_message3]
+        );
+        assert_eq!(
+            result.get(&2).unwrap().get(&get_tx_hash(3)).unwrap(),
+            &vec![mock_message4]
+        );
+        assert_eq!(
+            result.get(&3).unwrap().get(&get_tx_hash(4)).unwrap(),
+            &vec![mock_message5]
+        );
     }
 }

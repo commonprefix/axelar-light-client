@@ -1,5 +1,4 @@
-use consensus_types::consensus::BeaconBlockAlias;
-use eth::types::InternalMessage;
+use consensus_types::{consensus::BeaconBlockAlias, proofs::Message};
 use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -19,11 +18,20 @@ pub struct ProofAuxiliaryData {
     pub recent_block_header: BeaconBlockHeader,
 }
 
-#[derive(Deserialize, Debug, Serialize, Default, Clone)]
+#[derive(PartialEq, Deserialize, Debug, Serialize, Default, Clone)]
 pub struct ProofResponse {
     pub gindex: u64,
     pub witnesses: Vec<Node>,
     pub leaf: Node,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct EnrichedMessage {
+    pub message: Message,
+    pub tx_hash: H256,
+    pub exec_block: Block<Transaction>,
+    pub beacon_block: BeaconBlockAlias,
+    pub receipts: Vec<TransactionReceipt>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -32,14 +40,13 @@ pub enum GindexOrPath {
     Path(Vec<SszVariableOrIndex>),
 }
 
-pub struct Config {
+pub struct ProverConfig {
     pub consensus_rpc: String,
     pub execution_rpc: String,
     pub state_prover_rpc: String,
-    pub gateway_addr: String,
     pub historical_roots_enabled: bool,
     pub historical_roots_block_roots_batch_size: u64,
 }
 
 // A map from block number to a map from tx hash to messages
-pub type BatchMessageGroups = IndexMap<u64, IndexMap<H256, Vec<InternalMessage>>>;
+pub type BatchMessageGroups = IndexMap<u64, IndexMap<H256, Vec<EnrichedMessage>>>;

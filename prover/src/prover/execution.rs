@@ -15,7 +15,14 @@ pub trait ExecutionProverAPI {
     ) -> Result<Vec<Vec<u8>>>;
 }
 
+#[derive(Clone)]
 pub struct ExecutionProver;
+
+impl Default for ExecutionProver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl ExecutionProver {
     pub fn new() -> Self {
@@ -45,7 +52,7 @@ impl ExecutionProverAPI for ExecutionProver {
             ));
         }
 
-        let receipt_index: cosmos_sdk_proto::prost::bytes::BytesMut = encode(&index);
+        let receipt_index = encode(&index);
         let proof = trie
             .get_proof(receipt_index.to_vec().as_slice())
             .map_err(|e| anyhow!("Failed to generate proof: {:?}", e));
