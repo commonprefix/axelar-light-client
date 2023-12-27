@@ -147,7 +147,7 @@ impl Gateway {
         &self,
         log_index: u64,
         tx_index: u64,
-        receipts: &Vec<TransactionReceipt>,
+        receipts: &[TransactionReceipt],
     ) -> u64 {
         let mut logs_before_tx = 0;
         for idx in 0..tx_index {
