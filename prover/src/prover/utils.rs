@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use consensus_types::proofs::CrossChainId;
 use ethers::types::{TransactionReceipt, H256};
-use eyre::{Result, anyhow};
+use eyre::{anyhow, Result};
 use ssz_rs::SszVariableOrIndex;
 
 use super::types::BatchMessageGroups;
@@ -35,7 +35,7 @@ pub fn get_tx_hash_from_cc_id(cc_id: &CrossChainId) -> Result<H256> {
         .split_once(':')
         .ok_or_else(|| anyhow!("Invalid CrossChainId format. {:?}", cc_id))?
         .0;
-    
+
     Ok(H256::from_str(tx_hash)?)
 }
 
@@ -57,13 +57,15 @@ mod tests {
     use consensus_types::proofs::CrossChainId;
     use ethers::types::{TransactionReceipt, H256};
 
-    use crate::prover::{execution::ExecutionProver, utils::{get_tx_hash_from_cc_id, get_tx_index}};
+    use crate::prover::{
+        execution::ExecutionProver,
+        utils::{get_tx_hash_from_cc_id, get_tx_index},
+    };
 
     fn get_mock_receipt() -> TransactionReceipt {
         let mut receipt = TransactionReceipt::default();
         receipt.transaction_hash = H256::random();
         receipt
-
     }
 
     #[test]

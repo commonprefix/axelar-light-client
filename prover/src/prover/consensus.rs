@@ -61,7 +61,10 @@ pub struct ConsensusProver {
  * Generates a merkle proof from the transaction to the beacon block root.
 */
 impl ConsensusProver {
-    pub fn new(consensus_rpc: Arc<dyn EthBeaconAPI>, state_prover: Arc<dyn StateProverAPI>) -> Self {
+    pub fn new(
+        consensus_rpc: Arc<dyn EthBeaconAPI>,
+        state_prover: Arc<dyn StateProverAPI>,
+    ) -> Self {
         ConsensusProver {
             state_prover,
             consensus_rpc,
@@ -262,7 +265,12 @@ mod tests {
 
     async fn setup_block_and_provers(
         consensus_block_number: u64,
-    ) -> (Arc<MockConsensusRPC>, Arc<MockStateProver>, BeaconBlockAlias, Node) {
+    ) -> (
+        Arc<MockConsensusRPC>,
+        Arc<MockStateProver>,
+        BeaconBlockAlias,
+        Node,
+    ) {
         let consensus = MockConsensusRPC::new();
         let state_prover = MockStateProver::new();
         let mut block = consensus
@@ -271,7 +279,12 @@ mod tests {
             .unwrap();
         let block_root = block.hash_tree_root().unwrap();
 
-        (Arc::new(consensus), Arc::new(state_prover), block, block_root)
+        (
+            Arc::new(consensus),
+            Arc::new(state_prover),
+            block,
+            block_root,
+        )
     }
 
     #[tokio_test]
@@ -495,7 +508,10 @@ mod tests {
 
         let old_block_slot = 7878867 - 1000;
         let proof = consensus_prover
-            .prove_ancestry_with_block_roots(&old_block_slot, &latest_block_7878867.state_root.to_string())
+            .prove_ancestry_with_block_roots(
+                &old_block_slot,
+                &latest_block_7878867.state_root.to_string(),
+            )
             .await
             .unwrap();
 

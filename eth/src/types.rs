@@ -1,4 +1,4 @@
-use ethers::types::{H256, Transaction, Block, TransactionReceipt};
+use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use ssz_rs::Node;
 use sync_committee_rs::consensus_types::BeaconBlockHeader;
 use types::{

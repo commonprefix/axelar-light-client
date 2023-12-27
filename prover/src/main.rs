@@ -5,8 +5,8 @@ mod wasm;
 use crate::prover::consensus::ConsensusProver;
 use crate::prover::execution::ExecutionProver;
 use crate::prover::state_prover::StateProver;
-use crate::prover::Prover;
 use crate::prover::utils::debug_print_batch_message_groups;
+use crate::prover::Prover;
 use consensus_types::proofs::UpdateVariant;
 use dotenv::dotenv;
 use eth::consensus::EthBeaconAPI;
@@ -20,8 +20,8 @@ use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
 async fn main() {
     let config = load_prover_config();
 
-    let consensus= Arc::new(ConsensusRPC::new(config.consensus_rpc.clone()));
-    let execution= Arc::new(ExecutionRPC::new(config.execution_rpc.clone()));
+    let consensus = Arc::new(ConsensusRPC::new(config.consensus_rpc.clone()));
+    let execution = Arc::new(ExecutionRPC::new(config.execution_rpc.clone()));
     let state_prover = Arc::new(StateProver::new(config.state_prover_rpc.clone()));
 
     let gateway: Gateway = Gateway::new(consensus.clone(), execution.clone(), config.gateway_addr);
@@ -42,10 +42,16 @@ async fn main() {
     let prover = Prover::new(&consensus_prover, &execution_prover);
 
     // Get only first ten
-    let res = prover.batch_messages(&messages[0..10], &update.clone()).await.unwrap();
+    let res = prover
+        .batch_messages(&messages[0..10], &update.clone())
+        .await
+        .unwrap();
     debug_print_batch_message_groups(&res);
 
-    let proofs = prover.batch_generate_proofs(res, update.clone()).await.unwrap();
+    let proofs = prover
+        .batch_generate_proofs(res, update.clone())
+        .await
+        .unwrap();
     let proofs_json = serde_json::to_string(&proofs).unwrap();
     println!("{}", proofs_json);
 
