@@ -2,6 +2,7 @@ use crate::ContractError;
 use cosmwasm_std::{DepsMut, Env, Response};
 use eyre::{eyre, Result};
 use types::common::ChainConfig;
+use types::consensus::BeaconBlockHeader;
 use types::execution::{ReceiptLog, ReceiptLogs};
 use types::proofs::{
     BatchVerificationData, BlockProofsBatch, Message, TransactionProofsBatch, UpdateVariant,
@@ -15,7 +16,7 @@ use crate::lightclient::helpers::{
     compare_message_with_log, extract_logs_from_receipt_proof, extract_recent_block,
     verify_ancestry_proof, verify_transaction_proof,
 };
-use crate::lightclient::{LightClient, Verification};
+use crate::lightclient::LightClient;
 use crate::state::{CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE, VERIFIED_MESSAGES};
 
 type MessageLogCompareFn = dyn Fn(&Message, &ReceiptLog, &Vec<u8>) -> Result<()>;
@@ -85,14 +86,13 @@ fn process_transaction_proofs(
 }
 
 fn process_block_proofs(
-    update: &UpdateVariant,
+    recent_block: &BeaconBlockHeader,
     data: &BlockProofsBatch,
 ) -> Vec<(Message, Result<()>)> {
     let transactions_proofs = &data.transactions_proofs;
 
     let mut target_block_root = Node::default();
     let mut ancestry_proof_verification = || -> Result<()> {
-        let recent_block = extract_recent_block(update);
         target_block_root = data.target_block.clone().hash_tree_root()?;
 
         verify_ancestry_proof(&data.ancestry_proof, &data.target_block, &recent_block)?;
@@ -121,17 +121,16 @@ pub fn process_batch_data(
     lightclient: &LightClient,
     data: &BatchVerificationData,
 ) -> Result<Vec<(Message, Result<()>)>> {
-    let update: &dyn Verification = match &data.update {
-        UpdateVariant::Finality(update) => update,
-        UpdateVariant::Optimistic(update) => update,
-    };
-
-    update.verify(lightclient)?;
+    match &data.update {
+        UpdateVariant::Finality(update) => lightclient.verify_finality_update(update)?,
+        UpdateVariant::Optimistic(update) => lightclient.verify_optimistic_update(update)?,
+    }
+    let recent_block = extract_recent_block(&data.update);
 
     let results = data
         .target_blocks
         .iter()
-        .flat_map(|block_proofs_batch| process_block_proofs(&data.update, block_proofs_batch))
+        .flat_map(|block_proofs_batch| process_block_proofs(&recent_block, block_proofs_batch))
         .collect::<Vec<(Message, Result<()>)>>();
 
     for message_result in results.iter() {
@@ -174,9 +173,9 @@ pub fn update_forks(deps: DepsMut, forks: Forks) -> Result<Response> {
 
 #[cfg(test)]
 mod tests {
-    use crate::execute::{self, process_block_proofs, process_transaction_proofs, verify_message};
-    use crate::lightclient::helpers::extract_logs_from_receipt_proof;
+    use crate::execute::{process_block_proofs, process_transaction_proofs, verify_message};
     use crate::lightclient::helpers::test_helpers::get_batched_data;
+    use crate::lightclient::helpers::{extract_logs_from_receipt_proof, extract_recent_block};
     use crate::lightclient::tests::tests::init_lightclient;
     use cosmwasm_std::testing::mock_dependencies;
     use eyre::{eyre, Result};
@@ -333,16 +332,17 @@ mod tests {
     #[test]
     fn test_process_block_proofs() {
         let mut data = get_batched_data().1;
+        let recent_block = extract_recent_block(&data.update);
 
         for target_block in data.target_blocks.iter_mut() {
             let messages = extract_messages_from_block(target_block);
 
-            let res = process_block_proofs(&data.update, target_block);
+            let res = process_block_proofs(&recent_block, target_block);
             assert_valid_messages(&messages, &res);
 
             corrupt_messages(target_block);
             let messages = extract_messages_from_block(target_block);
-            let res = process_block_proofs(&data.update, target_block);
+            let res = process_block_proofs(&recent_block, target_block);
             assert_invalid_messages(&messages, &res);
         }
     }

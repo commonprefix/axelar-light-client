@@ -3,7 +3,7 @@ pub mod tests {
     use std::fs::File;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use crate::lightclient::helpers::test_helpers::{get_batched_data, get_transaction_proofs};
+    use crate::lightclient::helpers::test_helpers::get_batched_data;
     use crate::lightclient::helpers::{
         calc_sync_period, compare_message_with_log, extract_logs_from_receipt_proof,
         hex_str_to_bytes, is_proof_valid, parse_log, parse_logs_from_receipt,
@@ -12,12 +12,9 @@ pub mod tests {
     };
     use crate::{
         lightclient::error::ConsensusError,
+        lightclient::helpers::test_helpers::{get_bootstrap, get_config, get_update},
         lightclient::LightClient,
         lightclient::{self},
-        lightclient::{
-            helpers::test_helpers::{get_bootstrap, get_config, get_update},
-            Verification,
-        },
     };
     use cosmwasm_std::testing::mock_env;
     use cosmwasm_std::Timestamp;
@@ -173,7 +170,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_block_roots_proof() {
-        let mut data = get_batched_data().1;
+        let data = get_batched_data().1;
         let (block_roots_index, block_root_proof) = match &data.target_blocks[0].ancestry_proof {
             AncestryProof::BlockRoots {
                 block_roots_index,
@@ -749,7 +746,7 @@ pub mod tests {
         let mut update = get_update(862);
         update.sync_aggregate.sync_committee_bits = Bitvector::default();
 
-        let err = update.verify(&lightclient).unwrap_err();
+        let err = lightclient.verify_update(&update).unwrap_err();
 
         assert_eq!(
             err.to_string(),
@@ -767,7 +764,7 @@ pub mod tests {
             .unwrap()
             .as_secs()
             + 12;
-        let mut err = update.verify(&lightclient).unwrap_err();
+        let mut err = lightclient.verify_update(&update).unwrap_err();
 
         assert_eq!(
             err.to_string(),
@@ -776,7 +773,7 @@ pub mod tests {
 
         update = get_update(862);
         update.signature_slot = update.attested_header.beacon.slot;
-        err = update.verify(&lightclient).unwrap_err();
+        err = lightclient.verify_update(&update).unwrap_err();
 
         assert_eq!(
             err.to_string(),
@@ -785,7 +782,7 @@ pub mod tests {
 
         update = get_update(862);
         update.finalized_header.beacon.slot = update.attested_header.beacon.slot + 1;
-        err = update.verify(&lightclient).unwrap_err();
+        err = lightclient.verify_update(&update).unwrap_err();
 
         assert_eq!(
             err.to_string(),
@@ -799,7 +796,7 @@ pub mod tests {
         // current period is 862, without a sync committee
         let mut update = get_update(863);
 
-        let mut err = update.verify(&lightclient).unwrap_err();
+        let mut err = lightclient.verify_update(&update).unwrap_err();
 
         assert_eq!(
             err.to_string(),
@@ -815,7 +812,7 @@ pub mod tests {
 
         // update period > current period + 1
         update = get_update(864);
-        err = update.verify(&lightclient).unwrap_err();
+        err = lightclient.verify_update(&update).unwrap_err();
 
         assert_eq!(
             err.to_string(),
@@ -832,7 +829,7 @@ pub mod tests {
         update.attested_header.beacon.slot = lightclient.state.update_slot;
         update.finalized_header.beacon.slot = lightclient.state.update_slot;
         assert!(lightclient.state.next_sync_committee.is_some());
-        let mut err = update.verify(&lightclient).unwrap_err();
+        let mut err = lightclient.verify_update(&update).unwrap_err();
         assert_eq!(
             err.to_string(),
             lightclient::ConsensusError::NotRelevant.to_string()
@@ -842,7 +839,7 @@ pub mod tests {
         update.attested_header.beacon.slot = lightclient.state.update_slot - (256 * 32);
         update.finalized_header.beacon.slot = lightclient.state.update_slot - (256 * 32) - 1; // subtracting 1 for a regression bug
         lightclient.state.next_sync_committee = None;
-        err = update.verify(&lightclient).unwrap_err();
+        err = lightclient.verify_update(&update).unwrap_err();
         assert_eq!(
             err.to_string(),
             lightclient::ConsensusError::NotRelevant.to_string()
@@ -855,7 +852,7 @@ pub mod tests {
         let mut update = get_update(862);
 
         update.finality_branch = vec![];
-        let mut err = update.verify(&lightclient).unwrap_err();
+        let mut err = lightclient.verify_update(&update).unwrap_err();
         assert_eq!(
             err.to_string(),
             lightclient::ConsensusError::InvalidFinalityProof.to_string()
@@ -863,7 +860,7 @@ pub mod tests {
 
         update = get_update(862);
         update.finalized_header.beacon.state_root = Node::default();
-        err = update.verify(&lightclient).unwrap_err();
+        err = lightclient.verify_update(&update).unwrap_err();
         assert_eq!(
             err.to_string(),
             lightclient::ConsensusError::InvalidFinalityProof.to_string()
@@ -876,7 +873,7 @@ pub mod tests {
 
         let mut update = get_update(862);
         update.next_sync_committee.public_keys[0] = BlsPublicKey::default();
-        let err = update.verify(&lightclient).unwrap_err();
+        let err = lightclient.verify_update(&update).unwrap_err();
 
         assert_eq!(
             err.to_string(),
@@ -891,7 +888,7 @@ pub mod tests {
         let mut update = get_update(862);
         update.sync_aggregate.sync_committee_signature = BlsSignature::default();
 
-        let err = update.verify(&lightclient).err().unwrap();
+        let err = lightclient.verify_update(&update).err().unwrap();
         assert_eq!(
             err.to_string(),
             ConsensusError::InvalidSignature.to_string()
@@ -903,7 +900,7 @@ pub mod tests {
         let lightclient = init_lightclient(None);
 
         let update = get_update(862);
-        let res = update.verify(&lightclient);
+        let res = lightclient.verify_update(&update);
         assert!(res.is_ok());
     }
 
