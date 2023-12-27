@@ -33,11 +33,11 @@ async fn main() {
 
     let min_slot_in_block_roots = finality_header_slot - SLOTS_PER_HISTORICAL_ROOT as u64 + 1;
     let messages =
-        consume_messages(&gateway, min_slot_in_block_roots, finality_header_slot, 10).await;
+        consume_messages(&gateway, min_slot_in_block_roots - 1000, min_slot_in_block_roots, 5).await;
 
     // Get only first ten
     let res = prover
-        .batch_messages(&messages[0..10], &update.clone())
+        .batch_messages(&messages, &update.clone())
         .await
         .unwrap();
     debug_print_batch_message_groups(&res);
@@ -47,8 +47,9 @@ async fn main() {
         .await
         .unwrap();
     let proofs_json = serde_json::to_string(&proofs).unwrap();
+    println!("{}", proofs_json);
 
-    println!("Proofs: {}", proofs_json);
+    println!("Proofs: {:?}", proofs);
 }
 
 async fn consume_messages(
@@ -57,7 +58,7 @@ async fn consume_messages(
     to: u64,
     limit: u64,
 ) -> Vec<EnrichedMessage> {
-    gateway.get_messages_in_slot_range(from, to).await.unwrap()[0..limit as usize].to_vec()
+    gateway.get_messages_in_slot_range(from, to, limit).await.unwrap()[0..limit as usize].to_vec()
 }
 
 fn load_prover_config() -> Config {
