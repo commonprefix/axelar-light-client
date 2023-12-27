@@ -8,7 +8,7 @@ use ethers::prelude::EthEvent;
 use ethers::providers::Middleware;
 use ethers::types::{Address, Log, H256, U256};
 use ethers::types::{Block, Filter, Transaction, TransactionReceipt};
-use eyre::Result;
+use eyre::{Result};
 use eyre::{eyre, Context};
 use futures::future::join_all;
 use prover::prover::types::EnrichedMessage;
@@ -52,9 +52,10 @@ impl Gateway {
         &self,
         from_block: u64,
         to_block: u64,
+        limit: u64
     ) -> Result<Vec<EnrichedMessage>> {
         let logs = self
-            .get_contract_call_with_token_logs(from_block, to_block)
+            .get_contract_call_with_token_logs(from_block, to_block, limit)
             .await?;
 
         let events = Self::decode_contract_call_with_token_logs(&logs)?;
@@ -189,6 +190,7 @@ impl Gateway {
         &self,
         from_block: u64,
         to_block: u64,
+        limit: u64
     ) -> Result<Vec<Log>> {
         let signature = "ContractCallWithToken(address,string,string,bytes32,bytes,string,uint256)";
 
@@ -198,7 +200,14 @@ impl Gateway {
             .from_block(from_block)
             .to_block(to_block);
 
-        Ok(self.execution.provider.get_logs(&filter).await?)
+        let logs = self.execution.provider.get_logs(&filter).await?;
+
+        let mut limited = vec![];
+        for i in 0..limit {
+            limited.push(logs[i as usize].clone());
+        }
+
+        Ok(limited)
     }
 
     fn decode_contract_call_with_token_logs(logs: &Vec<Log>) -> Result<Vec<ContractCallWithToken>> {
@@ -220,39 +229,22 @@ impl Gateway {
         &self,
         from_slot: u64,
         to_slot: u64,
+        limit: u64,
     ) -> Result<Vec<EnrichedMessage>> {
         // TODO: Move that out of the code
-        const BLOCK_RANGE: u64 = 500;
-        let latest_block_number = self.execution.get_latest_block_number().await?;
+        const BLOCK_RANGE: u64 = 10000;
+
+        let beacon_block_from  = self.consensus.get_beacon_block(from_slot).await?;
+        let beacon_block_to  = self.consensus.get_beacon_block(to_slot).await?;
 
         let messages = self
             .get_contract_call_with_token_messages(
-                latest_block_number.as_u64() - BLOCK_RANGE,
-                latest_block_number.as_u64(),
+                beacon_block_from.body.execution_payload.block_number,
+                beacon_block_to.body.execution_payload.block_number,
+                limit
             )
             .await?;
 
-        println!("All messages: {:?}", messages.len());
-        let block_heights = messages
-            .iter()
-            .map(|message| message.exec_block.number.unwrap().as_u64())
-            .collect::<Vec<u64>>();
-
-        let blocks = self.execution.get_blocks(&block_heights).await?;
-
-        let filtered_messages = messages
-            .into_iter()
-            .zip(blocks.iter())
-            .filter_map(|(message, block)| {
-                block.as_ref().and_then(|block| {
-                    let slot = calc_slot_from_timestamp(block.timestamp.as_u64());
-                    (slot >= from_slot && slot < to_slot).then_some(message)
-                })
-            })
-            .collect::<Vec<EnrichedMessage>>();
-
-        println!("Messages in range: {:?}", filtered_messages.len());
-
-        Ok(filtered_messages)
+        Ok(messages)
     }
 }
