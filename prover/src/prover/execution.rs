@@ -13,7 +13,7 @@ pub trait ExecutionProverAPI {
         block: &Block<Transaction>,
         receipts: &[TransactionReceipt],
         index: u64,
-    ) -> Result<Vec<String>>;
+    ) -> Result<Vec<Vec<u8>>>;
 }
 
 #[derive(Clone)]
@@ -41,7 +41,7 @@ impl ExecutionProverAPI for ExecutionProver {
         block: &Block<Transaction>,
         receipts: &[TransactionReceipt],
         index: u64,
-    ) -> Result<Vec<String>> {
+    ) -> Result<Vec<Vec<u8>>> {
         let mut trie = utils::generate_trie(receipts.to_owned(), utils::encode_receipt);
         let trie_root = trie.root().unwrap();
 
@@ -56,19 +56,9 @@ impl ExecutionProverAPI for ExecutionProver {
         let receipt_index = encode(&index);
         let proof = trie
             .get_proof(receipt_index.to_vec().as_slice())
-            .map_err(|e| anyhow!("Failed to generate proof: {:?}", e));
+            .map_err(|e| anyhow!("Failed to generate proof: {:?}", e))?;
 
-        if proof.is_err() {
-            return Err(anyhow!("Failed to generate proof"));
-        }
-
-        let proof = proof.unwrap();
-        let proof_hex = proof
-            .into_iter()
-            .map(|node| hex::encode(node))
-            .collect::<Vec<_>>();
-
-        Ok(proof_hex)
+        Ok(proof)
     }
 }
 
@@ -126,19 +116,12 @@ mod tests {
     use sync_committee_rs::constants::Root;
     use tokio::test as tokio_test;
 
-    fn verify_trie_proof(root: Root, key: u64, proof: Vec<String>) -> Result<Vec<u8>> {
+    fn verify_trie_proof(root: Root, key: u64, proof: Vec<Vec<u8>>) -> Result<Vec<u8>> {
         let memdb = Arc::new(MemoryDB::new(true));
         let hasher = Arc::new(HasherKeccak::new());
 
         let trie = PatriciaTrie::new(Arc::clone(&memdb), Arc::clone(&hasher));
-        let proof = trie.verify_proof(
-            root.as_bytes(),
-            encode(&key).to_vec().as_slice(),
-            proof
-                .iter()
-                .map(|node| hex::decode(node).unwrap())
-                .collect::<Vec<_>>(),
-        );
+        let proof = trie.verify_proof(root.as_bytes(), encode(&key).to_vec().as_slice(), proof);
 
         if proof.is_err() {
             return Err(anyhow!("Invalid proof"));
