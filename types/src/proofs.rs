@@ -80,20 +80,20 @@ pub struct ReceiptProof {
     pub receipt: Vec<u8>,
 }
 
-#[derive(serde::Serialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct BatchVerificationData {
     pub update: UpdateVariant,
     pub target_blocks: Vec<BlockProofsBatch>,
 }
 
-#[derive(serde::Serialize, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct BlockProofsBatch {
     pub ancestry_proof: AncestryProof,
     pub target_block: BeaconBlockHeader,
     pub transactions_proofs: Vec<TransactionProofsBatch>,
 }
 
-#[derive(serde::Serialize, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct TransactionProofsBatch {
     pub transaction_proof: TransactionProof,
     pub receipt_proof: ReceiptProof,

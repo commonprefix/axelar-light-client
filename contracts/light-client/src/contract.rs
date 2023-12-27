@@ -107,7 +107,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             &messages
                 .into_iter()
                 .map(|message| {
-                    let result = VERIFIED_MESSAGES.load(deps.storage, message.hash_id());
+                    let result = VERIFIED_MESSAGES.load(deps.storage, message.hash());
                     (message, result.is_ok())
                 })
                 .collect::<Vec<(Message, bool)>>(),

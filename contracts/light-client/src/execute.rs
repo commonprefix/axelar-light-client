@@ -136,7 +136,7 @@ pub fn process_batch_data(
 
     for message_result in results.iter() {
         if message_result.1.is_ok() {
-            VERIFIED_MESSAGES.save(deps.storage, message_result.0.hash_id(), &message_result.0)?
+            VERIFIED_MESSAGES.save(deps.storage, message_result.0.hash(), &message_result.0)?
         }
     }
 
