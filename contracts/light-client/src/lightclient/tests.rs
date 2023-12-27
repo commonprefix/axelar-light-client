@@ -391,21 +391,21 @@ pub mod tests {
             .try_into()
             .unwrap(),
             vec![
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 193, 168, 254, 170, 234, 25, 0, 196, 22,
-                109, 238, 237, 12, 17, 204, 16, 102, 157, 54,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 136, 230, 160, 194, 221, 210, 111, 238, 182,
+                79, 3, 154, 44, 65, 41, 111, 203, 63, 86, 64,
             ]
             .try_into()
             .unwrap(),
             vec![
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 79, 211, 156, 158, 21, 30, 80, 88, 7, 121, 189,
-                4, 177, 247, 236, 195, 16, 7, 159, 211,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 206, 22, 246, 147, 117, 82, 10, 176, 19, 119,
+                206, 123, 136, 245, 186, 140, 72, 248, 214, 102,
             ]
             .try_into()
             .unwrap(),
         ];
         let expected_data: Vec<u8> = vec![
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-            93, 5, 235,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13,
+            102, 10, 194,
         ];
 
         assert_eq!(first_log.address, expected_address);
@@ -568,7 +568,7 @@ pub mod tests {
         let mut modified_message = message.clone();
         assert_eq!(
             modified_message.cc_id.id.split(':').next().unwrap(),
-            "0x9ad48fdaff77b0740b6538da690807adbf75d7d3f369721c157eb8704c074407"
+            "0x31155423f6f436823239ebfc5cbe90eacc42a31b8add287b2579d6df1358014c"
         );
         assert!(
             compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
@@ -608,7 +608,7 @@ pub mod tests {
                 .destination_chain
                 .to_string()
                 .to_lowercase(),
-            "binance"
+            "mantle"
         );
         assert!(
             compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
@@ -640,7 +640,7 @@ pub mod tests {
         let mut modified_message = message.clone();
         assert_eq!(
             hex::encode(modified_message.payload_hash),
-            "2618d45bb5e78320d9177b40497b8bfb691b786e3bdcfd4014078134227a50c7"
+            "f62948e23f22323adee5f2099661ee15413f33d60d754ccacd2a9d67e1fc5243"
         );
         assert!(
             compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)

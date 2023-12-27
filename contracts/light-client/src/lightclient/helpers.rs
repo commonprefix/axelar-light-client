@@ -367,10 +367,8 @@ pub mod test_helpers {
     }
 
     pub fn get_batched_data() -> (Bootstrap, BatchVerificationData) {
-        let verification_file = File::open(format!(
-            "testdata/verification/batched_finality_blockroots.json"
-        ))
-        .unwrap();
+        let verification_file =
+            File::open(format!("testdata/verification/finality_block_roots.json")).unwrap();
         let verification_data: BatchVerificationData =
             serde_json::from_reader(verification_file).unwrap();
 
