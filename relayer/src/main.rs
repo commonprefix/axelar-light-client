@@ -19,13 +19,13 @@ use types::{Config, VerificationMethod};
 #[tokio::main]
 async fn main() {
     let config = load_prover_config();
-
     let prover_config = ProverConfig::from(config.clone());
-    let prover = init_prover(prover_config);
 
     let consensus = Arc::new(ConsensusRPC::new(config.consensus_rpc.clone()));
     let execution = Arc::new(ExecutionRPC::new(config.execution_rpc.clone()));
     let gateway: Gateway = Gateway::new(consensus.clone(), execution.clone(), config.gateway_addr);
+
+    let prover = init_prover(consensus.clone(), prover_config);
 
     let finality_update = consensus.get_finality_update().await.unwrap();
     let update = UpdateVariant::Finality(finality_update.clone());
