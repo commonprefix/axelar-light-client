@@ -56,9 +56,9 @@ impl ExecutionProverAPI for ExecutionProver {
         let receipt_index = encode(&index);
         let proof = trie
             .get_proof(receipt_index.to_vec().as_slice())
-            .map_err(|e| anyhow!("Failed to generate proof: {:?}", e))?;
+            .map_err(|e| anyhow!("Failed to generate proof: {:?}", e));
 
-        Ok(proof)
+        proof
     }
 }
 
@@ -116,12 +116,16 @@ mod tests {
     use sync_committee_rs::constants::Root;
     use tokio::test as tokio_test;
 
-    fn verify_trie_proof(root: Root, key: u64, proof: Vec<Vec<u8>>) -> Result<Vec<u8>> {
+    fn verify_trie_proof(root: Root, key: u64, proof_bytes: Vec<Vec<u8>>) -> Result<Vec<u8>> {
         let memdb = Arc::new(MemoryDB::new(true));
         let hasher = Arc::new(HasherKeccak::new());
 
         let trie = PatriciaTrie::new(Arc::clone(&memdb), Arc::clone(&hasher));
-        let proof = trie.verify_proof(root.as_bytes(), encode(&key).to_vec().as_slice(), proof);
+        let proof = trie.verify_proof(
+            root.as_bytes(),
+            encode(&key).to_vec().as_slice(),
+            proof_bytes,
+        );
 
         if proof.is_err() {
             return Err(anyhow!("Invalid proof"));
