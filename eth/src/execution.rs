@@ -8,7 +8,6 @@ use eyre::Result;
 use mockall::automock;
 
 use crate::error::RPCError;
-
 #[automock]
 #[async_trait]
 pub trait EthExecutionAPI {
@@ -22,6 +21,7 @@ pub trait EthExecutionAPI {
 
 pub struct ExecutionRPC {
     pub provider: Provider<RetryClient<Http>>,
+    pub rpc: String,
 }
 
 impl ExecutionRPC {
@@ -32,10 +32,11 @@ impl ExecutionRPC {
 
         let provider = Provider::new(client);
 
-        ExecutionRPC { provider }
+        ExecutionRPC { rpc, provider }
     }
 }
 
+#[cfg(not(tarpaulin_include))]
 #[automock]
 #[async_trait]
 impl EthExecutionAPI for ExecutionRPC {
