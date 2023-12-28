@@ -3482,6 +3482,7 @@ dependencies = [
  "futures",
  "hasher",
  "hex",
+ "httptest",
  "indexmap 2.1.0",
  "mockall",
  "reqwest",

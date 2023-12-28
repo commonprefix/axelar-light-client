@@ -266,8 +266,6 @@ impl EthBeaconAPI for ConsensusRPC {
 
 #[cfg(test)]
 mod tests {
-    use std::result;
-
     use super::*;
     use httptest::{matchers::*, responders::*, Expectation, Server};
 
