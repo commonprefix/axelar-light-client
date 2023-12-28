@@ -57,11 +57,11 @@ impl StateProverAPI for StateProver {
     ) -> Result<ProofResponse> {
         let req = match gindex_or_path {
             GindexOrPath::Gindex(gindex) => format!(
-                "{}/state_proof/?state_id={}&gindex={}",
+                "{}/state_proof?state_id={}&gindex={}",
                 self.rpc, state_id, gindex
             ),
             GindexOrPath::Path(path) => format!(
-                "{}/state_proof/?state_id={}&path={}",
+                "{}/state_proof?state_id={}&path={}",
                 self.rpc,
                 state_id,
                 parse_path(path)
@@ -101,6 +101,7 @@ impl StateProverAPI for StateProver {
 mod tests {
     use super::*;
     use httptest::{matchers::*, responders::*, Expectation, Server};
+    use ssz_rs::SszVariableOrIndex;
 
     fn setup_server_and_prover() -> (Server, StateProver) {
         let server = Server::run();
@@ -116,8 +117,13 @@ mod tests {
         let json_response = serde_json::to_string(&expected_response).unwrap();
 
         server.expect(
-            Expectation::matching(any())
-                .respond_with(status_code(200).body(json_response)),
+            Expectation::matching(
+                all_of![
+                    request::query(url_decoded(contains(("state_id", "state_id")))),
+                    request::query(url_decoded(contains(("gindex", "1")))),
+                ]
+            )
+            .respond_with(status_code(200).body(json_response)),
         );
 
         let result = prover
@@ -128,11 +134,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_get_state_proof_with_path() {
+        let (server, prover) = setup_server_and_prover();
+        let expected_response = ProofResponse::default();
+        let json_response = serde_json::to_string(&expected_response).unwrap();
+
+        server.expect(
+            Expectation::matching(
+                all_of![
+                    request::query(url_decoded(contains(("state_id", "state_id")))),
+                    request::query(url_decoded(contains(("path", "test,lala")))),
+                ]
+            )
+            .respond_with(status_code(200).body(json_response)),
+        );
+
+        let path = vec![SszVariableOrIndex::Name("test"), SszVariableOrIndex::Name("lala")];
+        let result = prover
+            .get_state_proof("state_id", &&GindexOrPath::Path(path))
+            .await
+            .unwrap();
+        assert_eq!(result, expected_response);
+    }
+
+    #[tokio::test]
     async fn test_get_state_proof_error() {
         let (server, prover) = setup_server_and_prover();
 
         server.expect(
-            Expectation::matching(any())
+            Expectation::matching(
+                all_of![
+                    request::query(url_decoded(contains(("state_id", "state_id")))),
+                    request::query(url_decoded(contains(("gindex", "1")))),
+                ]
+            )
                 .respond_with(status_code(400).body("Error")),
         );
 
@@ -148,8 +183,13 @@ mod tests {
         let json_response = serde_json::to_string(&ProofResponse::default()).unwrap();
 
         server.expect(
-            Expectation::matching(any())
-                .respond_with(status_code(200).body(json_response)),
+            Expectation::matching(
+                all_of![
+                    request::query(url_decoded(contains(("block_id", "block_id")))),
+                    request::query(url_decoded(contains(("gindex", "1")))),
+                ]
+            )
+            .respond_with(status_code(200).body(json_response)),
         );
 
         let result = prover
@@ -160,12 +200,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_get_block_proof_with_path() {
+        let (server, prover) = setup_server_and_prover();
+        let json_response = serde_json::to_string(&ProofResponse::default()).unwrap();
+
+        server.expect(
+            Expectation::matching(
+                all_of![
+                    request::query(url_decoded(contains(("block_id", "block_id")))),
+                    request::query(url_decoded(contains(("path", "test,lala")))),
+                ]
+            )
+            .respond_with(status_code(200).body(json_response)),
+        );
+
+        let path = vec![SszVariableOrIndex::Name("test"), SszVariableOrIndex::Name("lala")];
+        let result = prover
+            .get_block_proof("block_id", GindexOrPath::Path(path))
+            .await
+            .unwrap();
+        assert_eq!(result, ProofResponse::default());
+    }
+
+    #[tokio::test]
     async fn test_get_block_proof_error() {
         let (server, prover) = setup_server_and_prover();
 
         server.expect(
-            Expectation::matching(any())
-                .respond_with(status_code(400)),
+            Expectation::matching(
+                all_of![
+                    request::query(url_decoded(contains(("block_id", "block_id")))),
+                    request::query(url_decoded(contains(("gindex", "1")))),
+                ]
+            )
+            .respond_with(status_code(400)),
         );
 
         let result = prover
