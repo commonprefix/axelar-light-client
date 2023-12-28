@@ -206,13 +206,14 @@ impl EthBeaconAPI for ConsensusRPC {
     ) -> Result<Vector<Root, SLOTS_PER_HISTORICAL_ROOT>, RPCError> {
         let mut futures = Vec::new();
     
-        for i in 0..1000 {
+        for i in 0..SLOTS_PER_HISTORICAL_ROOT {
             let future = self.get_block_root(start_slot + i as u64);
             futures.push(future);
         }
     
         let resolved = future::join_all(futures).await;
     
+        // If any of the block roots failed to resolve, fill in the gaps with the last known root.
         let mut block_roots = Vec::with_capacity(SLOTS_PER_HISTORICAL_ROOT);
         for block_root in resolved {
             match block_root {
@@ -379,4 +380,62 @@ mod tests {
         let result = rpc.get_beacon_block(slot).await;
         assert_eq!(result.unwrap(), expected_block);
     }
+
+    #[tokio::test]
+    async fn test_get_block_roots_tree() {
+        let (server, rpc) = setup_server_and_rpc();
+        // Define the starting slot for the test
+        let start_slot = 100;
+
+        let response = BlockRootResponse { data: BlockRoot { root: Default::default() }};
+        let json_res = serde_json::to_string(&response).unwrap();
+
+        server.expect(
+            Expectation::matching(any())
+                //TODO: Fix this to be SLOTS_PER_HISTORICAL_ROOT
+                .times(1..)
+                .respond_with(status_code(200).body(json_res.clone())),
+        );
+
+        // Call the method under test
+        let result = rpc.get_block_roots_tree(start_slot as u64).await;
+
+        // Verify the result
+        // Replace the verification logic with appropriate checks
+        match result {
+            Ok(roots_vector) => {
+                assert_eq!(roots_vector.len(), SLOTS_PER_HISTORICAL_ROOT);
+                // Additional assertions can be made here
+            },
+            Err(e) => panic!("Failed to get block roots tree: {:?}", e),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_block_roots_tree_with_fallback() {
+        let (server, rpc) = setup_server_and_rpc();
+        let start_slot = 100;
+    
+        // Prepare responses for both successful and failed block root requests
+        let response = BlockRootResponse { data: BlockRoot { root: Default::default() }};
+        let response_json = serde_json::to_string(&response).unwrap();
+    
+        server.expect(
+            Expectation::matching(any()).times(..).respond_with(
+    cycle![
+                    status_code(200).body(response_json.clone()),
+                    status_code(404),
+                ]
+            ));
+    
+        // Call the method under test
+        let result = rpc.get_block_roots_tree(start_slot as u64).await;
+    
+        // Verify the result
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert_eq!(result.len(), SLOTS_PER_HISTORICAL_ROOT);
+        assert_eq!([Root::default(); 8192].to_vec(), result.to_vec());
+    }
+    
 }

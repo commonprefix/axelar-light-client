@@ -47,12 +47,12 @@ pub struct OptimisticUpdateData {
     pub data: OptimisticUpdate,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug, Default)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Default, Clone)]
 pub struct BlockRootResponse {
     pub data: BlockRoot,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug, Default)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Default, Clone)]
 pub struct BlockRoot {
     pub root: Node,
 }
