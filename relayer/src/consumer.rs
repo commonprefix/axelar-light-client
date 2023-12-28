@@ -8,7 +8,7 @@ use ethers::prelude::EthEvent;
 use ethers::providers::Middleware;
 use ethers::types::{Address, Log, H256, U256};
 use ethers::types::{Block, Filter, Transaction, TransactionReceipt};
-use eyre::{Result};
+use eyre::Result;
 use eyre::{eyre, Context};
 use futures::future::join_all;
 use prover::prover::types::EnrichedMessage;
@@ -52,7 +52,7 @@ impl Gateway {
         &self,
         from_block: u64,
         to_block: u64,
-        limit: u64
+        limit: u64,
     ) -> Result<Vec<EnrichedMessage>> {
         let logs = self
             .get_contract_call_with_token_logs(from_block, to_block, limit)
@@ -190,7 +190,7 @@ impl Gateway {
         &self,
         from_block: u64,
         to_block: u64,
-        limit: u64
+        limit: u64,
     ) -> Result<Vec<Log>> {
         let signature = "ContractCallWithToken(address,string,string,bytes32,bytes,string,uint256)";
 
@@ -231,17 +231,14 @@ impl Gateway {
         to_slot: u64,
         limit: u64,
     ) -> Result<Vec<EnrichedMessage>> {
-        // TODO: Move that out of the code
-        const BLOCK_RANGE: u64 = 10000;
-
-        let beacon_block_from  = self.consensus.get_beacon_block(from_slot).await?;
-        let beacon_block_to  = self.consensus.get_beacon_block(to_slot).await?;
+        let beacon_block_from = self.consensus.get_beacon_block(from_slot).await?;
+        let beacon_block_to = self.consensus.get_beacon_block(to_slot).await?;
 
         let messages = self
             .get_contract_call_with_token_messages(
                 beacon_block_from.body.execution_payload.block_number,
                 beacon_block_to.body.execution_payload.block_number,
-                limit
+                limit,
             )
             .await?;
 

@@ -32,8 +32,13 @@ async fn main() {
     let finality_header_slot = finality_update.finalized_header.beacon.slot;
 
     let min_slot_in_block_roots = finality_header_slot - SLOTS_PER_HISTORICAL_ROOT as u64 + 1;
-    let messages =
-        consume_messages(&gateway, min_slot_in_block_roots - 1000, min_slot_in_block_roots, 5).await;
+    let messages = consume_messages(
+        &gateway,
+        min_slot_in_block_roots - 1000,
+        min_slot_in_block_roots,
+        5,
+    )
+    .await;
 
     // Get only first ten
     let res = prover
@@ -58,7 +63,11 @@ async fn consume_messages(
     to: u64,
     limit: u64,
 ) -> Vec<EnrichedMessage> {
-    gateway.get_messages_in_slot_range(from, to, limit).await.unwrap()[0..limit as usize].to_vec()
+    gateway
+        .get_messages_in_slot_range(from, to, limit)
+        .await
+        .unwrap()[0..limit as usize]
+        .to_vec()
 }
 
 fn load_prover_config() -> Config {
