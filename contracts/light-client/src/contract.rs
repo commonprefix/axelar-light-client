@@ -5,14 +5,16 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
-use crate::lightclient::helpers::calc_sync_period;
+use crate::lightclient::helpers::{calc_sync_period, parse_keys, store_keys};
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::{lightclient::LightClient, state::*};
 use eyre::Result;
 
 use crate::execute::{self, process_batch_data};
 use cw2::{self, set_contract_version};
-use types::lightclient::Message;
+use types::lightclient::{
+    LightClientState, LightClientStateWithKeys, Message, PublicKeyWrapper, SyncCommitteeWithKeys,
+};
 use types::proofs::CrossChainId;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -25,7 +27,30 @@ pub fn instantiate(
     let mut lc = LightClient::new(&msg.config, None, &env);
     lc.bootstrap(&msg.bootstrap).unwrap();
 
-    LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
+    LIGHT_CLIENT_STATE.save(
+        deps.storage,
+        &LightClientState {
+            update_slot: lc.state.update_slot,
+            next_sync_committee: if lc.state.next_sync_committee.is_some() {
+                Some(lc.state.next_sync_committee.clone().unwrap().committee)
+            } else {
+                None
+            },
+            current_sync_committee: lc.state.current_sync_committee.committee,
+        },
+    )?;
+    let _ = store_keys(
+        &CURRENT_COMMITTEE_KEYS,
+        &lc.state.current_sync_committee.keys,
+        deps.storage,
+    );
+    if lc.state.next_sync_committee.is_some() {
+        let _ = store_keys(
+            &NEXT_COMMITTEE_KEYS,
+            &lc.state.next_sync_committee.clone().unwrap().keys,
+            deps.storage,
+        );
+    }
     CONFIG.save(deps.storage, &msg.config)?;
 
     let period = calc_sync_period(msg.bootstrap.header.beacon.slot);
@@ -59,7 +84,22 @@ pub fn execute(
         BatchVerificationData { payload } => {
             let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
             let config = CONFIG.load(deps.storage)?;
-            let lc = LightClient::new(&config, Some(state), &env);
+            let with_keys = LightClientStateWithKeys {
+                update_slot: state.update_slot,
+                current_sync_committee: SyncCommitteeWithKeys {
+                    committee: state.current_sync_committee.clone(),
+                    keys: parse_keys(&CURRENT_COMMITTEE_KEYS, deps.storage).unwrap(),
+                },
+                next_sync_committee: if state.next_sync_committee.is_some() {
+                    Some(SyncCommitteeWithKeys {
+                        committee: state.next_sync_committee.unwrap().clone(),
+                        keys: parse_keys(&NEXT_COMMITTEE_KEYS, deps.storage).unwrap(),
+                    })
+                } else {
+                    None
+                },
+            };
+            let lc = LightClient::new(&config, Some(with_keys), &env);
 
             let results = process_batch_data(deps, &lc, &payload);
             if let Err(err) = results {
