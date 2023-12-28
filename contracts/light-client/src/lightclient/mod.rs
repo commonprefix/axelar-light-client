@@ -2,11 +2,15 @@ pub mod error;
 pub mod helpers;
 pub mod tests;
 
+use crate::state::{CURRENT_COMMITTEE_KEYS, NEXT_COMMITTEE_KEYS, VERIFIED_MESSAGES};
 use cosmwasm_std::Env;
+use cw_storage_plus::Map;
 use error::ConsensusError;
 use eyre::Result;
 use helpers::is_proof_valid;
-use milagro_bls::{AggregateSignature, PublicKey};
+use std::collections::HashMap;
+use types::lightclient::{LightClientStateWithKeys, SyncCommitteeWithKeys};
+use types::milagro_bls::{AggregateSignature, PublicKey};
 use types::ssz_rs::prelude::*;
 use types::sync_committee_rs::{
     consensus_types::{BeaconBlockHeader, ForkData, SyncCommittee},
@@ -18,13 +22,13 @@ use types::{common::ChainConfig, consensus::*, lightclient::LightClientState};
 use self::helpers::calc_sync_period;
 
 pub struct LightClient {
-    pub state: LightClientState,
+    pub state: LightClientStateWithKeys,
     pub config: ChainConfig,
     env: Env,
 }
 
 impl LightClient {
-    pub fn new(config: &ChainConfig, state: Option<LightClientState>, env: &Env) -> Self {
+    pub fn new(config: &ChainConfig, state: Option<LightClientStateWithKeys>, env: &Env) -> Self {
         let state = state.unwrap_or_default();
         Self {
             state,
@@ -44,9 +48,12 @@ impl LightClient {
             return Err(ConsensusError::InvalidCurrentSyncCommitteeProof);
         }
 
-        self.state = LightClientState {
+        self.state = LightClientStateWithKeys {
             update_slot: bootstrap.header.beacon.slot,
-            current_sync_committee: bootstrap.current_sync_committee.clone(),
+            current_sync_committee: SyncCommitteeWithKeys {
+                committee: bootstrap.current_sync_committee.clone(),
+                keys: self.get_keys(&bootstrap.current_sync_committee),
+            },
             next_sync_committee: None,
         };
 
@@ -144,12 +151,12 @@ impl LightClient {
             self.state.next_sync_committee.clone().unwrap()
         };
 
-        let pks = self
-            .get_participating_keys(&sync_committee, &update.sync_aggregate.sync_committee_bits);
-
         let is_valid_sig = self.verify_sync_committee_signature(
             &self.config,
-            &pks,
+            &self.filter_participating_keys(
+                &sync_committee.keys,
+                &update.sync_aggregate.sync_committee_bits,
+            ),
             &update.attested_header.beacon,
             &update.sync_aggregate.sync_committee_signature,
             update.signature_slot,
@@ -184,10 +191,16 @@ impl LightClient {
             let store_period = calc_sync_period(self.state.update_slot);
 
             if self.state.next_sync_committee.is_none() {
-                self.state.next_sync_committee = Some(update.next_sync_committee.clone());
+                self.state.next_sync_committee = Some(SyncCommitteeWithKeys {
+                    committee: update.next_sync_committee.clone(),
+                    keys: self.get_keys(&update.next_sync_committee),
+                });
             } else if update_finalized_period == store_period + 1 {
                 self.state.current_sync_committee = self.state.next_sync_committee.clone().unwrap();
-                self.state.next_sync_committee = Some(update.next_sync_committee.clone());
+                self.state.next_sync_committee = Some(SyncCommitteeWithKeys {
+                    committee: update.next_sync_committee.clone(),
+                    keys: self.get_keys(&update.next_sync_committee),
+                });
             }
 
             if update_finalized_slot > self.state.update_slot {
@@ -275,21 +288,25 @@ impl LightClient {
         }
     }
 
-    fn get_participating_keys(
+    fn filter_participating_keys(
         &self,
-        committee: &SyncCommittee<SYNC_COMMITTEE_SIZE>,
+        keys: &Vec<PublicKey>,
         bitfield: &Bitvector<512>,
     ) -> Vec<PublicKey> {
-        let mut pks: Vec<PublicKey> = Vec::new();
-        bitfield.iter().enumerate().for_each(|(i, bit)| {
-            if bit == true {
-                let pk = &committee.public_keys[i];
-                let pk = PublicKey::from_bytes_unchecked(pk).unwrap();
-                pks.push(pk);
-            }
-        });
+        bitfield
+            .iter()
+            .enumerate()
+            .filter(|(_, bit)| *bit == true)
+            .map(|(i, _)| keys.get(i).unwrap().clone())
+            .collect()
+    }
 
-        pks
+    fn get_keys(&self, committee: &SyncCommittee<SYNC_COMMITTEE_SIZE>) -> Vec<PublicKey> {
+        committee
+            .public_keys
+            .iter()
+            .map(|pk| PublicKey::from_bytes_unchecked(pk).unwrap())
+            .collect()
     }
 
     fn verify_sync_committee_signature<T>(
