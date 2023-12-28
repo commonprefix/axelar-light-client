@@ -11,6 +11,7 @@ axelar-wasm-std = {git = "https://github.com/axelarnetwork/axelar-amplifier", fe
 connection-router = {git = "https://github.com/axelarnetwork/axelar-amplifier", features = ["library"]}
 eyre = "0.6.8"
 hex = "0.4.3"
+milagro_bls = {git = "https://github.com/pkakelas/milagro_bls"}
 serde = {version = "1.0.145", default-features = false, features = ["derive"]}
 ssz-rs = {git = "https://github.com/commonprefix/ssz-rs", branch = "main"}
 sync-committee-rs = {package = "sync-committee-primitives", git = "https://github.com/commonprefix/sync-committee-rs", branch = "cp_changes", default-features = false, features = ["serialize", "mainnet"]}

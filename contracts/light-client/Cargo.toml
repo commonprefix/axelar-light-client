@@ -40,7 +40,6 @@ cw2 = "1.1.1"
 eyre = "0.6.8"
 hasher = "0.1.4"
 hex = "0.4.3"
-milagro_bls = {git = "https://github.com/pkakelas/milagro_bls"}
 serde = {version = "1.0.145", default-features = false, features = ["derive"]}
 thiserror = {version = "1.0.31"}
 types = {path = "../../types"}
