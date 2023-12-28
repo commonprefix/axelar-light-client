@@ -1,4 +1,5 @@
 use ethers::types::H256;
+use reqwest::StatusCode;
 use thiserror::Error;
 
 #[derive(Debug, Error, Clone)]
@@ -7,12 +8,20 @@ pub enum RPCError {
     NotFoundError(String),
     #[error("Rate limit error on request: {0}")]
     RateLimitError(String),
-    #[error("Error sending request: {0} {1}")]
-    RequestError(String, String),
+    #[error("Error sending request: {0}")]
+    RequestError(String),
     #[error("UnknownError for request: {0}")]
     UnknownError(String),
-    #[error("Error deserializing response: {0}")]
-    DeserializationError(String),
+    #[error("Error deserializing response: {0} {1}")]
+    DeserializationError(String, String),
+}
+
+pub fn gen_err(req: String, status: StatusCode) -> RPCError {
+    match status {
+        StatusCode::NOT_FOUND => RPCError::NotFoundError(req),
+        StatusCode::TOO_MANY_REQUESTS => RPCError::RateLimitError(req),
+        _ => RPCError::UnknownError(req),
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

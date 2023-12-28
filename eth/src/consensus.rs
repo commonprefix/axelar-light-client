@@ -1,11 +1,9 @@
-use crate::error::RPCError;
-use crate::types::*;
-use crate::utils::get;
+use crate::{types::*, error::RPCError};
 use async_trait::async_trait;
 use futures::future;
 use mockall::automock;
 use ssz_rs::Vector;
-use std::cmp;
+use std::{cmp, time::Duration};
 use sync_committee_rs::{
     consensus_types::BeaconBlockHeader,
     constants::{Root, SLOTS_PER_HISTORICAL_ROOT},
@@ -30,13 +28,21 @@ pub trait EthBeaconAPI: Sync + Send + 'static {
 #[derive(Clone)]
 pub struct ConsensusRPC {
     rpc: String,
+    client: reqwest::Client,
 }
 
 #[allow(dead_code)]
 impl ConsensusRPC {
     pub fn new(rpc: String) -> Self {
-        ConsensusRPC { rpc }
+        let client = reqwest::Client::builder()
+            .pool_max_idle_per_host(500)
+            .connect_timeout(Duration::from_secs(60))
+            .timeout(Duration::from_secs(60))
+            .build().unwrap();
+
+            ConsensusRPC { rpc, client }
     }
+
 }
 
 #[automock]
@@ -44,66 +50,154 @@ impl ConsensusRPC {
 impl EthBeaconAPI for ConsensusRPC {
     async fn get_block_root(&self, slot: u64) -> Result<Root, RPCError> {
         let req = format!("{}/eth/v1/beacon/blocks/{}/root", self.rpc, slot);
+        println!("{}", req);
 
-        let res: BlockRootResponse = get(&req).await?;
+        let res = self.client
+            .get(&req)
+            .send()
+            .await
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
 
-        Ok(res.data.root)
+        if res.status() != reqwest::StatusCode::OK {
+            return Err(RPCError::RequestError(format!("Unexpected status code: {}", res.status())));
+        }
+
+        let data = res
+            .json::<BlockRootResponse>()
+            .await
+            .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
+
+        Ok(data.data.root)
     }
 
     async fn get_bootstrap(&self, block_root: &'_ [u8]) -> Result<Bootstrap, RPCError> {
         let root_hex = hex::encode(block_root);
-        let req = format!(
-            "{}/eth/v1/beacon/light_client/bootstrap/0x{}",
-            self.rpc, root_hex
-        );
-
-        let res: BootstrapResponse = get::<BootstrapResponse>(&req).await?;
-
-        Ok(res.data)
+        let req = format!("{}/eth/v1/beacon/light_client/bootstrap/0x{}", self.rpc, root_hex);
+    
+        let res = self.client
+            .get(&req)
+            .send()
+            .await
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
+    
+        if res.status() != reqwest::StatusCode::OK {
+            return Err(RPCError::RequestError(format!("Unexpected status code: {}", res.status())));
+        }
+    
+        let data = res
+            .json::<BootstrapResponse>()
+            .await
+            .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
+    
+        Ok(data.data)
     }
 
     async fn get_updates(&self, period: u64, count: u8) -> Result<Vec<Update>, RPCError> {
         let count = cmp::min(count, 10);
-        let req = format!(
-            "{}/eth/v1/beacon/light_client/updates?start_period={}&count={}",
-            self.rpc, period, count
-        );
-
-        let res: UpdateResponse = get(&req).await?;
-
-        Ok(res.into_iter().map(|d| d.data).collect())
+        let req = format!("{}/eth/v1/beacon/light_client/updates?start_period={}&count={}", self.rpc, period, count);
+    
+        let res = self.client
+            .get(&req)
+            .send()
+            .await
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
+    
+        if res.status() != reqwest::StatusCode::OK {
+            return Err(RPCError::RequestError(format!("Unexpected status code: {}", res.status())));
+        }
+    
+        let data = res
+            .json::<Vec<UpdateData>>()
+            .await
+            .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
+    
+        Ok(data.into_iter().map(|d| d.data).collect())
     }
 
     async fn get_finality_update(&self) -> Result<FinalityUpdate, RPCError> {
         let req = format!("{}/eth/v1/beacon/light_client/finality_update", self.rpc);
-
-        let res: FinalityUpdateData = get(&req).await?;
-
-        Ok(res.data)
+    
+        let res = self.client
+            .get(&req)
+            .send()
+            .await
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
+    
+        if res.status() != reqwest::StatusCode::OK {
+            return Err(RPCError::RequestError(format!("Unexpected status code: {}", res.status())));
+        }
+    
+        let data = res
+            .json::<FinalityUpdateData>()
+            .await
+            .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
+    
+        Ok(data.data)
     }
+
+
 
     async fn get_optimistic_update(&self) -> Result<OptimisticUpdate, RPCError> {
         let req = format!("{}/eth/v1/beacon/light_client/optimistic_update", self.rpc);
-
-        let res: OptimisticUpdateData = get(&req).await?;
-
-        Ok(res.data)
+    
+        let res = self.client
+            .get(&req)
+            .send()
+            .await
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
+    
+        if res.status() != reqwest::StatusCode::OK {
+            return Err(RPCError::RequestError(format!("Unexpected status code: {}", res.status())));
+        }
+    
+        let data = res
+            .json::<OptimisticUpdateData>()
+            .await
+            .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
+    
+        Ok(data.data)
     }
 
     async fn get_beacon_block_header(&self, slot: u64) -> Result<BeaconBlockHeader, RPCError> {
         let req = format!("{}/eth/v1/beacon/headers/{}", self.rpc, slot);
-
-        let res: BeaconBlockHeaderResponse = get(&req).await?;
-
-        Ok(res.data.header.message)
+    
+        let res = self.client
+            .get(&req)
+            .send()
+            .await
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
+    
+        if res.status() != reqwest::StatusCode::OK {
+            return Err(RPCError::RequestError(format!("Unexpected status code: {}", res.status())));
+        }
+    
+        let data = res
+            .json::<BeaconBlockHeaderResponse>()
+            .await
+            .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
+    
+        Ok(data.data.header.message)
     }
 
     async fn get_beacon_block(&self, slot: u64) -> Result<BeaconBlockAlias, RPCError> {
         let req = format!("{}/eth/v2/beacon/blocks/{}", self.rpc, slot);
-
-        let res: BeaconBlockResponse = get(&req).await?;
-
-        Ok(res.data.message)
+    
+        let res = self.client
+            .get(&req)
+            .send()
+            .await
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
+    
+        if res.status() != reqwest::StatusCode::OK {
+            return Err(RPCError::RequestError(format!("Unexpected status code: {}", res.status())));
+        }
+    
+        let data = res
+            .json::<BeaconBlockResponse>()
+            .await
+            .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
+    
+        Ok(data.data.message)
     }
 
     async fn get_block_roots_tree(
