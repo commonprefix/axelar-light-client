@@ -14,6 +14,7 @@ use consensus_types::{
         TransactionProofsBatch, UpdateVariant,
     },
 };
+
 use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use eyre::{anyhow, Context, Result};
 use indexmap::IndexMap;
@@ -22,16 +23,13 @@ use sync_committee_rs::{consensus_types::BeaconBlockHeader, constants::Root};
 use types::BatchMessageGroups;
 use types::EnrichedMessage;
 
-pub struct Prover {
-    consensus_prover: Box<dyn ConsensusProverAPI>,
-    execution_prover: Box<dyn ExecutionProverAPI>,
+pub struct Prover<CP: ConsensusProverAPI, EP: ExecutionProverAPI> {
+    consensus_prover: CP,
+    execution_prover: EP,
 }
 
-impl Prover {
-    pub fn new(
-        consensus_prover: Box<dyn ConsensusProverAPI>,
-        execution_prover: Box<dyn ExecutionProverAPI>,
-    ) -> Self {
+impl<CP: ConsensusProverAPI, EP: ExecutionProverAPI> Prover<CP, EP> {
+    pub fn new(consensus_prover: CP, execution_prover: EP) -> Self {
         Prover {
             consensus_prover,
             execution_prover,
@@ -279,10 +277,9 @@ mod tests {
             exec_block: get_mock_exec_block_with_txs(block_number),
             beacon_block: get_mock_beacon_block(slot),
             receipts: (1..100)
-                .map(|i| {
-                    let mut receipt = TransactionReceipt::default();
-                    receipt.transaction_hash = H256::from_low_u64_be(i);
-                    receipt
+                .map(|i| TransactionReceipt {
+                    transaction_hash: H256::from_low_u64_be(i),
+                    ..Default::default()
                 })
                 .collect(),
         }
@@ -336,9 +333,12 @@ mod tests {
     }
 
     fn get_mock_beacon_block(slot: u64) -> BeaconBlockAlias {
-        let mut block = BeaconBlockAlias::default();
-        block.slot = slot;
+        let mut block = BeaconBlockAlias {
+            slot,
+            ..Default::default()
+        };
         block.body.execution_payload.transactions = ssz_rs::List::default();
+
         for _ in 1..10 {
             block
                 .body
@@ -368,7 +368,7 @@ mod tests {
 
         let (_consensus_rpc, _execution_rpc, _state_prover) = setup();
 
-        let mut consensus_prover = MockConsensusProver::new();
+        let mut consensus_prover = MockConsensusProver::<MockConsensusRPC, MockStateProver>::new();
         consensus_prover
             .expect_prove_ancestry()
             .returning(|_, _, _| {
@@ -389,7 +389,7 @@ mod tests {
             .expect_generate_receipt_proof()
             .returning(|_, _, _| Ok(Default::default()));
 
-        let prover = Prover::new(Box::new(consensus_prover), Box::new(execution_prover));
+        let prover = Prover::new(consensus_prover, execution_prover);
 
         let res = prover
             .batch_generate_proofs(batch_message_groups, mock_update.clone())
@@ -445,10 +445,10 @@ mod tests {
             mock_message5.clone(),
         ];
 
-        let consensus_prover = MockConsensusProver::new();
+        let consensus_prover = MockConsensusProver::<MockConsensusRPC, MockStateProver>::new();
         let execution_prover = MockExecutionProver::new();
 
-        let prover = Prover::new(Box::new(consensus_prover), Box::new(execution_prover));
+        let prover = Prover::new(consensus_prover, execution_prover);
 
         let result = prover
             .batch_messages(messages.as_ref(), &update)

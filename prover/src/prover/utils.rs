@@ -64,9 +64,10 @@ mod tests {
     };
 
     fn get_mock_receipt() -> TransactionReceipt {
-        let mut receipt = TransactionReceipt::default();
-        receipt.transaction_hash = H256::random();
-        receipt
+        TransactionReceipt {
+            transaction_hash: H256::random(),
+            ..Default::default()
+        }
     }
 
     #[test]

@@ -52,29 +52,26 @@ pub trait ConsensusProverAPI {
 }
 
 #[derive(Clone)]
-pub struct ConsensusProver {
-    state_prover: Arc<dyn StateProverAPI>,
-    consensus_rpc: Arc<dyn EthBeaconAPI>,
+pub struct ConsensusProver<CR: EthBeaconAPI, SP: StateProverAPI> {
+    consensus_rpc: Arc<CR>,
+    state_prover: SP,
 }
 
 /**
  * Generates a merkle proof from the transaction to the beacon block root.
 */
-impl ConsensusProver {
-    pub fn new(
-        consensus_rpc: Arc<dyn EthBeaconAPI>,
-        state_prover: Arc<dyn StateProverAPI>,
-    ) -> Self {
+impl<CR: EthBeaconAPI, SP: StateProverAPI> ConsensusProver<CR, SP> {
+    pub fn new(consensus_rpc: Arc<CR>, state_prover: SP) -> Self {
         ConsensusProver {
-            state_prover,
             consensus_rpc,
+            state_prover,
         }
     }
 }
 
 #[automock]
 #[async_trait]
-impl ConsensusProverAPI for ConsensusProver {
+impl<CR: EthBeaconAPI, SP: StateProverAPI> ConsensusProverAPI for ConsensusProver<CR, SP> {
     async fn generate_transaction_proof(
         &self,
         block_id: &str,
@@ -267,7 +264,7 @@ mod tests {
         consensus_block_number: u64,
     ) -> (
         Arc<MockConsensusRPC>,
-        Arc<MockStateProver>,
+        MockStateProver,
         BeaconBlockAlias,
         Node,
     ) {
@@ -279,12 +276,7 @@ mod tests {
             .unwrap();
         let block_root = block.hash_tree_root().unwrap();
 
-        (
-            Arc::new(consensus),
-            Arc::new(state_prover),
-            block,
-            block_root,
-        )
+        (Arc::new(consensus), state_prover, block, block_root)
     }
 
     #[tokio_test]
