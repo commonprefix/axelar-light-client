@@ -39,6 +39,7 @@ pub fn get_tx_hash_from_cc_id(cc_id: &CrossChainId) -> Result<H256> {
     Ok(H256::from_str(tx_hash)?)
 }
 
+#[cfg(not(tarpaulin_include))]
 pub fn debug_print_batch_message_groups(batch_message_groups: &BatchMessageGroups) {
     for (block_number, message_groups) in batch_message_groups {
         let block_count = message_groups.len();

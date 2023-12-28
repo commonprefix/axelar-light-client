@@ -9,7 +9,6 @@ use mockall::automock;
 pub trait ExecutionProverAPI {
     fn generate_receipt_proof(
         &self,
-        block: &Block<Transaction>,
         receipts: &[TransactionReceipt],
         index: u64,
     ) -> Result<Vec<Vec<u8>>>;
@@ -31,20 +30,11 @@ impl ExecutionProverAPI for ExecutionProver {
      */
     fn generate_receipt_proof(
         &self,
-        block: &Block<Transaction>,
         receipts: &[TransactionReceipt],
         index: u64,
     ) -> Result<Vec<Vec<u8>>> {
         let mut trie = utils::generate_trie(receipts.to_owned(), utils::encode_receipt);
         let trie_root = trie.root().unwrap();
-
-        // Reality check
-        // if block.receipts_root != H256::from_slice(&trie_root[0..32]) {
-        //     return Err(anyhow!(
-        //         "Invalid receipts root from trie generation: {}",
-        //         block.number.unwrap()
-        //     ));
-        // }
 
         let receipt_index = encode(&index);
         let proof = trie
@@ -153,7 +143,7 @@ mod tests {
 
         let execution_prover = ExecutionProver::new();
         let proof = execution_prover
-            .generate_receipt_proof(&execution_block, &receipts, 1)
+            .generate_receipt_proof(&receipts, 1)
             .unwrap();
 
         let bytes: Result<[u8; 32], _> = execution_block.receipts_root[0..32].try_into();
@@ -171,7 +161,7 @@ mod tests {
 
         let execution_prover = ExecutionProver::new();
         let proof = execution_prover
-            .generate_receipt_proof(&execution_block, &receipts, 1)
+            .generate_receipt_proof(&receipts, 1)
             .unwrap();
 
         let bytes: Result<[u8; 32], _> = execution_block.receipts_root[0..32].try_into();

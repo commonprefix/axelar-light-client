@@ -203,7 +203,7 @@ impl<CP: ConsensusProverAPI, EP: ExecutionProverAPI> Prover<CP, EP> {
     ) -> Result<ReceiptProof> {
         let receipt_proof = self
             .execution_prover
-            .generate_receipt_proof(exec_block, receipts, tx_index)
+            .generate_receipt_proof(receipts, tx_index)
             .wrap_err(format!(
                 "Failed to generate receipt proof for block {} and tx: {}",
                 block_hash, tx_index
@@ -416,7 +416,7 @@ mod tests {
         let mut execution_prover = MockExecutionProver::new();
         execution_prover
             .expect_generate_receipt_proof()
-            .returning(|_, _, _| Ok(Default::default()));
+            .returning(|_, _| Ok(Default::default()));
 
         let prover = Prover::new(consensus_prover, execution_prover);
 
