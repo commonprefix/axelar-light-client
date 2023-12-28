@@ -4,6 +4,7 @@ use eyre::{eyre, Result};
 use types::common::ChainConfig;
 use types::consensus::BeaconBlockHeader;
 use types::execution::{ReceiptLog, ReceiptLogs};
+use types::lightclient::{LightClientState, LightClientStateWithKeys, SyncCommitteeWithKeys};
 use types::proofs::{
     BatchVerificationData, BlockProofsBatch, Message, TransactionProofsBatch, UpdateVariant,
 };
@@ -13,11 +14,14 @@ use types::sync_committee_rs::constants::MAX_BYTES_PER_TRANSACTION;
 use types::{common::Forks, consensus::Update};
 
 use crate::lightclient::helpers::{
-    compare_message_with_log, extract_logs_from_receipt_proof, extract_recent_block,
-    verify_ancestry_proof, verify_transaction_proof,
+    compare_message_with_log, extract_logs_from_receipt_proof, extract_recent_block, parse_keys,
+    store_keys, verify_ancestry_proof, verify_transaction_proof,
 };
 use crate::lightclient::LightClient;
-use crate::state::{CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE, VERIFIED_MESSAGES};
+use crate::state::{
+    CONFIG, CURRENT_COMMITTEE_KEYS, LIGHT_CLIENT_STATE, NEXT_COMMITTEE_KEYS, SYNC_COMMITTEE,
+    VERIFIED_MESSAGES,
+};
 
 type MessageLogCompareFn = dyn Fn(&Message, &ReceiptLog, &Vec<u8>) -> Result<()>;
 
@@ -150,7 +154,22 @@ pub fn light_client_update(
 ) -> Result<Response, ContractError> {
     let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
     let config = CONFIG.load(deps.storage)?;
-    let mut lc = LightClient::new(&config, Some(state), env);
+    let with_keys = LightClientStateWithKeys {
+        update_slot: state.update_slot,
+        current_sync_committee: SyncCommitteeWithKeys {
+            committee: state.current_sync_committee.clone(),
+            keys: parse_keys(&CURRENT_COMMITTEE_KEYS, deps.storage).unwrap(),
+        },
+        next_sync_committee: if state.next_sync_committee.is_some() {
+            Some(SyncCommitteeWithKeys {
+                committee: state.next_sync_committee.unwrap().clone(),
+                keys: parse_keys(&NEXT_COMMITTEE_KEYS, deps.storage).unwrap(),
+            })
+        } else {
+            None
+        },
+    };
+    let mut lc = LightClient::new(&config, Some(with_keys), env);
 
     let res = lc.apply_update(&update);
     if res.is_err() {
@@ -158,7 +177,30 @@ pub fn light_client_update(
     }
 
     SYNC_COMMITTEE.save(deps.storage, &(update.next_sync_committee, period + 1))?;
-    LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
+    LIGHT_CLIENT_STATE.save(
+        deps.storage,
+        &LightClientState {
+            update_slot: lc.state.update_slot,
+            next_sync_committee: if lc.state.next_sync_committee.is_some() {
+                Some(lc.state.next_sync_committee.clone().unwrap().committee)
+            } else {
+                None
+            },
+            current_sync_committee: lc.state.current_sync_committee.committee,
+        },
+    )?;
+    let _ = store_keys(
+        &CURRENT_COMMITTEE_KEYS,
+        &lc.state.current_sync_committee.keys,
+        deps.storage,
+    );
+    if lc.state.next_sync_committee.is_some() {
+        let _ = store_keys(
+            &NEXT_COMMITTEE_KEYS,
+            &lc.state.next_sync_committee.clone().unwrap().keys,
+            deps.storage,
+        );
+    }
 
     Ok(Response::new())
 }
