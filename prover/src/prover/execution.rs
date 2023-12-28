@@ -101,17 +101,13 @@ mod utils {
 
 #[cfg(test)]
 mod tests {
-    use crate::prover::{
-        execution::{ExecutionProver, ExecutionProverAPI},
-        mocks::mock_execution_rpc::MockExecutionRPC,
-    };
+    use crate::prover::execution::{ExecutionProver, ExecutionProverAPI};
     use cita_trie::{MemoryDB, PatriciaTrie, Trie};
 
-    use eth::execution::EthExecutionAPI;
-    use ethers::utils::rlp::encode;
+    use ethers::{utils::rlp::encode, types::{Block, Transaction, TransactionReceipt}};
     use eyre::{anyhow, Result};
     use hasher::HasherKeccak;
-    use std::sync::Arc;
+    use std::{sync::Arc, fs::File};
     use sync_committee_rs::constants::Root;
     use tokio::test as tokio_test;
 
@@ -136,15 +132,30 @@ mod tests {
         }
     }
 
+    fn get_mock_block_with_txs(block_number: u64) -> Block<Transaction> {
+        let filename = format!(
+            "./src/prover/testdata/execution_blocks/{}.json",
+            block_number
+        );
+        let file = File::open(filename).unwrap();
+        let res: Option<Block<Transaction>> = serde_json::from_reader(file).unwrap();
+        res.unwrap()
+    }
+
+    fn get_mock_block_receipts(block_number: u64) -> Vec<TransactionReceipt> {
+        let filename = format!(
+            "./src/prover/testdata/execution_blocks/receipts/{}.json",
+            block_number
+        );
+        let file = File::open(filename).unwrap();
+        let res: Vec<TransactionReceipt> = serde_json::from_reader(file).unwrap();
+        res
+    }
+
     #[tokio_test]
     async fn test_receipts_proof_valid() {
-        let execution_rpc = MockExecutionRPC::new();
-        let execution_block = execution_rpc
-            .get_block_with_txs(18615160)
-            .await
-            .unwrap()
-            .unwrap();
-        let receipts = execution_rpc.get_block_receipts(18615160).await.unwrap();
+        let execution_block = get_mock_block_with_txs(18615160);
+        let receipts = get_mock_block_receipts(18615160);
 
         let execution_prover = ExecutionProver::new();
         let proof = execution_prover
@@ -161,13 +172,8 @@ mod tests {
 
     #[tokio_test]
     async fn test_receipts_proof_invalid() {
-        let execution_rpc = MockExecutionRPC::new();
-        let execution_block = execution_rpc
-            .get_block_with_txs(18615160)
-            .await
-            .unwrap()
-            .unwrap();
-        let receipts = execution_rpc.get_block_receipts(18615160).await.unwrap();
+        let execution_block = get_mock_block_with_txs(18615160);
+        let receipts = get_mock_block_receipts(18615160);
 
         let execution_prover = ExecutionProver::new();
         let proof = execution_prover
