@@ -8,3 +8,4 @@ pub use alloy_primitives;
 pub use alloy_rlp;
 pub use ssz_rs;
 pub use sync_committee_rs;
+pub use milagro_bls;
