@@ -47,14 +47,6 @@ impl EthBeaconAPI for MockConsensusRPC {
         return Ok(tree);
     }
 
-    async fn get_latest_beacon_block_header(&self) -> Result<BeaconBlockHeader, RPCError> {
-        unimplemented!();
-    }
-
-    async fn get_latest_beacon_block(&self) -> Result<BeaconBlockAlias, RPCError> {
-        unimplemented!();
-    }
-
     async fn get_block_root(&self, _slot: u64) -> Result<Root, RPCError> {
         unimplemented!();
     }
