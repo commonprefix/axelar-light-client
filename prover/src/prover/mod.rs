@@ -1,6 +1,5 @@
 pub mod consensus;
 pub mod execution;
-mod mocks;
 pub mod state_prover;
 pub mod types;
 pub mod utils;

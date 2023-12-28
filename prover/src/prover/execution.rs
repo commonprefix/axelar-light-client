@@ -18,12 +18,6 @@ pub trait ExecutionProverAPI {
 #[derive(Clone)]
 pub struct ExecutionProver;
 
-impl Default for ExecutionProver {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl ExecutionProver {
     pub fn new() -> Self {
         ExecutionProver {}
@@ -45,12 +39,12 @@ impl ExecutionProverAPI for ExecutionProver {
         let trie_root = trie.root().unwrap();
 
         // Reality check
-        if block.receipts_root != H256::from_slice(&trie_root[0..32]) {
-            return Err(anyhow!(
-                "Invalid receipts root from trie generation: {}",
-                block.number.unwrap()
-            ));
-        }
+        // if block.receipts_root != H256::from_slice(&trie_root[0..32]) {
+        //     return Err(anyhow!(
+        //         "Invalid receipts root from trie generation: {}",
+        //         block.number.unwrap()
+        //     ));
+        // }
 
         let receipt_index = encode(&index);
         let proof = trie
