@@ -35,7 +35,7 @@ pub struct ConsensusRPC {
 impl ConsensusRPC {
     pub fn new(rpc: String) -> Self {
         let client = reqwest::Client::builder()
-            .pool_max_idle_per_host(100)
+            .pool_max_idle_per_host(490)
             .connect_timeout(Duration::from_secs(60))
             .timeout(Duration::from_secs(60))
             .build().unwrap();
@@ -50,7 +50,6 @@ impl ConsensusRPC {
 impl EthBeaconAPI for ConsensusRPC {
     async fn get_block_root(&self, slot: u64) -> Result<Root, RPCError> {
         let req = format!("{}/eth/v1/beacon/blocks/{}/root", self.rpc, slot);
-        println!("{}", req);
 
         let res = self.client
             .get(&req)
@@ -67,6 +66,7 @@ impl EthBeaconAPI for ConsensusRPC {
             .await
             .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
 
+        println!("resolved: {:?}", slot);
         Ok(data.data.root)
     }
 
@@ -206,7 +206,7 @@ impl EthBeaconAPI for ConsensusRPC {
     ) -> Result<Vector<Root, SLOTS_PER_HISTORICAL_ROOT>, RPCError> {
         let mut futures = Vec::new();
     
-        for i in 0..10 {
+        for i in 0..1000 {
             let future = self.get_block_root(start_slot + i as u64);
             futures.push(future);
         }
