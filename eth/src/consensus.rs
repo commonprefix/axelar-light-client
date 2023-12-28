@@ -329,7 +329,6 @@ mod tests {
         assert!(res.is_err());
     }
 
-
     #[tokio::test]
     async fn test_get_finality_update() {
         let (server, rpc) = setup_server_and_rpc();

@@ -117,12 +117,10 @@ mod tests {
         let json_response = serde_json::to_string(&expected_response).unwrap();
 
         server.expect(
-            Expectation::matching(
-                all_of![
-                    request::query(url_decoded(contains(("state_id", "state_id")))),
-                    request::query(url_decoded(contains(("gindex", "1")))),
-                ]
-            )
+            Expectation::matching(all_of![
+                request::query(url_decoded(contains(("state_id", "state_id")))),
+                request::query(url_decoded(contains(("gindex", "1")))),
+            ])
             .respond_with(status_code(200).body(json_response)),
         );
 
@@ -140,18 +138,19 @@ mod tests {
         let json_response = serde_json::to_string(&expected_response).unwrap();
 
         server.expect(
-            Expectation::matching(
-                all_of![
-                    request::query(url_decoded(contains(("state_id", "state_id")))),
-                    request::query(url_decoded(contains(("path", "test,lala")))),
-                ]
-            )
+            Expectation::matching(all_of![
+                request::query(url_decoded(contains(("state_id", "state_id")))),
+                request::query(url_decoded(contains(("path", "test,lala")))),
+            ])
             .respond_with(status_code(200).body(json_response)),
         );
 
-        let path = vec![SszVariableOrIndex::Name("test"), SszVariableOrIndex::Name("lala")];
+        let path = vec![
+            SszVariableOrIndex::Name("test"),
+            SszVariableOrIndex::Name("lala"),
+        ];
         let result = prover
-            .get_state_proof("state_id", &&GindexOrPath::Path(path))
+            .get_state_proof("state_id", &GindexOrPath::Path(path))
             .await
             .unwrap();
         assert_eq!(result, expected_response);
@@ -162,13 +161,11 @@ mod tests {
         let (server, prover) = setup_server_and_prover();
 
         server.expect(
-            Expectation::matching(
-                all_of![
-                    request::query(url_decoded(contains(("state_id", "state_id")))),
-                    request::query(url_decoded(contains(("gindex", "1")))),
-                ]
-            )
-                .respond_with(status_code(400).body("Error")),
+            Expectation::matching(all_of![
+                request::query(url_decoded(contains(("state_id", "state_id")))),
+                request::query(url_decoded(contains(("gindex", "1")))),
+            ])
+            .respond_with(status_code(400).body("Error")),
         );
 
         let result = prover
@@ -183,12 +180,10 @@ mod tests {
         let json_response = serde_json::to_string(&ProofResponse::default()).unwrap();
 
         server.expect(
-            Expectation::matching(
-                all_of![
-                    request::query(url_decoded(contains(("block_id", "block_id")))),
-                    request::query(url_decoded(contains(("gindex", "1")))),
-                ]
-            )
+            Expectation::matching(all_of![
+                request::query(url_decoded(contains(("block_id", "block_id")))),
+                request::query(url_decoded(contains(("gindex", "1")))),
+            ])
             .respond_with(status_code(200).body(json_response)),
         );
 
@@ -205,16 +200,17 @@ mod tests {
         let json_response = serde_json::to_string(&ProofResponse::default()).unwrap();
 
         server.expect(
-            Expectation::matching(
-                all_of![
-                    request::query(url_decoded(contains(("block_id", "block_id")))),
-                    request::query(url_decoded(contains(("path", "test,lala")))),
-                ]
-            )
+            Expectation::matching(all_of![
+                request::query(url_decoded(contains(("block_id", "block_id")))),
+                request::query(url_decoded(contains(("path", "test,lala")))),
+            ])
             .respond_with(status_code(200).body(json_response)),
         );
 
-        let path = vec![SszVariableOrIndex::Name("test"), SszVariableOrIndex::Name("lala")];
+        let path = vec![
+            SszVariableOrIndex::Name("test"),
+            SszVariableOrIndex::Name("lala"),
+        ];
         let result = prover
             .get_block_proof("block_id", GindexOrPath::Path(path))
             .await
@@ -227,12 +223,10 @@ mod tests {
         let (server, prover) = setup_server_and_prover();
 
         server.expect(
-            Expectation::matching(
-                all_of![
-                    request::query(url_decoded(contains(("block_id", "block_id")))),
-                    request::query(url_decoded(contains(("gindex", "1")))),
-                ]
-            )
+            Expectation::matching(all_of![
+                request::query(url_decoded(contains(("block_id", "block_id")))),
+                request::query(url_decoded(contains(("gindex", "1")))),
+            ])
             .respond_with(status_code(400)),
         );
 

@@ -1,6 +1,6 @@
 use cita_trie::Trie;
 use ethers::{
-    types::{Block, Transaction, TransactionReceipt, H256},
+    types::TransactionReceipt,
     utils::rlp::encode,
 };
 use eyre::{anyhow, Result};
@@ -16,6 +16,12 @@ pub trait ExecutionProverAPI {
 
 #[derive(Clone)]
 pub struct ExecutionProver;
+
+impl Default for ExecutionProver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl ExecutionProver {
     pub fn new() -> Self {
@@ -34,7 +40,7 @@ impl ExecutionProverAPI for ExecutionProver {
         index: u64,
     ) -> Result<Vec<Vec<u8>>> {
         let mut trie = utils::generate_trie(receipts.to_owned(), utils::encode_receipt);
-        let trie_root = trie.root().unwrap();
+        let _trie_root = trie.root().unwrap();
 
         let receipt_index = encode(&index);
         let proof = trie
@@ -88,10 +94,13 @@ mod tests {
     use crate::prover::execution::{ExecutionProver, ExecutionProverAPI};
     use cita_trie::{MemoryDB, PatriciaTrie, Trie};
 
-    use ethers::{utils::rlp::encode, types::{Block, Transaction, TransactionReceipt}};
+    use ethers::{
+        types::{Block, Transaction, TransactionReceipt},
+        utils::rlp::encode,
+    };
     use eyre::{anyhow, Result};
     use hasher::HasherKeccak;
-    use std::{sync::Arc, fs::File};
+    use std::{fs::File, sync::Arc};
     use sync_committee_rs::constants::Root;
     use tokio::test as tokio_test;
 

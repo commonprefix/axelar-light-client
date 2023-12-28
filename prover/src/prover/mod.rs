@@ -6,7 +6,13 @@ pub mod utils;
 
 use std::sync::Arc;
 
-use self::{utils::{get_tx_hash_from_cc_id, get_tx_index}, types::ProverConfig, consensus::ConsensusProver, state_prover::StateProver, execution::ExecutionProver};
+use self::{
+    consensus::ConsensusProver,
+    execution::ExecutionProver,
+    state_prover::StateProver,
+    types::ProverConfig,
+    utils::{get_tx_hash_from_cc_id, get_tx_index},
+};
 use crate::prover::{consensus::ConsensusProverAPI, execution::ExecutionProverAPI};
 use consensus_types::{
     consensus::{to_beacon_header, BeaconBlockAlias},
@@ -21,7 +27,10 @@ use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use eyre::{anyhow, Context, Result};
 use indexmap::IndexMap;
 use ssz_rs::{Merkleized, Node};
-use sync_committee_rs::{consensus_types::BeaconBlockHeader, constants::{Root, SLOTS_PER_HISTORICAL_ROOT}};
+use sync_committee_rs::{
+    consensus_types::BeaconBlockHeader,
+    constants::{Root, SLOTS_PER_HISTORICAL_ROOT},
+};
 use types::BatchMessageGroups;
 use types::EnrichedMessage;
 
@@ -169,21 +178,21 @@ impl<CP: ConsensusProverAPI, EP: ExecutionProverAPI> Prover<CP, EP> {
         recent_block: &BeaconBlockHeader,
     ) -> Result<AncestryProof> {
         let is_in_block_roots_range = target_block_slot < recent_block.slot
-        && recent_block.slot <= target_block_slot + SLOTS_PER_HISTORICAL_ROOT as u64;
+            && recent_block.slot <= target_block_slot + SLOTS_PER_HISTORICAL_ROOT as u64;
 
         let recent_block_state_id = recent_block.state_root.to_string();
 
         let proof = if is_in_block_roots_range {
             self.consensus_prover.prove_ancestry_with_block_roots(
-                &target_block_slot, 
-                &recent_block_state_id.as_str()
-            )
-        }
-        else {
-            self.consensus_prover.prove_ancestry_with_historical_summaries(
                 &target_block_slot,
-                &recent_block_state_id,
+                recent_block_state_id.as_str(),
             )
+        } else {
+            self.consensus_prover
+                .prove_ancestry_with_historical_summaries(
+                    &target_block_slot,
+                    &recent_block_state_id,
+                )
         }
         .await
         .wrap_err(format!(
@@ -264,7 +273,9 @@ mod tests {
 
     use super::state_prover::MockStateProver;
     use super::types::{BatchMessageGroups, EnrichedMessage};
-    use consensus_types::consensus::{BeaconBlockAlias, FinalityUpdate, OptimisticUpdate, to_beacon_header};
+    use consensus_types::consensus::{
+        to_beacon_header, BeaconBlockAlias, FinalityUpdate, OptimisticUpdate,
+    };
     use consensus_types::proofs::{
         AncestryProof, BatchVerificationData, CrossChainId, Message, UpdateVariant,
     };
@@ -440,7 +451,7 @@ mod tests {
         assert_eq!(target_blocks[1].transactions_proofs[1].messages.len(), 1);
         assert_eq!(target_blocks[2].transactions_proofs[0].messages.len(), 1);
     }
-    
+
     #[tokio::test]
     async fn test_get_ancestry_proof_block_roots() {
         let mut consensus_prover = MockConsensusProver::<MockConsensusRPC, MockStateProver>::new();
@@ -454,7 +465,6 @@ mod tests {
             block_roots_index: 0,
             block_root_proof: vec![],
         };
-
 
         consensus_prover
             .expect_prove_ancestry_with_block_roots()
@@ -479,7 +489,12 @@ mod tests {
         let recent_block_header = to_beacon_header(&recent_block).unwrap();
         let target_block_slot = 1000;
 
-        let proof = AncestryProof::HistoricalRoots { block_root_proof: Default::default(), block_summary_root: Default::default(), block_summary_root_proof: Default::default(), block_summary_root_gindex: Default::default() };
+        let proof = AncestryProof::HistoricalRoots {
+            block_root_proof: Default::default(),
+            block_summary_root: Default::default(),
+            block_summary_root_proof: Default::default(),
+            block_summary_root_gindex: Default::default(),
+        };
 
         consensus_prover
             .expect_prove_ancestry_with_historical_summaries()
@@ -492,7 +507,10 @@ mod tests {
             .await;
         assert!(res.is_ok());
         // Assert is blockroots
-        assert!(matches!(res.unwrap(), AncestryProof::HistoricalRoots { .. }));
+        assert!(matches!(
+            res.unwrap(),
+            AncestryProof::HistoricalRoots { .. }
+        ));
     }
 
     #[tokio::test]
