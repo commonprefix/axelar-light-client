@@ -5,7 +5,6 @@ pub mod state_prover;
 pub mod types;
 pub mod utils;
 
-
 use self::utils::{get_tx_hash_from_cc_id, get_tx_index};
 use crate::prover::{consensus::ConsensusProverAPI, execution::ExecutionProverAPI};
 use consensus_types::{
@@ -278,11 +277,9 @@ mod tests {
             exec_block: get_mock_exec_block_with_txs(block_number),
             beacon_block: get_mock_beacon_block(slot),
             receipts: (1..100)
-                .map(|i| {
-                    TransactionReceipt {
-                        transaction_hash: H256::from_low_u64_be(i),
-                        ..Default::default()
-                    }
+                .map(|i| TransactionReceipt {
+                    transaction_hash: H256::from_low_u64_be(i),
+                    ..Default::default()
                 })
                 .collect(),
         }
