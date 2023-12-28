@@ -213,18 +213,22 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ConsensusProverAPI for ConsensusProve
 
 #[cfg(test)]
 mod tests {
+    use std::fs::File;
     use std::sync::Arc;
 
     use super::{ConsensusProver, ConsensusProverAPI};
-    use crate::prover::mocks::mock_consensus_rpc::MockConsensusRPC;
-    use crate::prover::mocks::mock_state_prover::MockStateProver;
+    use crate::prover::types::ProofResponse;
+    use crate::prover::utils::parse_path;
+    use crate::prover::types::GindexOrPath;
+    use crate::prover::state_prover::MockStateProver;
+    use eth::consensus::MockConsensusRPC;
     use consensus_types::consensus::BeaconBlockAlias;
     use consensus_types::proofs::AncestryProof;
     use eth::consensus::EthBeaconAPI;
     use ssz_rs::{
         get_generalized_index, GeneralizedIndex, Merkleized, Node, SszVariableOrIndex, Vector,
     };
-    use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
+    use sync_committee_rs::{constants::SLOTS_PER_HISTORICAL_ROOT, consensus_types::BeaconBlockHeader};
     use tokio::test as tokio_test;
 
     async fn setup_block_and_provers(
@@ -235,8 +239,67 @@ mod tests {
         BeaconBlockAlias,
         Node,
     ) {
-        let consensus = MockConsensusRPC::new();
-        let state_prover = MockStateProver::new();
+        let mut consensus = MockConsensusRPC::new();
+
+        consensus.expect_get_beacon_block_header().returning(|slot| {
+            let filename = format!("./src/prover/testdata/beacon_block_headers/{}.json", slot);
+            let file = File::open(filename).unwrap();
+            let res: BeaconBlockHeader = serde_json::from_reader(file).unwrap();
+            Ok(res)
+        });
+
+        consensus.expect_get_beacon_block().returning(|slot| {
+            let filename = format!("./src/prover/testdata/beacon_blocks/{}.json", slot);
+            let file = File::open(filename).unwrap();
+            let res: BeaconBlockAlias = serde_json::from_reader(file).unwrap();
+            Ok(res)
+        });
+
+        consensus.expect_get_block_roots_tree().returning(|start_slot| {
+            let file = File::open("./src/prover/testdata/block_roots.json").unwrap();
+            let tree: Vector<_, SLOTS_PER_HISTORICAL_ROOT> =
+                serde_json::from_reader(file).unwrap();
+            return Ok(tree);
+        });
+
+        let mut state_prover = MockStateProver::new();
+
+        state_prover.expect_get_state_proof()
+        .returning(|state_id, gindex_or_path| {
+            let filename = match gindex_or_path {
+                GindexOrPath::Gindex(gindex) => format!("state_proof_{}_g{}.json", state_id, gindex),
+                GindexOrPath::Path(path) => {
+                    let path = parse_path(&path);
+                    format!("state_proof_{}_{}.json", state_id, path)
+                }
+            };
+
+            let filename = format!("./src/prover/testdata/state_prover/{}", filename);
+            let file = File::open(filename).unwrap();
+
+            let res: ProofResponse = serde_json::from_reader(file).unwrap();
+
+            Ok(res)
+        });
+
+
+        state_prover.expect_get_block_proof().returning(|block_id, gindex_or_path| {
+            let filename = match gindex_or_path {
+                GindexOrPath::Gindex(gindex) => format!("block_proof_{}_g{}.json", block_id, gindex),
+                GindexOrPath::Path(path) => {
+                    let path = parse_path(&path);
+                    format!("block_proof_{}_{}.json", block_id, path)
+                }
+            };
+
+            let filename = format!("./src/prover/testdata/state_prover/{}", filename);
+            let file = File::open(filename).unwrap();
+
+            let res: ProofResponse = serde_json::from_reader(file).unwrap();
+
+            Ok(res)
+        });
+
         let mut block = consensus
             .get_beacon_block(consensus_block_number)
             .await
