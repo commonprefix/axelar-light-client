@@ -108,6 +108,7 @@ pub struct TransactionProofsBatch {
     pub content: ContentVariant,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub enum ContentVariant {
     Messages(Vec<Message>),
     WorkerSet(Operators),
