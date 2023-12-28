@@ -21,7 +21,7 @@ pub mod tests {
     use types::alloy_primitives::Address;
     use types::consensus::Bootstrap;
     use types::execution::ReceiptLog;
-    use types::lightclient::LightClientState;
+    use types::lightclient::{LightClientState, SyncCommitteeWithKeys};
     use types::proofs::{AncestryProof, UpdateVariant};
     use types::ssz_rs::{Bitvector, Merkleized, Node};
     use types::sync_committee_rs::consensus_types::Transaction;
@@ -913,7 +913,10 @@ pub mod tests {
             lightclient.state,
             LightClientState {
                 update_slot: bootstrap.header.beacon.slot,
-                current_sync_committee: bootstrap.current_sync_committee,
+                current_sync_committee: SyncCommitteeWithKeys {
+                    keys: lightclient.get_keys(&bootstrap.current_sync_committee),
+                    committee: bootstrap.current_sync_committee.clone()
+                },
                 next_sync_committee: None,
             }
         );
@@ -932,11 +935,12 @@ pub mod tests {
             "update_slot should be set after applying update"
         );
         assert_eq!(
-            lightclient.state.current_sync_committee, bootstrap.current_sync_committee,
+            lightclient.state.current_sync_committee.committee, bootstrap.current_sync_committee,
             "current_sync_committee should be unchanged"
         );
+        // TODO: test decompressed keys
         assert_eq!(
-            lightclient.state.next_sync_committee.unwrap(),
+            lightclient.state.next_sync_committee.unwrap().committee,
             update.next_sync_committee,
             "next_sync_committee should be set after applying update"
         );
@@ -961,8 +965,14 @@ pub mod tests {
             state_before_update.next_sync_committee.unwrap(),
             "current_sync_committee was updated with previous next_sync_committee"
         );
+        // TODO: test decompressed keys
         assert_eq!(
-            lightclient.state.next_sync_committee.clone().unwrap(),
+            lightclient
+                .state
+                .next_sync_committee
+                .clone()
+                .unwrap()
+                .committee,
             update.next_sync_committee,
             "next_sync_committee was updated"
         );
