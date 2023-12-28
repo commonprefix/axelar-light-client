@@ -5,7 +5,9 @@ pub mod state_prover;
 pub mod types;
 pub mod utils;
 
-use self::utils::{get_tx_hash_from_cc_id, get_tx_index};
+use std::sync::Arc;
+
+use self::{utils::{get_tx_hash_from_cc_id, get_tx_index}, types::ProverConfig, consensus::ConsensusProver, state_prover::StateProver, execution::ExecutionProver};
 use crate::prover::{consensus::ConsensusProverAPI, execution::ExecutionProverAPI};
 use consensus_types::{
     consensus::{to_beacon_header, BeaconBlockAlias},
@@ -15,6 +17,7 @@ use consensus_types::{
     },
 };
 
+use eth::consensus::ConsensusRPC;
 use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use eyre::{anyhow, Context, Result};
 use indexmap::IndexMap;
@@ -26,6 +29,19 @@ use types::EnrichedMessage;
 pub struct Prover<CP: ConsensusProverAPI, EP: ExecutionProverAPI> {
     consensus_prover: CP,
     execution_prover: EP,
+}
+
+impl Prover<ConsensusProver<ConsensusRPC, StateProver>, ExecutionProver> {
+    pub fn with_config(consensus_rpc: Arc<ConsensusRPC>, prover_config: ProverConfig) -> Self {
+        let state_prover = StateProver::new(prover_config.state_prover_rpc.clone());
+        let consensus_prover = ConsensusProver::new(consensus_rpc, state_prover.clone());
+        let execution_prover = ExecutionProver::new();
+
+        Prover {
+            consensus_prover,
+            execution_prover,
+        }
+    }
 }
 
 impl<CP: ConsensusProverAPI, EP: ExecutionProverAPI> Prover<CP, EP> {
