@@ -23,7 +23,7 @@ pub struct BeaconBlockHeaderContainer {
     pub header: BeaconBlockHeaderMessage,
 }
 
-#[derive(serde::Deserialize,  serde::Serialize, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub struct BeaconBlockHeaderMessage {
     pub message: BeaconBlockHeader,
 }
