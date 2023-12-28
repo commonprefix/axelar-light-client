@@ -35,7 +35,7 @@ pub struct ConsensusRPC {
 impl ConsensusRPC {
     pub fn new(rpc: String) -> Self {
         let client = reqwest::Client::builder()
-            .pool_max_idle_per_host(500)
+            .pool_max_idle_per_host(100)
             .connect_timeout(Duration::from_secs(60))
             .timeout(Duration::from_secs(60))
             .build().unwrap();
@@ -206,7 +206,7 @@ impl EthBeaconAPI for ConsensusRPC {
     ) -> Result<Vector<Root, SLOTS_PER_HISTORICAL_ROOT>, RPCError> {
         let mut futures = Vec::new();
     
-        for i in 0..SLOTS_PER_HISTORICAL_ROOT {
+        for i in 0..10 {
             let future = self.get_block_root(start_slot + i as u64);
             futures.push(future);
         }

@@ -7,7 +7,7 @@ use ethers::types::{Block, Filter, Log, Transaction, TransactionReceipt, H256, U
 use eyre::Result;
 use mockall::automock;
 
-use crate::error::RpcError;
+use crate::error::RPCError;
 
 #[automock]
 #[async_trait]
@@ -50,7 +50,7 @@ impl EthExecutionAPI for ExecutionRPC {
             .provider
             .get_block(block_number)
             .await
-            .map_err(|e| RpcError::new("get_block", e))?;
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
 
         Ok(block)
     }
@@ -60,7 +60,7 @@ impl EthExecutionAPI for ExecutionRPC {
             .provider
             .get_block_with_txs(block_number)
             .await
-            .map_err(|e| RpcError::new("get_block", e))?;
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
 
         Ok(block)
     }
@@ -80,7 +80,7 @@ impl EthExecutionAPI for ExecutionRPC {
             .provider
             .get_block_number()
             .await
-            .map_err(|e| RpcError::new("get_latest_block_number", e))?)
+            .map_err(|e| RPCError::RequestError(e.to_string()))?)
     }
 
     async fn get_logs(&self, filter: &Filter) -> Result<Vec<Log>> {
@@ -88,7 +88,7 @@ impl EthExecutionAPI for ExecutionRPC {
             .provider
             .get_logs(filter)
             .await
-            .map_err(|e| RpcError::new("get_logs", e))?)
+            .map_err(|e| RPCError::RequestError(e.to_string()))?)
     }
 }
 
