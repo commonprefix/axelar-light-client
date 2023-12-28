@@ -111,7 +111,13 @@ pub struct TransactionProofsBatch {
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub enum ContentVariant {
     Messages(Vec<Message>),
-    WorkerSet(Operators),
+    WorkerSet(WorkerSetMessage),
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct WorkerSetMessage {
+    pub message_id: nonempty::String,
+    pub new_operators: Operators,
 }
 
 fn hex_array_deserializer<'de, D>(deserializer: D) -> Result<Vec<Vec<u8>>, D::Error>
