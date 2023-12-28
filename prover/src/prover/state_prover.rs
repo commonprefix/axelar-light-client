@@ -30,6 +30,21 @@ impl StateProver {
     pub fn new(rpc: String) -> Self {
         StateProver { rpc }
     }
+
+    async fn get(&self, req: &str) -> Result<ProofResponse> {
+        let bytes = retry(
+            || async { Ok::<_, eyre::Report>(reqwest::get(req).await?.bytes().await?) },
+            BackoffSettings::default(),
+        )
+        .await?;
+
+        serde_json::from_slice::<ProofResponse>(&bytes).map_err(|_| {
+            anyhow!(
+                "Failed to parse response: {:?}",
+                std::str::from_utf8(&bytes)
+            )
+        })
+    }
 }
 
 #[automock]
@@ -53,7 +68,7 @@ impl StateProverAPI for StateProver {
             ),
         };
 
-        get(&req)
+        self.get(&req)
             .await
             .map_err(|e| anyhow!("Failed to get state proof: {:?} {:?}", req, e))
     }
@@ -76,25 +91,10 @@ impl StateProverAPI for StateProver {
             ),
         };
 
-        get(&req)
+        self.get(&req)
             .await
             .map_err(|e| anyhow!("Failed to get block proof: {:?} {:?}", req, e))
     }
-}
-
-async fn get(req: &str) -> Result<ProofResponse> {
-    let bytes = retry(
-        || async { Ok::<_, eyre::Report>(reqwest::get(req).await?.bytes().await?) },
-        BackoffSettings::default(),
-    )
-    .await?;
-
-    serde_json::from_slice::<ProofResponse>(&bytes).map_err(|_| {
-        anyhow!(
-            "Failed to parse response: {:?}",
-            std::str::from_utf8(&bytes)
-        )
-    })
 }
 
 #[cfg(test)]

@@ -22,7 +22,7 @@ use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use eyre::{anyhow, Context, Result};
 use indexmap::IndexMap;
 use ssz_rs::{Merkleized, Node};
-use sync_committee_rs::{consensus_types::BeaconBlockHeader, constants::Root};
+use sync_committee_rs::{consensus_types::BeaconBlockHeader, constants::{Root, SLOTS_PER_HISTORICAL_ROOT}};
 use types::BatchMessageGroups;
 use types::EnrichedMessage;
 
@@ -160,25 +160,39 @@ impl<CP: ConsensusProverAPI, EP: ExecutionProverAPI> Prover<CP, EP> {
         Ok((beacon_block, exec_block, receipts))
     }
 
+    /**
+     * Generates an ancestry proof from the recent block state to the target block
+     * using either the block_roots or the historical_roots beacon state property.
+     */
     pub async fn get_ancestry_proof(
         &self,
         target_block_slot: u64,
         recent_block: &BeaconBlockHeader,
     ) -> Result<AncestryProof> {
-        let ancestry_proof = self
-            .consensus_prover
-            .prove_ancestry(
-                target_block_slot as usize,
-                recent_block.slot as usize,
-                &recent_block.state_root.to_string(),
-            )
-            .await
-            .wrap_err(format!(
-                "Failed to generate ancestry proof for block {:?}",
-                target_block_slot
-            ))?;
+        let is_in_block_roots_range = target_block_slot < recent_block.slot
+        && recent_block.slot <= target_block_slot + SLOTS_PER_HISTORICAL_ROOT as u64;
 
-        Ok(ancestry_proof)
+        let recent_block_state_id = recent_block.state_root.to_string();
+
+        let proof = if is_in_block_roots_range {
+            self.consensus_prover.prove_ancestry_with_block_roots(
+                &target_block_slot, 
+                &recent_block_state_id.as_str()
+            )
+        }
+        else {
+            self.consensus_prover.prove_ancestry_with_historical_summaries(
+                &target_block_slot,
+                &recent_block_state_id,
+            )
+        }
+        .await
+        .wrap_err(format!(
+            "Failed to generate ancestry proof for block {:?}",
+            target_block_slot
+        ))?;
+
+        Ok(proof)
     }
 
     pub async fn get_receipt_proof(
@@ -251,7 +265,7 @@ mod tests {
 
     use super::state_prover::MockStateProver;
     use super::types::{BatchMessageGroups, EnrichedMessage};
-    use consensus_types::consensus::{BeaconBlockAlias, FinalityUpdate, OptimisticUpdate};
+    use consensus_types::consensus::{BeaconBlockAlias, FinalityUpdate, OptimisticUpdate, to_beacon_header};
     use consensus_types::proofs::{
         AncestryProof, BatchVerificationData, CrossChainId, Message, UpdateVariant,
     };
@@ -386,8 +400,8 @@ mod tests {
 
         let mut consensus_prover = MockConsensusProver::<MockConsensusRPC, MockStateProver>::new();
         consensus_prover
-            .expect_prove_ancestry()
-            .returning(|_, _, _| {
+            .expect_prove_ancestry_with_block_roots()
+            .returning(|_, _| {
                 Ok(AncestryProof::BlockRoots {
                     block_roots_index: 0,
                     block_root_proof: vec![],
@@ -426,6 +440,60 @@ mod tests {
         assert_eq!(target_blocks[1].transactions_proofs[0].messages.len(), 2);
         assert_eq!(target_blocks[1].transactions_proofs[1].messages.len(), 1);
         assert_eq!(target_blocks[2].transactions_proofs[0].messages.len(), 1);
+    }
+    
+    #[tokio::test]
+    async fn test_get_ancestry_proof_block_roots() {
+        let mut consensus_prover = MockConsensusProver::<MockConsensusRPC, MockStateProver>::new();
+        let execution_prover = MockExecutionProver::new();
+
+        let recent_block = get_mock_beacon_block(1000);
+        let recent_block_header = to_beacon_header(&recent_block).unwrap();
+        let target_block_slot = 505;
+
+        let proof = AncestryProof::BlockRoots {
+            block_roots_index: 0,
+            block_root_proof: vec![],
+        };
+
+
+        consensus_prover
+            .expect_prove_ancestry_with_block_roots()
+            .returning(move |_, _| Ok(proof.clone()));
+
+        let prover = Prover::new(consensus_prover, execution_prover);
+
+        let res = prover
+            .get_ancestry_proof(target_block_slot, &recent_block_header)
+            .await;
+        assert!(res.is_ok());
+        // Assert is blockroots
+        assert!(matches!(res.unwrap(), AncestryProof::BlockRoots { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_get_ancestry_proof_historical_roots() {
+        let mut consensus_prover = MockConsensusProver::<MockConsensusRPC, MockStateProver>::new();
+        let execution_prover = MockExecutionProver::new();
+
+        let recent_block = get_mock_beacon_block(10000);
+        let recent_block_header = to_beacon_header(&recent_block).unwrap();
+        let target_block_slot = 1000;
+
+        let proof = AncestryProof::HistoricalRoots { block_root_proof: Default::default(), block_summary_root: Default::default(), block_summary_root_proof: Default::default(), block_summary_root_gindex: Default::default() };
+
+        consensus_prover
+            .expect_prove_ancestry_with_historical_summaries()
+            .returning(move |_, _| Ok(proof.clone()));
+
+        let prover = Prover::new(consensus_prover, execution_prover);
+
+        let res = prover
+            .get_ancestry_proof(target_block_slot, &recent_block_header)
+            .await;
+        assert!(res.is_ok());
+        // Assert is blockroots
+        assert!(matches!(res.unwrap(), AncestryProof::HistoricalRoots { .. }));
     }
 
     #[tokio::test]

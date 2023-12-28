@@ -24,15 +24,9 @@ pub trait ConsensusProverAPI {
         tx_index: u64,
     ) -> Result<ProofResponse>;
     async fn generate_receipts_root_proof(&self, block_id: &str) -> Result<ProofResponse>;
-    async fn prove_ancestry(
-        &self,
-        target_block_slot: usize,
-        recent_block_slot: usize,
-        recent_block_state_id: &str,
-    ) -> Result<AncestryProof>;
     async fn prove_ancestry_with_block_roots(
         &self,
-        target_block_slot: &usize,
+        target_block_slot: &u64,
         recent_block_state_id: &str,
     ) -> Result<AncestryProof>;
     async fn prove_historical_summaries_proof(
@@ -110,48 +104,21 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ConsensusProverAPI for ConsensusProve
 
     /**
      * Generates an ancestry proof from the recent block state to the target block
-     * using either the block_roots or the historical_roots beacon state property.
-     */
-    async fn prove_ancestry(
-        &self,
-        target_block_slot: usize,
-        recent_block_slot: usize,
-        recent_block_state_id: &str,
-    ) -> Result<AncestryProof> {
-        let is_in_block_roots_range = target_block_slot < recent_block_slot
-            && recent_block_slot <= target_block_slot + SLOTS_PER_HISTORICAL_ROOT;
-
-        let proof = if is_in_block_roots_range {
-            self.prove_ancestry_with_block_roots(&target_block_slot, recent_block_state_id)
-                .await?
-        } else {
-            self.prove_ancestry_with_historical_summaries(
-                &(target_block_slot as u64),
-                recent_block_state_id,
-            )
-            .await?
-        };
-
-        Ok(proof)
-    }
-
-    /**
-     * Generates an ancestry proof from the recent block state to the target block
      * using the block_roots beacon state property using the lodestar prover. The
      * target block must in the range
      * [recent_block_slot - SLOTS_PER_HISTORICAL_ROOT, recent_block_slot].
      */
     async fn prove_ancestry_with_block_roots(
         &self,
-        target_block_slot: &usize,
+        target_block_slot: &u64,
         recent_block_state_id: &str,
     ) -> Result<AncestryProof> {
-        let index = target_block_slot % SLOTS_PER_HISTORICAL_ROOT;
+        let index = target_block_slot % SLOTS_PER_HISTORICAL_ROOT as u64;
         let g_index_from_state_root = get_generalized_index(
             &BeaconStateType::default(),
             &[
                 SszVariableOrIndex::Name("block_roots"),
-                SszVariableOrIndex::Index(index),
+                SszVariableOrIndex::Index(index as usize),
             ],
         );
 
@@ -492,7 +459,7 @@ mod tests {
     }
 
     #[tokio_test]
-    async fn test_prove_ancestry() {
+    async fn test_prove_ancestry_with_block_roots() {
         let (consensus, state_prover, _, _) = setup_block_and_provers(7807119).await;
         let latest_block_7878867 = consensus.get_beacon_block_header(7878867).await.unwrap();
         let latest_block_7879376 = consensus.get_beacon_block_header(7879376).await.unwrap();
@@ -548,7 +515,7 @@ mod tests {
 
         let proof = consensus_prover
             .prove_ancestry_with_block_roots(
-                &(old_block.slot as usize),
+                &old_block.slot,
                 &latest_block.state_root.to_string(),
             )
             .await
@@ -584,7 +551,7 @@ mod tests {
 
         let proof = consensus_prover
             .prove_ancestry_with_block_roots(
-                &(old_block.slot as usize),
+                &old_block.slot,
                 &latest_block.state_root.to_string(),
             )
             .await
