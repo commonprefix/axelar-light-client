@@ -1,6 +1,7 @@
 use cw2::ContractVersion;
 use cw_storage_plus::{Item, Map};
 use types::lightclient::{Hash, Message};
+use types::proofs::Operators;
 use types::sync_committee_rs::{consensus_types::SyncCommittee, constants::SYNC_COMMITTEE_SIZE};
 use types::{common::ChainConfig, lightclient::LightClientState};
 
@@ -11,3 +12,5 @@ pub const SYNC_COMMITTEE: Item<(SyncCommittee<SYNC_COMMITTEE_SIZE>, u64)> =
 pub const VERSION: Item<ContractVersion> = Item::new("contract_info");
 
 pub const VERIFIED_MESSAGES: Map<Hash, Message> = Map::new("verified_messages");
+
+pub const VERIFIED_WORKER_SETS: Map<Hash, Operators> = Map::new("worker_sets");
