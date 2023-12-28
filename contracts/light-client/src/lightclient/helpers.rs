@@ -3,6 +3,8 @@ use std::sync::Arc;
 use alloy_dyn_abi::EventExt;
 use alloy_json_abi::{AbiItem, JsonAbi};
 use cita_trie::{MemoryDB, PatriciaTrie, Trie};
+use cosmwasm_std::Storage;
+use cw_storage_plus::Map;
 use eyre::{anyhow, eyre, Result};
 use types::alloy_primitives::{Bytes, FixedBytes, Log};
 use types::alloy_rlp::encode;
@@ -10,6 +12,8 @@ use types::alloy_rlp::encode;
 use crate::ContractError;
 use hasher::{Hasher, HasherKeccak};
 use types::execution::{ReceiptLogs, RECEIPTS_ROOT_GINDEX};
+use types::lightclient::PublicKeyWrapper;
+use types::milagro_bls::PublicKey;
 use types::proofs::{AncestryProof, ReceiptProof, TransactionProof, UpdateVariant};
 use types::ssz_rs::{
     get_generalized_index, is_valid_merkle_branch, verify_merkle_proof, GeneralizedIndex,
@@ -335,6 +339,28 @@ pub fn hex_str_to_bytes(s: &str) -> Result<Vec<u8>> {
 pub fn calc_sync_period(slot: u64) -> u64 {
     let epoch = slot / 32; // 32 slots per epoch
     epoch / 256 // 256 epochs per sync committee
+}
+
+pub fn parse_keys(
+    keys: &Map<u64, PublicKeyWrapper>,
+    storage: &dyn Storage,
+) -> Result<Vec<PublicKey>> {
+    let mut result: Vec<PublicKey> = vec![];
+    for i in 0..512 {
+        result.push(keys.load(storage, i)?.0);
+    }
+    return Ok(result);
+}
+
+pub fn store_keys(
+    keys_store: &Map<u64, PublicKeyWrapper>,
+    keys: &Vec<PublicKey>,
+    storage: &mut dyn Storage,
+) -> Result<()> {
+    for (i, key) in keys.iter().enumerate() {
+        keys_store.save(storage, i as u64, &PublicKeyWrapper(key.clone()))?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
