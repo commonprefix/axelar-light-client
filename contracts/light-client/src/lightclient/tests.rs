@@ -122,7 +122,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_trie_proof() {
-        let verification_data = get_batched_data().1;
+        let verification_data = get_batched_data(false).1;
         let proofs = verification_data.target_blocks[0].transactions_proofs[0].clone();
         let receipt_proof = proofs.receipt_proof.clone();
         let transaction_proof = proofs.transaction_proof;
@@ -170,7 +170,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_block_roots_proof() {
-        let data = get_batched_data().1;
+        let data = get_batched_data(false).1;
         let (block_roots_index, block_root_proof) = match &data.target_blocks[0].ancestry_proof {
             AncestryProof::BlockRoots {
                 block_roots_index,
@@ -244,7 +244,7 @@ pub mod tests {
     #[test]
     #[ignore]
     fn test_verify_historical_roots_proof() {
-        let verification_data = get_batched_data().1;
+        let verification_data = get_batched_data(true).1;
         let (
             block_root_proof,
             block_summary_root,
@@ -360,7 +360,7 @@ pub mod tests {
 
     #[test]
     fn test_parse_logs_from_receipt() {
-        let verification_data = get_batched_data().1;
+        let verification_data = get_batched_data(false).1;
         let proofs = verification_data.target_blocks[0].transactions_proofs[0].clone();
         let mut receipt = verify_trie_proof(
             proofs.receipt_proof.receipts_root,
@@ -437,7 +437,7 @@ pub mod tests {
 
     #[test]
     fn test_extract_logs_from_receipt_proof() {
-        let verification_data = get_batched_data().1;
+        let verification_data = get_batched_data(false).1;
         let proofs = verification_data.target_blocks[0].transactions_proofs[0].clone();
         let target_block_root = verification_data.target_blocks[0]
             .target_block
@@ -490,7 +490,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_transaction_proof() {
-        let verification_data = get_batched_data().1;
+        let verification_data = get_batched_data(false).1;
         let transaction_proof = verification_data.target_blocks[0].transactions_proofs[0]
             .transaction_proof
             .clone();
@@ -520,7 +520,7 @@ pub mod tests {
 
     #[test]
     fn test_compare_message_with_log() {
-        let verification_data = get_batched_data().1;
+        let verification_data = get_batched_data(false).1;
         let transaction_proofs = verification_data.target_blocks[0].transactions_proofs[0].clone();
         let message = filter_message_variants(&transaction_proofs)[0].clone();
         let receipt_proof = transaction_proofs.receipt_proof;

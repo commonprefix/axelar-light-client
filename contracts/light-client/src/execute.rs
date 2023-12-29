@@ -212,7 +212,7 @@ mod tests {
 
     #[test]
     fn test_verify_message() {
-        let verification_data = get_batched_data().1;
+        let verification_data = get_batched_data(false).1;
         let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
 
@@ -292,7 +292,7 @@ mod tests {
 
     #[test]
     fn test_process_transaction_proofs() {
-        let data = get_batched_data().1;
+        let data = get_batched_data(false).1;
 
         let block_proofs = data
             .target_blocks
@@ -365,7 +365,7 @@ mod tests {
 
     #[test]
     fn test_process_block_proofs() {
-        let mut data = get_batched_data().1;
+        let mut data = get_batched_data(false).1;
         let recent_block = extract_recent_block(&data.update);
 
         for target_block in data.target_blocks.iter_mut() {
@@ -383,7 +383,7 @@ mod tests {
 
     #[test]
     fn test_process_batch_data() {
-        let (bootstrap, mut data) = get_batched_data();
+        let (bootstrap, mut data) = get_batched_data(false);
         let lc = init_lightclient(Some(bootstrap));
         let mut deps = mock_dependencies();
 
