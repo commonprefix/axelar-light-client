@@ -242,7 +242,6 @@ pub mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_verify_historical_roots_proof() {
         let verification_data = get_batched_data(true).1;
         let (
