@@ -30,6 +30,21 @@ impl StateProver {
     pub fn new(rpc: String) -> Self {
         StateProver { rpc }
     }
+
+    async fn get(&self, req: &str) -> Result<ProofResponse> {
+        let bytes = retry(
+            || async { Ok::<_, eyre::Report>(reqwest::get(req).await?.bytes().await?) },
+            BackoffSettings::default(),
+        )
+        .await?;
+
+        serde_json::from_slice::<ProofResponse>(&bytes).map_err(|_| {
+            anyhow!(
+                "Failed to parse response: {:?}",
+                std::str::from_utf8(&bytes)
+            )
+        })
+    }
 }
 
 #[automock]
@@ -42,18 +57,18 @@ impl StateProverAPI for StateProver {
     ) -> Result<ProofResponse> {
         let req = match gindex_or_path {
             GindexOrPath::Gindex(gindex) => format!(
-                "{}/state_proof/?state_id={}&gindex={}",
+                "{}/state_proof?state_id={}&gindex={}",
                 self.rpc, state_id, gindex
             ),
             GindexOrPath::Path(path) => format!(
-                "{}/state_proof/?state_id={}&path={}",
+                "{}/state_proof?state_id={}&path={}",
                 self.rpc,
                 state_id,
                 parse_path(path)
             ),
         };
 
-        get(&req)
+        self.get(&req)
             .await
             .map_err(|e| anyhow!("Failed to get state proof: {:?} {:?}", req, e))
     }
@@ -76,113 +91,149 @@ impl StateProverAPI for StateProver {
             ),
         };
 
-        get(&req)
+        self.get(&req)
             .await
             .map_err(|e| anyhow!("Failed to get block proof: {:?} {:?}", req, e))
     }
 }
 
-async fn get(req: &str) -> Result<ProofResponse> {
-    let bytes = retry(
-        || async { Ok::<_, eyre::Report>(reqwest::get(req).await?.bytes().await?) },
-        BackoffSettings::default(),
-    )
-    .await?;
-
-    serde_json::from_slice::<ProofResponse>(&bytes).map_err(|_| {
-        anyhow!(
-            "Failed to parse response: {:?}",
-            std::str::from_utf8(&bytes)
-        )
-    })
-}
-
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use super::*;
+    use httptest::{matchers::*, responders::*, Expectation, Server};
+    use ssz_rs::SszVariableOrIndex;
 
-    use crate::prover::{
-        state_prover::{MockStateProver, StateProverAPI},
-        types::{GindexOrPath, ProofResponse},
-    };
-    use mockall::predicate::eq;
+    fn setup_server_and_prover() -> (Server, StateProver) {
+        let server = Server::run();
+        let url = server.url("");
+        let rpc = StateProver::new(url.to_string());
+        (server, rpc)
+    }
 
     #[tokio::test]
     async fn test_get_state_proof() {
-        let mut mock = MockStateProver::new();
+        let (server, prover) = setup_server_and_prover();
+        let expected_response = ProofResponse::default();
+        let json_response = serde_json::to_string(&expected_response).unwrap();
 
-        let expected_response = Arc::new(ProofResponse::default());
+        server.expect(
+            Expectation::matching(all_of![
+                request::query(url_decoded(contains(("state_id", "state_id")))),
+                request::query(url_decoded(contains(("gindex", "1")))),
+            ])
+            .respond_with(status_code(200).body(json_response)),
+        );
 
-        mock.expect_get_state_proof()
-            .with(eq("state_id"), eq(GindexOrPath::Gindex(1)))
-            .times(1)
-            .returning({
-                let expected_response = expected_response.clone();
-                move |_, _| Ok((*expected_response).clone())
-            });
-
-        let result = mock
+        let result = prover
             .get_state_proof("state_id", &GindexOrPath::Gindex(1))
             .await
             .unwrap();
-        assert_eq!(result, *expected_response);
+        assert_eq!(result, expected_response);
+    }
+
+    #[tokio::test]
+    async fn test_get_state_proof_with_path() {
+        let (server, prover) = setup_server_and_prover();
+        let expected_response = ProofResponse::default();
+        let json_response = serde_json::to_string(&expected_response).unwrap();
+
+        server.expect(
+            Expectation::matching(all_of![
+                request::query(url_decoded(contains(("state_id", "state_id")))),
+                request::query(url_decoded(contains(("path", "test,lala")))),
+            ])
+            .respond_with(status_code(200).body(json_response)),
+        );
+
+        let path = vec![
+            SszVariableOrIndex::Name("test"),
+            SszVariableOrIndex::Name("lala"),
+        ];
+        let result = prover
+            .get_state_proof("state_id", &GindexOrPath::Path(path))
+            .await
+            .unwrap();
+        assert_eq!(result, expected_response);
     }
 
     #[tokio::test]
     async fn test_get_state_proof_error() {
-        let mut mock = MockStateProver::new();
+        let (server, prover) = setup_server_and_prover();
 
-        // Simulate an error response
-        let error_message = "State proof error";
-        mock.expect_get_state_proof()
-            .with(eq("state_id"), eq(GindexOrPath::Gindex(1)))
-            .times(1)
-            .returning(move |_, _| Err(eyre::eyre!(error_message)));
+        server.expect(
+            Expectation::matching(all_of![
+                request::query(url_decoded(contains(("state_id", "state_id")))),
+                request::query(url_decoded(contains(("gindex", "1")))),
+            ])
+            .respond_with(status_code(400).body("Error")),
+        );
 
-        let result = mock
+        let result = prover
             .get_state_proof("state_id", &GindexOrPath::Gindex(1))
             .await;
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), error_message);
     }
 
     #[tokio::test]
     async fn test_get_block_proof() {
-        let mut mock = MockStateProver::new();
+        let (server, prover) = setup_server_and_prover();
+        let json_response = serde_json::to_string(&ProofResponse::default()).unwrap();
 
-        let expected_response = Arc::new(ProofResponse::default());
+        server.expect(
+            Expectation::matching(all_of![
+                request::query(url_decoded(contains(("block_id", "block_id")))),
+                request::query(url_decoded(contains(("gindex", "1")))),
+            ])
+            .respond_with(status_code(200).body(json_response)),
+        );
 
-        mock.expect_get_block_proof()
-            .with(eq("block_id"), eq(GindexOrPath::Gindex(1)))
-            .times(1)
-            .returning({
-                let expected_response = expected_response.clone();
-                move |_, _| Ok((*expected_response).clone())
-            });
-
-        let result = mock
+        let result = prover
             .get_block_proof("block_id", GindexOrPath::Gindex(1))
             .await
             .unwrap();
-        assert_eq!(result, *expected_response);
+        assert_eq!(result, ProofResponse::default());
+    }
+
+    #[tokio::test]
+    async fn test_get_block_proof_with_path() {
+        let (server, prover) = setup_server_and_prover();
+        let json_response = serde_json::to_string(&ProofResponse::default()).unwrap();
+
+        server.expect(
+            Expectation::matching(all_of![
+                request::query(url_decoded(contains(("block_id", "block_id")))),
+                request::query(url_decoded(contains(("path", "test,lala")))),
+            ])
+            .respond_with(status_code(200).body(json_response)),
+        );
+
+        let path = vec![
+            SszVariableOrIndex::Name("test"),
+            SszVariableOrIndex::Name("lala"),
+        ];
+        let result = prover
+            .get_block_proof("block_id", GindexOrPath::Path(path))
+            .await
+            .unwrap();
+        assert_eq!(result, ProofResponse::default());
     }
 
     #[tokio::test]
     async fn test_get_block_proof_error() {
-        let mut mock = MockStateProver::new();
+        let (server, prover) = setup_server_and_prover();
 
-        // Simulate an error response
-        let error_message = "Block proof error";
-        mock.expect_get_block_proof()
-            .with(eq("block_id"), eq(GindexOrPath::Gindex(1)))
-            .times(1)
-            .returning(move |_, _| Err(eyre::eyre!(error_message)));
+        server.expect(
+            Expectation::matching(all_of![
+                request::query(url_decoded(contains(("block_id", "block_id")))),
+                request::query(url_decoded(contains(("gindex", "1")))),
+            ])
+            .respond_with(status_code(400)),
+        );
 
-        // Test the function and expect an error
-        let result = mock
+        let result = prover
             .get_block_proof("block_id", GindexOrPath::Gindex(1))
             .await;
+
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), error_message);
     }
 }

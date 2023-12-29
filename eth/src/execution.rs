@@ -7,8 +7,7 @@ use ethers::types::{Block, Filter, Log, Transaction, TransactionReceipt, H256, U
 use eyre::Result;
 use mockall::automock;
 
-use crate::error::RpcError;
-
+use crate::error::RPCError;
 #[automock]
 #[async_trait]
 pub trait EthExecutionAPI {
@@ -22,6 +21,7 @@ pub trait EthExecutionAPI {
 
 pub struct ExecutionRPC {
     pub provider: Provider<RetryClient<Http>>,
+    pub rpc: String,
 }
 
 impl ExecutionRPC {
@@ -32,10 +32,11 @@ impl ExecutionRPC {
 
         let provider = Provider::new(client);
 
-        ExecutionRPC { provider }
+        ExecutionRPC { rpc, provider }
     }
 }
 
+#[cfg(not(tarpaulin_include))]
 #[automock]
 #[async_trait]
 impl EthExecutionAPI for ExecutionRPC {
@@ -50,7 +51,7 @@ impl EthExecutionAPI for ExecutionRPC {
             .provider
             .get_block(block_number)
             .await
-            .map_err(|e| RpcError::new("get_block", e))?;
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
 
         Ok(block)
     }
@@ -60,7 +61,7 @@ impl EthExecutionAPI for ExecutionRPC {
             .provider
             .get_block_with_txs(block_number)
             .await
-            .map_err(|e| RpcError::new("get_block", e))?;
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
 
         Ok(block)
     }
@@ -80,7 +81,7 @@ impl EthExecutionAPI for ExecutionRPC {
             .provider
             .get_block_number()
             .await
-            .map_err(|e| RpcError::new("get_latest_block_number", e))?)
+            .map_err(|e| RPCError::RequestError(e.to_string()))?)
     }
 
     async fn get_logs(&self, filter: &Filter) -> Result<Vec<Log>> {
@@ -88,105 +89,17 @@ impl EthExecutionAPI for ExecutionRPC {
             .provider
             .get_logs(filter)
             .await
-            .map_err(|e| RpcError::new("get_logs", e))?)
+            .map_err(|e| RPCError::RequestError(e.to_string()))?)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use ethers::types::{Block, Filter, Log, Transaction, TransactionReceipt, H256, U64};
-    use mockall::predicate::eq;
+    use crate::execution::ExecutionRPC;
 
-    use crate::execution::{EthExecutionAPI, MockExecutionRPC};
-
-    #[tokio::test]
-    async fn test_get_block_receipts() {
-        let mut mock = MockExecutionRPC::new();
-
-        // Set up expected behavior
-        let expected_receipts = vec![TransactionReceipt::default()];
-        mock.expect_get_block_receipts()
-            .with(eq(100))
-            .times(1)
-            .return_once(move |_| Ok(expected_receipts.clone()));
-
-        let result = mock.get_block_receipts(100).await.unwrap();
-        assert_eq!(result, vec![TransactionReceipt::default()]);
-    }
-
-    #[tokio::test]
-    async fn test_get_block() {
-        let mut mock = MockExecutionRPC::new();
-
-        let expected_block = Some(Block::<H256>::default());
-        let expected_block_clone = expected_block.clone();
-        mock.expect_get_block()
-            .with(eq(100))
-            .times(1)
-            .return_once(move |_| Ok(expected_block_clone));
-
-        let result = mock.get_block(100).await.unwrap();
-        assert_eq!(result, expected_block);
-    }
-
-    #[tokio::test]
-    async fn test_get_block_with_txs() {
-        let mut mock = MockExecutionRPC::new();
-
-        let expected_block = Some(Block::<Transaction>::default());
-        let expected_block_clone = expected_block.clone();
-
-        mock.expect_get_block_with_txs()
-            .with(eq(100))
-            .times(1)
-            .return_once(move |_| Ok(expected_block_clone));
-
-        let result = mock.get_block_with_txs(100).await.unwrap();
-        assert_eq!(result, expected_block);
-    }
-
-    #[tokio::test]
-    async fn test_get_blocks() {
-        let mut mock = MockExecutionRPC::new();
-
-        let expected_blocks = vec![Some(Block::<H256>::default())];
-        let expected_blocks_clone = expected_blocks.clone(); // Clone the data for the closure
-
-        mock.expect_get_blocks()
-            .with(eq(vec![100]))
-            .times(1)
-            .return_once(move |_| Ok(expected_blocks_clone)); // Use the clone here
-
-        let result = mock.get_blocks(&[100]).await.unwrap();
-        assert_eq!(result, expected_blocks);
-    }
-
-    #[tokio::test]
-    async fn test_get_latest_block_number() {
-        let mut mock = MockExecutionRPC::new();
-
-        let expected_block_number = U64::from(100);
-        mock.expect_get_latest_block_number()
-            .times(1)
-            .return_once(move || Ok(expected_block_number));
-
-        let result = mock.get_latest_block_number().await.unwrap();
-        assert_eq!(result, U64::from(100));
-    }
-
-    #[tokio::test]
-    async fn test_get_logs() {
-        let mut mock = MockExecutionRPC::new();
-
-        let expected_logs = vec![Log::default()];
-        let expected_logs_clone = expected_logs.clone();
-        let filter = Filter::default();
-        mock.expect_get_logs()
-            .with(eq(filter.clone()))
-            .times(1)
-            .return_once(move |_| Ok(expected_logs_clone));
-
-        let result = mock.get_logs(&filter).await.unwrap();
-        assert_eq!(result, expected_logs);
+    #[test]
+    fn test_init() {
+        let rpc = ExecutionRPC::new("http://localhost:8545".to_string());
+        assert_eq!(rpc.rpc, "http://localhost:8545")
     }
 }

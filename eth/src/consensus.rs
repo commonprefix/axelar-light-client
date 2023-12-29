@@ -1,11 +1,9 @@
-use crate::error::RPCError;
-use crate::types::*;
-use crate::utils::get;
+use crate::{error::RPCError, types::*};
 use async_trait::async_trait;
 use futures::future;
 use mockall::automock;
 use ssz_rs::Vector;
-use std::cmp;
+use std::{cmp, time::Duration};
 use sync_committee_rs::{
     consensus_types::BeaconBlockHeader,
     constants::{Root, SLOTS_PER_HISTORICAL_ROOT},
@@ -25,19 +23,25 @@ pub trait EthBeaconAPI: Sync + Send + 'static {
         &self,
         start_slot: u64,
     ) -> Result<Vector<Root, SLOTS_PER_HISTORICAL_ROOT>, RPCError>;
-    async fn get_latest_beacon_block_header(&self) -> Result<BeaconBlockHeader, RPCError>;
-    async fn get_latest_beacon_block(&self) -> Result<BeaconBlockAlias, RPCError>;
 }
 
 #[derive(Clone)]
 pub struct ConsensusRPC {
     rpc: String,
+    client: reqwest::Client,
 }
 
 #[allow(dead_code)]
 impl ConsensusRPC {
     pub fn new(rpc: String) -> Self {
-        ConsensusRPC { rpc }
+        let client = reqwest::Client::builder()
+            .pool_max_idle_per_host(490)
+            .connect_timeout(Duration::from_secs(60))
+            .timeout(Duration::from_secs(60))
+            .build()
+            .unwrap();
+
+        ConsensusRPC { rpc, client }
     }
 }
 
@@ -47,9 +51,27 @@ impl EthBeaconAPI for ConsensusRPC {
     async fn get_block_root(&self, slot: u64) -> Result<Root, RPCError> {
         let req = format!("{}/eth/v1/beacon/blocks/{}/root", self.rpc, slot);
 
-        let res: BlockRootResponse = get(&req).await?;
+        let res = self
+            .client
+            .get(&req)
+            .send()
+            .await
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
 
-        Ok(res.data.root)
+        if res.status() != reqwest::StatusCode::OK {
+            return Err(RPCError::RequestError(format!(
+                "Unexpected status code: {}",
+                res.status()
+            )));
+        }
+
+        let data = res
+            .json::<BlockRootResponse>()
+            .await
+            .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
+
+        println!("resolved: {:?}", slot);
+        Ok(data.data.root)
     }
 
     async fn get_bootstrap(&self, block_root: &'_ [u8]) -> Result<Bootstrap, RPCError> {
@@ -59,9 +81,26 @@ impl EthBeaconAPI for ConsensusRPC {
             self.rpc, root_hex
         );
 
-        let res: BootstrapResponse = get::<BootstrapResponse>(&req).await?;
+        let res = self
+            .client
+            .get(&req)
+            .send()
+            .await
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
 
-        Ok(res.data)
+        if res.status() != reqwest::StatusCode::OK {
+            return Err(RPCError::RequestError(format!(
+                "Unexpected status code: {}",
+                res.status()
+            )));
+        }
+
+        let data = res
+            .json::<BootstrapResponse>()
+            .await
+            .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
+
+        Ok(data.data)
     }
 
     async fn get_updates(&self, period: u64, count: u8) -> Result<Vec<Update>, RPCError> {
@@ -71,82 +110,150 @@ impl EthBeaconAPI for ConsensusRPC {
             self.rpc, period, count
         );
 
-        let res: UpdateResponse = get(&req).await?;
+        let res = self
+            .client
+            .get(&req)
+            .send()
+            .await
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
 
-        Ok(res.into_iter().map(|d| d.data).collect())
+        if res.status() != reqwest::StatusCode::OK {
+            return Err(RPCError::RequestError(format!(
+                "Unexpected status code: {}",
+                res.status()
+            )));
+        }
+
+        let data = res
+            .json::<Vec<UpdateData>>()
+            .await
+            .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
+
+        Ok(data.into_iter().map(|d| d.data).collect())
     }
 
     async fn get_finality_update(&self) -> Result<FinalityUpdate, RPCError> {
         let req = format!("{}/eth/v1/beacon/light_client/finality_update", self.rpc);
 
-        let res: FinalityUpdateData = get(&req).await?;
+        let res = self
+            .client
+            .get(&req)
+            .send()
+            .await
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
 
-        Ok(res.data)
+        if res.status() != reqwest::StatusCode::OK {
+            return Err(RPCError::RequestError(format!(
+                "Unexpected status code: {}",
+                res.status()
+            )));
+        }
+
+        let data = res
+            .json::<FinalityUpdateData>()
+            .await
+            .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
+
+        Ok(data.data)
     }
 
     async fn get_optimistic_update(&self) -> Result<OptimisticUpdate, RPCError> {
         let req = format!("{}/eth/v1/beacon/light_client/optimistic_update", self.rpc);
 
-        let res: OptimisticUpdateData = get(&req).await?;
+        let res = self
+            .client
+            .get(&req)
+            .send()
+            .await
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
 
-        Ok(res.data)
+        if res.status() != reqwest::StatusCode::OK {
+            return Err(RPCError::RequestError(format!(
+                "Unexpected status code: {}",
+                res.status()
+            )));
+        }
+
+        let data = res
+            .json::<OptimisticUpdateData>()
+            .await
+            .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
+
+        Ok(data.data)
     }
 
     async fn get_beacon_block_header(&self, slot: u64) -> Result<BeaconBlockHeader, RPCError> {
         let req = format!("{}/eth/v1/beacon/headers/{}", self.rpc, slot);
 
-        let res: BeaconBlockHeaderResponse = get(&req).await?;
+        let res = self
+            .client
+            .get(&req)
+            .send()
+            .await
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
 
-        Ok(res.data.header.message)
+        if res.status() != reqwest::StatusCode::OK {
+            return Err(RPCError::RequestError(format!(
+                "Unexpected status code: {}",
+                res.status()
+            )));
+        }
+
+        let data = res
+            .json::<BeaconBlockHeaderResponse>()
+            .await
+            .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
+
+        Ok(data.data.header.message)
     }
+
     async fn get_beacon_block(&self, slot: u64) -> Result<BeaconBlockAlias, RPCError> {
         let req = format!("{}/eth/v2/beacon/blocks/{}", self.rpc, slot);
 
-        let res: BeaconBlockResponse = get(&req).await?;
+        let res = self
+            .client
+            .get(&req)
+            .send()
+            .await
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
 
-        Ok(res.data.message)
-    }
+        if res.status() != reqwest::StatusCode::OK {
+            return Err(RPCError::RequestError(format!(
+                "Unexpected status code: {}",
+                res.status()
+            )));
+        }
 
-    async fn get_latest_beacon_block(&self) -> Result<BeaconBlockAlias, RPCError> {
-        let req = format!("{}/eth/v2/beacon/blocks/head", self.rpc);
-        let res: BeaconBlockResponse = get(&req).await?;
+        let data = res
+            .json::<BeaconBlockResponse>()
+            .await
+            .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
 
-        Ok(res.data.message)
-    }
-
-    async fn get_latest_beacon_block_header(&self) -> Result<BeaconBlockHeader, RPCError> {
-        let req = format!("{}/eth/v2/beacon/headers/head", self.rpc);
-
-        let res: BeaconBlockHeaderResponse = get(&req).await?;
-
-        Ok(res.data.header.message)
+        Ok(data.data.message)
     }
 
     async fn get_block_roots_tree(
         &self,
         start_slot: u64,
     ) -> Result<Vector<Root, SLOTS_PER_HISTORICAL_ROOT>, RPCError> {
-        const BATCH_SIZE: usize = 1000;
+        let mut futures = Vec::new();
 
-        let mut block_roots = vec![];
+        for i in 0..SLOTS_PER_HISTORICAL_ROOT {
+            let future = self.get_block_root(start_slot + i as u64);
+            futures.push(future);
+        }
 
-        for batch_start in (0..SLOTS_PER_HISTORICAL_ROOT).step_by(BATCH_SIZE) {
-            let batch_end = std::cmp::min(batch_start + BATCH_SIZE, SLOTS_PER_HISTORICAL_ROOT);
-            let mut futures = Vec::new();
+        let resolved = future::join_all(futures).await;
 
-            for i in batch_start..batch_end {
-                let future = self.get_block_root(start_slot + i as u64);
-                futures.push(future);
-            }
-
-            let resolved = future::join_all(futures).await;
-            println!("Resolved batch {}", batch_start / BATCH_SIZE);
-
-            // Block root tree includes the last block root if no block was minted in the slot
-            for block_root in resolved.iter() {
-                match block_root {
-                    Ok(block_root) => block_roots.push(*block_root),
-                    Err(_) => block_roots.push(*block_roots.last().unwrap()),
+        // If any of the block roots failed to resolve, fill in the gaps with the last known root.
+        let mut block_roots = Vec::with_capacity(SLOTS_PER_HISTORICAL_ROOT);
+        for block_root in resolved {
+            match block_root {
+                Ok(block_root) => block_roots.push(block_root),
+                Err(_) => {
+                    if let Some(last_root) = block_roots.last().cloned() {
+                        block_roots.push(last_root);
+                    }
                 }
             }
         }
@@ -160,127 +267,263 @@ impl EthBeaconAPI for ConsensusRPC {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_trait::async_trait;
-    use mockall::predicate::*;
-    use mockall::*;
+    use httptest::{matchers::*, responders::*, Expectation, Server};
 
-    mock! {
-        ConsensusRPC {}
-        #[async_trait]
-        impl EthBeaconAPI for ConsensusRPC {
-            async fn get_block_root(&self, slot: u64) -> Result<Root, RPCError>;
-            async fn get_bootstrap(&self, block_root: &'_ [u8]) -> Result<Bootstrap, RPCError>;
-            async fn get_updates(&self, period: u64, count: u8) -> Result<Vec<Update>, RPCError>;
-            async fn get_finality_update(&self) -> Result<FinalityUpdate, RPCError>;
-            async fn get_optimistic_update(&self) -> Result<OptimisticUpdate, RPCError>;
-            async fn get_beacon_block_header(&self, slot: u64) -> Result<BeaconBlockHeader, RPCError>;
-            async fn get_beacon_block(&self, slot: u64) -> Result<BeaconBlockAlias, RPCError>;
-            async fn get_block_roots_tree(
-                &self,
-                start_slot: u64,
-            ) -> Result<Vector<Root, SLOTS_PER_HISTORICAL_ROOT>, RPCError>;
-            async fn get_latest_beacon_block_header(&self) -> Result<BeaconBlockHeader, RPCError>;
-            async fn get_latest_beacon_block(&self) -> Result<BeaconBlockAlias, RPCError>;
-        }
+    fn setup_server_and_rpc() -> (Server, ConsensusRPC) {
+        let server = Server::run();
+        let url = server.url("");
+        let rpc = ConsensusRPC::new(url.to_string());
+        (server, rpc)
     }
-
     #[tokio::test]
     async fn test_get_block_root() {
-        let mut mock_rpc = MockConsensusRPC::new();
-        let expected_root = Root::default();
-        mock_rpc
-            .expect_get_block_root()
-            .with(predicate::eq(12345))
-            .times(1)
-            .returning(move |_| Ok(expected_root));
+        let (server, rpc) = setup_server_and_rpc();
+        let result = BlockRootResponse::default();
+        let json_res = serde_json::to_string(&result).unwrap();
 
-        let result = mock_rpc.get_block_root(12345).await;
+        server.expect(
+            Expectation::matching(request::path(matches("/eth/v1/beacon/blocks/12345/root")))
+                .respond_with(status_code(200).body(json_res)),
+        );
+
+        let result = rpc.get_block_root(12345).await;
         assert_eq!(result.unwrap(), Root::default());
     }
 
     #[tokio::test]
     async fn test_get_updates() {
-        let mut mock_rpc = MockConsensusRPC::new();
-        let expected_updates = vec![Update::default(); 3]; // Example updates
+        let (server, rpc) = setup_server_and_rpc();
+        let expected_updates = vec![Update::default(); 3];
         let period = 10u64;
         let count = 3u8;
 
-        let updates_for_mock = expected_updates.clone();
+        let response = expected_updates
+            .iter()
+            .map(|u| UpdateData { data: u.clone() })
+            .collect::<Vec<_>>();
+        let json_res = serde_json::to_string(&response).unwrap();
 
-        mock_rpc
-            .expect_get_updates()
-            .with(predicate::eq(period), predicate::eq(count))
-            .times(1)
-            .returning(move |_, _| Ok(updates_for_mock.clone()));
+        server.expect(
+            Expectation::matching(all_of(vec![
+                Box::new(request::path(matches(
+                    "/eth/v1/beacon/light_client/updates",
+                ))),
+                Box::new(request::query(url_decoded(contains((
+                    "count",
+                    count.to_string(),
+                ))))),
+                Box::new(request::query(url_decoded(contains((
+                    "start_period",
+                    period.to_string(),
+                ))))),
+            ]))
+            .respond_with(status_code(200).body(json_res)),
+        );
 
-        let result = mock_rpc.get_updates(period, count).await;
+        let result = rpc.get_updates(period, count).await;
         assert_eq!(result.unwrap(), expected_updates);
+
+        server.expect(Expectation::matching(any()).respond_with(status_code(404)));
+
+        let res: Result<Vec<Update>, _> = rpc.get_updates(period, count).await;
+        assert!(res.is_err());
     }
 
     #[tokio::test]
     async fn test_get_finality_update() {
-        let mut mock_rpc = MockConsensusRPC::new();
+        let (server, rpc) = setup_server_and_rpc();
         let expected_update = FinalityUpdate::default();
 
-        let update_for_mock = expected_update.clone();
+        let response = FinalityUpdateData {
+            data: expected_update.clone(),
+        };
+        let json_res = serde_json::to_string(&response).unwrap();
 
-        mock_rpc
-            .expect_get_finality_update()
-            .times(1)
-            .returning(move || Ok(update_for_mock.clone()));
+        server.expect(
+            Expectation::matching(request::path(matches(
+                "/eth/v1/beacon/light_client/finality_update",
+            )))
+            .respond_with(status_code(200).body(json_res)),
+        );
 
-        let result = mock_rpc.get_finality_update().await;
+        let result = rpc.get_finality_update().await;
         assert_eq!(result.unwrap(), expected_update);
+
+        server.expect(Expectation::matching(any()).respond_with(status_code(404)));
+
+        let res: Result<FinalityUpdate, _> = rpc.get_finality_update().await;
+        assert!(res.is_err());
     }
 
     #[tokio::test]
     async fn test_get_optimistic_update() {
-        let mut mock_rpc = MockConsensusRPC::new();
+        let (server, rpc) = setup_server_and_rpc();
         let expected_update = OptimisticUpdate::default();
-        let update_for_mock = expected_update.clone();
 
-        mock_rpc
-            .expect_get_optimistic_update()
-            .times(1)
-            .returning(move || Ok(update_for_mock.clone()));
+        let response = OptimisticUpdateData {
+            data: expected_update.clone(),
+        };
+        let json_res = serde_json::to_string(&response).unwrap();
 
-        let result = mock_rpc.get_optimistic_update().await;
+        server.expect(
+            Expectation::matching(request::path(matches(
+                "/eth/v1/beacon/light_client/optimistic_update",
+            )))
+            .respond_with(status_code(200).body(json_res)),
+        );
+
+        let result = rpc.get_optimistic_update().await;
         assert_eq!(result.unwrap(), expected_update);
+
+        server.expect(Expectation::matching(any()).respond_with(status_code(404)));
+
+        let res: Result<OptimisticUpdate, _> = rpc.get_optimistic_update().await;
+        assert!(res.is_err());
     }
 
     #[tokio::test]
     async fn test_get_beacon_block_header() {
-        let mut mock_rpc = MockConsensusRPC::new();
+        let (server, rpc) = setup_server_and_rpc();
+
+        let slot = 12345;
         let expected_header = BeaconBlockHeader::default();
-        let header_for_mock = expected_header.clone();
-        let slot = 12345u64;
+        let response = BeaconBlockHeaderResponse {
+            data: BeaconBlockHeaderContainer {
+                header: BeaconBlockHeaderMessage {
+                    message: expected_header.clone(),
+                },
+            },
+        };
+        let json_res = serde_json::to_string(&response).unwrap();
 
-        mock_rpc
-            .expect_get_beacon_block_header()
-            .with(predicate::eq(slot))
-            .times(1)
-            .returning(move |_| Ok(header_for_mock.clone()));
+        server.expect(
+            Expectation::matching(request::path(matches(format!(
+                "/eth/v1/beacon/headers/{}",
+                slot
+            ))))
+            .respond_with(status_code(200).body(json_res)),
+        );
 
-        let result = mock_rpc.get_beacon_block_header(slot).await;
+        let result = rpc.get_beacon_block_header(slot).await;
         assert_eq!(result.unwrap(), expected_header);
+
+        server.expect(Expectation::matching(any()).respond_with(status_code(404)));
+
+        let res: Result<BeaconBlockHeader, _> = rpc.get_beacon_block_header(slot).await;
+        assert!(res.is_err());
     }
 
     #[tokio::test]
     async fn test_get_bootstrap() {
-        let mut mock_rpc = MockConsensusRPC::new();
+        let (server, rpc) = setup_server_and_rpc();
+
         let expected_bootstrap = Bootstrap::default();
-        let bootstrap_for_mock = expected_bootstrap.clone();
-        // Create an owned version of block_root
         let block_root = vec![0u8; 32]; // Mock block root
 
-        // Now `block_root` is owned and can be moved into the closure
-        mock_rpc
-            .expect_get_bootstrap()
-            .with(predicate::eq(block_root.clone())) // Use clone to keep original `block_root`
-            .times(1)
-            .returning(move |_| Ok(bootstrap_for_mock.clone()));
+        let response = BootstrapResponse {
+            data: expected_bootstrap.clone(),
+        };
+        let json_res = serde_json::to_string(&response).unwrap();
 
-        let result = mock_rpc.get_bootstrap(&block_root).await;
+        server.expect(
+            Expectation::matching(request::path(matches(format!(
+                "/eth/v1/beacon/light_client/bootstrap/0x{}",
+                hex::encode(block_root.clone())
+            ))))
+            .respond_with(status_code(200).body(json_res)),
+        );
+
+        let result = rpc.get_bootstrap(&block_root).await;
         assert_eq!(result.unwrap(), expected_bootstrap);
+
+        server.expect(Expectation::matching(any()).respond_with(status_code(404)));
+
+        let res: Result<Bootstrap, _> = rpc.get_bootstrap(&block_root).await;
+        assert!(res.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_beacon_block() {
+        let (server, rpc) = setup_server_and_rpc();
+
+        let slot = 12345;
+        let expected_block = BeaconBlockAlias::default();
+        let response = BeaconBlockResponse {
+            data: BeaconBlockContainer {
+                message: expected_block.clone(),
+            },
+        };
+        let json_res = serde_json::to_string(&response).unwrap();
+
+        server.expect(
+            Expectation::matching(request::path(matches(format!(
+                "/eth/v2/beacon/blocks/{}",
+                slot
+            ))))
+            .respond_with(status_code(200).body(json_res)),
+        );
+
+        let result = rpc.get_beacon_block(slot).await;
+        assert_eq!(result.unwrap(), expected_block);
+
+        server.expect(Expectation::matching(any()).respond_with(status_code(404)));
+
+        let res: Result<BeaconBlockAlias, _> = rpc.get_beacon_block(slot).await;
+        assert!(res.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_block_roots_tree() {
+        let (server, rpc) = setup_server_and_rpc();
+        let start_slot = 100;
+
+        let response = BlockRootResponse {
+            data: BlockRoot {
+                root: Default::default(),
+            },
+        };
+        let json_res = serde_json::to_string(&response).unwrap();
+
+        server.expect(
+            Expectation::matching(any())
+                //TODO: Fix this to be SLOTS_PER_HISTORICAL_ROOT
+                .times(1..)
+                .respond_with(status_code(200).body(json_res.clone())),
+        );
+
+        let result = rpc.get_block_roots_tree(start_slot as u64).await;
+
+        match result {
+            Ok(roots_vector) => {
+                assert_eq!(roots_vector.len(), SLOTS_PER_HISTORICAL_ROOT);
+            }
+            Err(e) => panic!("Failed to get block roots tree: {:?}", e),
+        }
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_get_block_roots_tree_with_fallback() {
+        let (server, rpc) = setup_server_and_rpc();
+        let start_slot = 100;
+
+        let response = BlockRootResponse {
+            data: BlockRoot {
+                root: Default::default(),
+            },
+        };
+        let response_json = serde_json::to_string(&response).unwrap();
+
+        server.expect(Expectation::matching(any()).times(..).respond_with(cycle![
+            status_code(200).body(response_json.clone()),
+            status_code(404),
+        ]));
+
+        let result = rpc.get_block_roots_tree(start_slot as u64).await;
+
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert_eq!(result.len(), SLOTS_PER_HISTORICAL_ROOT);
+        assert_eq!([Root::default(); 8192].to_vec(), result.to_vec());
     }
 }

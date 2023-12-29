@@ -95,7 +95,7 @@ fn process_block_proofs(
     let mut ancestry_proof_verification = || -> Result<()> {
         target_block_root = data.target_block.clone().hash_tree_root()?;
 
-        verify_ancestry_proof(&data.ancestry_proof, &data.target_block, &recent_block)?;
+        verify_ancestry_proof(&data.ancestry_proof, &data.target_block, recent_block)?;
         Ok(())
     };
 

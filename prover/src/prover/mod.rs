@@ -1,12 +1,17 @@
-pub mod consensus;
-pub mod execution;
-mod mocks;
+pub mod proof_generator;
 pub mod state_prover;
+mod test_helpers;
 pub mod types;
 pub mod utils;
 
-use self::utils::{get_tx_hash_from_cc_id, get_tx_index};
-use crate::prover::{consensus::ConsensusProverAPI, execution::ExecutionProverAPI};
+use std::sync::Arc;
+
+use self::{
+    proof_generator::{ProofGenerator, ProofGeneratorAPI},
+    state_prover::StateProver,
+    types::ProverConfig,
+    utils::{get_tx_hash_from_cc_id, get_tx_index},
+};
 use consensus_types::{
     consensus::{to_beacon_header, BeaconBlockAlias},
     proofs::{
@@ -15,25 +20,34 @@ use consensus_types::{
     },
 };
 
+use eth::consensus::ConsensusRPC;
 use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use eyre::{anyhow, Context, Result};
 use indexmap::IndexMap;
 use ssz_rs::{Merkleized, Node};
-use sync_committee_rs::{consensus_types::BeaconBlockHeader, constants::Root};
+use sync_committee_rs::{
+    consensus_types::BeaconBlockHeader,
+    constants::{Root, SLOTS_PER_HISTORICAL_ROOT},
+};
 use types::BatchMessageGroups;
 use types::EnrichedMessage;
 
-pub struct Prover<CP: ConsensusProverAPI, EP: ExecutionProverAPI> {
-    consensus_prover: CP,
-    execution_prover: EP,
+pub struct Prover<PG> {
+    proof_generator: PG,
 }
 
-impl<CP: ConsensusProverAPI, EP: ExecutionProverAPI> Prover<CP, EP> {
-    pub fn new(consensus_prover: CP, execution_prover: EP) -> Self {
-        Prover {
-            consensus_prover,
-            execution_prover,
-        }
+impl Prover<ProofGenerator<ConsensusRPC, StateProver>> {
+    pub fn with_config(consensus_rpc: Arc<ConsensusRPC>, prover_config: ProverConfig) -> Self {
+        let state_prover = StateProver::new(prover_config.state_prover_rpc.clone());
+        let proof_generator = ProofGenerator::new(consensus_rpc, state_prover.clone());
+
+        Prover { proof_generator }
+    }
+}
+
+impl<PG: ProofGeneratorAPI> Prover<PG> {
+    pub fn new(proof_generator: PG) -> Self {
+        Prover { proof_generator }
     }
 
     pub async fn batch_messages(
@@ -144,25 +158,37 @@ impl<CP: ConsensusProverAPI, EP: ExecutionProverAPI> Prover<CP, EP> {
         Ok((beacon_block, exec_block, receipts))
     }
 
+    /**
+     * Generates an ancestry proof from the recent block state to the target block
+     * using either the block_roots or the historical_roots beacon state property.
+     */
     pub async fn get_ancestry_proof(
         &self,
         target_block_slot: u64,
         recent_block: &BeaconBlockHeader,
     ) -> Result<AncestryProof> {
-        let ancestry_proof = self
-            .consensus_prover
-            .prove_ancestry(
-                target_block_slot as usize,
-                recent_block.slot as usize,
-                &recent_block.state_root.to_string(),
-            )
-            .await
-            .wrap_err(format!(
-                "Failed to generate ancestry proof for block {:?}",
-                target_block_slot
-            ))?;
+        let is_in_block_roots_range = target_block_slot < recent_block.slot
+            && recent_block.slot <= target_block_slot + SLOTS_PER_HISTORICAL_ROOT as u64;
 
-        Ok(ancestry_proof)
+        let recent_block_state_id = recent_block.state_root.to_string();
+
+        let proof = if is_in_block_roots_range {
+            self.proof_generator
+                .prove_ancestry_with_block_roots(&target_block_slot, recent_block_state_id.as_str())
+        } else {
+            self.proof_generator
+                .prove_ancestry_with_historical_summaries(
+                    &target_block_slot,
+                    &recent_block_state_id,
+                )
+        }
+        .await
+        .wrap_err(format!(
+            "Failed to generate ancestry proof for block {:?}",
+            target_block_slot
+        ))?;
+
+        Ok(proof)
     }
 
     pub async fn get_receipt_proof(
@@ -173,15 +199,15 @@ impl<CP: ConsensusProverAPI, EP: ExecutionProverAPI> Prover<CP, EP> {
         tx_index: u64,
     ) -> Result<ReceiptProof> {
         let receipt_proof = self
-            .execution_prover
-            .generate_receipt_proof(exec_block, receipts, tx_index)
+            .proof_generator
+            .generate_receipt_proof(receipts, tx_index)
             .wrap_err(format!(
                 "Failed to generate receipt proof for block {} and tx: {}",
                 block_hash, tx_index
             ))?;
 
         let receipts_root_proof = self
-            .consensus_prover
+            .proof_generator
             .generate_receipts_root_proof(block_hash.to_string().as_str())
             .await
             .wrap_err(format!(
@@ -208,7 +234,7 @@ impl<CP: ConsensusProverAPI, EP: ExecutionProverAPI> Prover<CP, EP> {
             beacon_block.body.execution_payload.transactions[tx_index as usize].clone();
 
         let proof = self
-            .consensus_prover
+            .proof_generator
             .generate_transaction_proof(block_hash.to_string().as_str(), tx_index)
             .await
             .wrap_err(format!(
@@ -229,61 +255,15 @@ impl<CP: ConsensusProverAPI, EP: ExecutionProverAPI> Prover<CP, EP> {
 
 #[cfg(test)]
 mod tests {
-    use crate::prover::consensus::MockConsensusProver;
-    use crate::prover::execution::MockExecutionProver;
-    use crate::prover::Prover;
-
     use super::state_prover::MockStateProver;
-    use super::types::{BatchMessageGroups, EnrichedMessage};
-    use consensus_types::consensus::{BeaconBlockAlias, FinalityUpdate, OptimisticUpdate};
-    use consensus_types::proofs::{
-        AncestryProof, BatchVerificationData, CrossChainId, Message, UpdateVariant,
-    };
+    use crate::prover::proof_generator::MockProofGenerator;
+    use crate::prover::test_helpers::test_utils::*;
+    use crate::prover::Prover;
+    use consensus_types::consensus::to_beacon_header;
+    use consensus_types::proofs::{AncestryProof, BatchVerificationData};
     use eth::consensus::MockConsensusRPC;
     use eth::execution::MockExecutionRPC;
-    use ethers::types::{Block, Transaction, TransactionReceipt, H256};
-    use indexmap::IndexMap;
-
-    fn get_mock_update(
-        is_optimistic: bool,
-        attested_slot: u64,
-        finality_slot: u64,
-    ) -> UpdateVariant {
-        if is_optimistic {
-            let mut update = OptimisticUpdate::default();
-            update.attested_header.beacon.slot = attested_slot;
-            UpdateVariant::Optimistic(update)
-        } else {
-            let mut update = FinalityUpdate::default();
-            update.finalized_header.beacon.slot = finality_slot;
-            update.attested_header.beacon.slot = attested_slot;
-            UpdateVariant::Finality(update)
-        }
-    }
-
-    fn get_mock_message(slot: u64, block_number: u64, tx_hash: H256) -> EnrichedMessage {
-        EnrichedMessage {
-            message: Message {
-                cc_id: CrossChainId {
-                    chain: "ethereum".parse().unwrap(),
-                    id: format!("{:x}:test", tx_hash).parse().unwrap(),
-                },
-                source_address: "0x0000000".parse().unwrap(),
-                destination_chain: "polygon".parse().unwrap(),
-                destination_address: "0x0000000".parse().unwrap(),
-                payload_hash: Default::default(),
-            },
-            tx_hash,
-            exec_block: get_mock_exec_block_with_txs(block_number),
-            beacon_block: get_mock_beacon_block(slot),
-            receipts: (1..100)
-                .map(|i| TransactionReceipt {
-                    transaction_hash: H256::from_low_u64_be(i),
-                    ..Default::default()
-                })
-                .collect(),
-        }
-    }
+    use ethers::types::H256;
 
     fn setup() -> (MockConsensusRPC, MockExecutionRPC, MockStateProver) {
         let consensus_rpc = MockConsensusRPC::new();
@@ -293,74 +273,6 @@ mod tests {
         (consensus_rpc, execution_rpc, state_prover)
     }
 
-    /*
-        Setup the following batch scenario:
-
-        * block 1 -> tx 1 -> message 1
-        * block 2 -> tx 2 -> message 2
-        *   \            \
-        *    \            -> message 3
-        *     \
-        *      --->  tx 3 -> message 4
-        *
-        * block 3 -> tx 4 -> message 5
-    */
-    fn get_mock_batch_message_groups() -> BatchMessageGroups {
-        let mut messages = vec![];
-        for i in 0..6 {
-            let m = get_mock_message(i, i, H256::from_low_u64_be(i));
-            messages.push(m);
-        }
-
-        let mut groups: BatchMessageGroups = IndexMap::new();
-        let mut blockgroup1 = IndexMap::new();
-        let mut blockgroup2 = IndexMap::new();
-        let mut blockgroup3 = IndexMap::new();
-
-        blockgroup1.insert(messages[1].tx_hash, vec![messages[1].clone()]);
-        blockgroup2.insert(
-            messages[2].tx_hash,
-            vec![messages[2].clone(), messages[3].clone()],
-        );
-        blockgroup2.insert(messages[4].tx_hash, vec![messages[4].clone()]);
-        blockgroup3.insert(messages[5].tx_hash, vec![messages[5].clone()]);
-
-        groups.insert(1, blockgroup1);
-        groups.insert(2, blockgroup2);
-        groups.insert(3, blockgroup3);
-
-        groups
-    }
-
-    fn get_mock_beacon_block(slot: u64) -> BeaconBlockAlias {
-        let mut block = BeaconBlockAlias {
-            slot,
-            ..Default::default()
-        };
-        block.body.execution_payload.transactions = ssz_rs::List::default();
-
-        for _ in 1..10 {
-            block
-                .body
-                .execution_payload
-                .transactions
-                .push(sync_committee_rs::consensus_types::Transaction::default());
-        }
-        block
-    }
-
-    fn get_mock_exec_block(block_number: u64) -> Block<H256> {
-        let mut block = Block::default();
-        block.number = Some(ethers::types::U64::from(block_number));
-        block
-    }
-
-    fn get_mock_exec_block_with_txs(block_number: u64) -> Block<Transaction> {
-        let mut block = Block::<Transaction>::default();
-        block.number = Some(ethers::types::U64::from(block_number));
-        block
-    }
-
     #[tokio::test]
     async fn test_batch_generate_proofs() {
         let mock_update = get_mock_update(true, 1000, 505);
@@ -368,28 +280,26 @@ mod tests {
 
         let (_consensus_rpc, _execution_rpc, _state_prover) = setup();
 
-        let mut consensus_prover = MockConsensusProver::<MockConsensusRPC, MockStateProver>::new();
-        consensus_prover
-            .expect_prove_ancestry()
-            .returning(|_, _, _| {
+        let mut proof_generator = MockProofGenerator::<MockConsensusRPC, MockStateProver>::new();
+        proof_generator
+            .expect_prove_ancestry_with_block_roots()
+            .returning(|_, _| {
                 Ok(AncestryProof::BlockRoots {
                     block_roots_index: 0,
                     block_root_proof: vec![],
                 })
             });
-        consensus_prover
+        proof_generator
             .expect_generate_transaction_proof()
             .returning(|_, _| Ok(Default::default()));
-        consensus_prover
+        proof_generator
             .expect_generate_receipts_root_proof()
             .returning(|_| Ok(Default::default()));
-
-        let mut execution_prover = MockExecutionProver::new();
-        execution_prover
+        proof_generator
             .expect_generate_receipt_proof()
-            .returning(|_, _, _| Ok(Default::default()));
+            .returning(|_, _| Ok(Default::default()));
 
-        let prover = Prover::new(consensus_prover, execution_prover);
+        let prover = Prover::new(proof_generator);
 
         let res = prover
             .batch_generate_proofs(batch_message_groups, mock_update.clone())
@@ -410,6 +320,65 @@ mod tests {
         assert_eq!(target_blocks[1].transactions_proofs[0].messages.len(), 2);
         assert_eq!(target_blocks[1].transactions_proofs[1].messages.len(), 1);
         assert_eq!(target_blocks[2].transactions_proofs[0].messages.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_get_ancestry_proof_block_roots() {
+        let mut proof_generator = MockProofGenerator::<MockConsensusRPC, MockStateProver>::new();
+
+        let recent_block = get_mock_beacon_block(1000);
+        let recent_block_header = to_beacon_header(&recent_block).unwrap();
+        let target_block_slot = 505;
+
+        let proof = AncestryProof::BlockRoots {
+            block_roots_index: 0,
+            block_root_proof: vec![],
+        };
+
+        proof_generator
+            .expect_prove_ancestry_with_block_roots()
+            .returning(move |_, _| Ok(proof.clone()));
+
+        let prover = Prover::new(proof_generator);
+
+        let res = prover
+            .get_ancestry_proof(target_block_slot, &recent_block_header)
+            .await;
+        assert!(res.is_ok());
+        // Assert is blockroots
+        assert!(matches!(res.unwrap(), AncestryProof::BlockRoots { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_get_ancestry_proof_historical_roots() {
+        let mut proof_generator = MockProofGenerator::<MockConsensusRPC, MockStateProver>::new();
+
+        let recent_block = get_mock_beacon_block(10000);
+        let recent_block_header = to_beacon_header(&recent_block).unwrap();
+        let target_block_slot = 1000;
+
+        let proof = AncestryProof::HistoricalRoots {
+            block_root_proof: Default::default(),
+            block_summary_root: Default::default(),
+            block_summary_root_proof: Default::default(),
+            block_summary_root_gindex: Default::default(),
+        };
+
+        proof_generator
+            .expect_prove_ancestry_with_historical_summaries()
+            .returning(move |_, _| Ok(proof.clone()));
+
+        let prover = Prover::new(proof_generator);
+
+        let res = prover
+            .get_ancestry_proof(target_block_slot, &recent_block_header)
+            .await;
+        assert!(res.is_ok());
+        // Assert is blockroots
+        assert!(matches!(
+            res.unwrap(),
+            AncestryProof::HistoricalRoots { .. }
+        ));
     }
 
     #[tokio::test]
@@ -445,10 +414,8 @@ mod tests {
             mock_message5.clone(),
         ];
 
-        let consensus_prover = MockConsensusProver::<MockConsensusRPC, MockStateProver>::new();
-        let execution_prover = MockExecutionProver::new();
-
-        let prover = Prover::new(consensus_prover, execution_prover);
+        let proof_generator = MockProofGenerator::<MockConsensusRPC, MockStateProver>::new();
+        let prover = Prover::new(proof_generator);
 
         let result = prover
             .batch_messages(messages.as_ref(), &update)

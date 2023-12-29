@@ -7,9 +7,9 @@ use consumer::Gateway;
 use dotenv::dotenv;
 use eth::consensus::EthBeaconAPI;
 use eth::{consensus::ConsensusRPC, execution::ExecutionRPC};
-use prover::init_prover;
 use prover::prover::types::{EnrichedMessage, ProverConfig};
 use prover::prover::utils::debug_print_batch_message_groups;
+use prover::Prover;
 use std::env;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -25,7 +25,7 @@ async fn main() {
     let execution = Arc::new(ExecutionRPC::new(config.execution_rpc.clone()));
     let gateway: Gateway = Gateway::new(consensus.clone(), execution.clone(), config.gateway_addr);
 
-    let prover = init_prover(consensus.clone(), prover_config);
+    let prover = Prover::with_config(consensus.clone(), prover_config);
 
     let finality_update = consensus.get_finality_update().await.unwrap();
     let update = UpdateVariant::Finality(finality_update.clone());
