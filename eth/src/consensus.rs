@@ -70,7 +70,6 @@ impl EthBeaconAPI for ConsensusRPC {
             .await
             .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
 
-        println!("resolved: {:?}", slot);
         Ok(data.data.root)
     }
 
@@ -247,12 +246,16 @@ impl EthBeaconAPI for ConsensusRPC {
 
         // If any of the block roots failed to resolve, fill in the gaps with the last known root.
         let mut block_roots = Vec::with_capacity(SLOTS_PER_HISTORICAL_ROOT);
-        for block_root in resolved {
+        for (i, block_root) in resolved.iter().enumerate() {
             match block_root {
-                Ok(block_root) => block_roots.push(block_root),
-                Err(_) => {
+                Ok(block_root) => block_roots.push(*block_root),
+                Err(err) => {
+                    println!("There was an rpc error for {} {:?}", i, err);
                     if let Some(last_root) = block_roots.last().cloned() {
                         block_roots.push(last_root);
+                    }
+                    else {
+                        println!("Last root cannot be find for {:?}", i);
                     }
                 }
             }
