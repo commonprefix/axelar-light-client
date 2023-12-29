@@ -156,14 +156,16 @@ pub mod test_utils {
     }
 
     pub fn get_mock_exec_block(block_number: u64) -> Block<H256> {
-        let mut block = Block::default();
-        block.number = Some(ethers::types::U64::from(block_number));
-        block
+        Block {
+            number: Some(ethers::types::U64::from(block_number)),
+            ..Default::default()
+        }
     }
 
     pub fn get_mock_exec_block_with_txs(block_number: u64) -> Block<Transaction> {
-        let mut block = Block::<Transaction>::default();
-        block.number = Some(ethers::types::U64::from(block_number));
-        block
+        Block {
+            number: Some(ethers::types::U64::from(block_number)),
+            ..Default::default()
+        }
     }
 }
