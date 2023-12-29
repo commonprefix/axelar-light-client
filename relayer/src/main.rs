@@ -15,9 +15,13 @@ use std::str::FromStr;
 use std::sync::Arc;
 use sync_committee_rs::constants::SLOTS_PER_HISTORICAL_ROOT;
 use types::{Config, VerificationMethod};
+use rlimit::{setrlimit, Resource};
 
 #[tokio::main]
 async fn main() {
+    // TODO: Move to config
+    setrlimit(Resource::NOFILE, 1000000, 2000000).unwrap();
+
     let config = load_prover_config();
     let prover_config = ProverConfig::from(config.clone());
 
