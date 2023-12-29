@@ -3,7 +3,7 @@ pub mod tests {
     use std::fs::File;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use crate::lightclient::helpers::test_helpers::get_batched_data;
+    use crate::lightclient::helpers::test_helpers::{filter_message_variants, get_batched_data};
     use crate::lightclient::helpers::{
         calc_sync_period, compare_message_with_log, extract_logs_from_receipt_proof,
         hex_str_to_bytes, is_proof_valid, parse_log, parse_logs_from_receipt,
@@ -394,15 +394,15 @@ pub mod tests {
             .try_into()
             .unwrap(),
             vec![
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 206, 22, 246, 147, 117, 82, 10, 176, 19, 119,
-                206, 123, 136, 245, 186, 140, 72, 248, 214, 102,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 79, 211, 156, 158, 21, 30, 80, 88, 7, 121, 189,
+                4, 177, 247, 236, 195, 16, 7, 159, 211,
             ]
             .try_into()
             .unwrap(),
         ];
         let expected_data: Vec<u8> = vec![
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13,
-            102, 10, 194,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2,
+            198, 78, 221, 99,
         ];
 
         assert_eq!(first_log.address, expected_address);
@@ -522,7 +522,7 @@ pub mod tests {
     fn test_compare_message_with_log() {
         let verification_data = get_batched_data().1;
         let transaction_proofs = verification_data.target_blocks[0].transactions_proofs[0].clone();
-        let message = transaction_proofs.messages[0].clone();
+        let message = filter_message_variants(&transaction_proofs)[0].clone();
         let receipt_proof = transaction_proofs.receipt_proof;
         let transaction_proof = transaction_proofs.transaction_proof;
 
@@ -565,7 +565,7 @@ pub mod tests {
         let mut modified_message = message.clone();
         assert_eq!(
             modified_message.cc_id.id.split(':').next().unwrap(),
-            "0x31155423f6f436823239ebfc5cbe90eacc42a31b8add287b2579d6df1358014c"
+            "0xc3f20082fe6416efefcec8148c91ce28cd79a026d2062076f67f48a7095eabb9"
         );
         assert!(
             compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
@@ -605,7 +605,7 @@ pub mod tests {
                 .destination_chain
                 .to_string()
                 .to_lowercase(),
-            "mantle"
+            "polygon"
         );
         assert!(
             compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
@@ -637,7 +637,7 @@ pub mod tests {
         let mut modified_message = message.clone();
         assert_eq!(
             hex::encode(modified_message.payload_hash),
-            "f62948e23f22323adee5f2099661ee15413f33d60d754ccacd2a9d67e1fc5243"
+            "51217189ef268163d2f8d62d908f0337e978c554f6978b4d494ff24310c6abd7"
         );
         assert!(
             compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)

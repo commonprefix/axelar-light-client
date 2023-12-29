@@ -183,17 +183,32 @@ pub fn update_forks(deps: DepsMut, forks: Forks) -> Result<Response> {
 #[cfg(test)]
 mod tests {
     use crate::execute::{process_block_proofs, process_transaction_proofs, verify_message};
-    use crate::lightclient::helpers::test_helpers::get_batched_data;
+    use crate::lightclient::helpers::test_helpers::{filter_message_variants, get_batched_data};
     use crate::lightclient::helpers::{extract_logs_from_receipt_proof, extract_recent_block};
     use crate::lightclient::tests::tests::init_lightclient;
     use cosmwasm_std::testing::mock_dependencies;
     use eyre::{eyre, Result};
     use types::consensus::FinalityUpdate;
     use types::execution::ReceiptLogs;
-    use types::proofs::{BlockProofsBatch, Message, UpdateVariant};
+    use types::proofs::{
+        BlockProofsBatch, ContentVariant, Message, TransactionProofsBatch, UpdateVariant,
+    };
     use types::ssz_rs::Merkleized;
 
     use super::process_batch_data;
+
+    fn filter_message_variants_as_mutref(
+        proofs_batch: &mut TransactionProofsBatch,
+    ) -> Vec<&mut Message> {
+        proofs_batch
+            .content
+            .iter_mut()
+            .filter_map(|c| match c {
+                ContentVariant::Message(m) => Some(m),
+                _ => None,
+            })
+            .collect()
+    }
 
     #[test]
     fn test_verify_message() {
@@ -204,7 +219,9 @@ mod tests {
         let mock_compare_ok = |_: &_, _: &_, _: &_| Ok(());
         let mock_compare_err = |_: &_, _: &_, _: &_| Err(eyre!("always fail"));
 
-        let mut message = proofs.messages.get(0).unwrap().clone();
+        let messages = filter_message_variants(proofs);
+
+        let mut message = messages.get(0).unwrap().clone();
         message.cc_id.id = String::from("broken_id").try_into().unwrap();
         assert_eq!(
             verify_message(
@@ -231,7 +248,7 @@ mod tests {
             "Failed to parse log index"
         );
 
-        message = proofs.messages.get(0).unwrap().clone();
+        message = messages.get(0).unwrap().clone();
         assert_eq!(
             verify_message(
                 &message,
@@ -286,7 +303,7 @@ mod tests {
             .get(0)
             .expect("No transaction proofs available")
             .clone();
-        let messages = transaction_proofs.messages.clone();
+        let messages = filter_message_variants(&transaction_proofs);
 
         let target_block_root = block_proofs.target_block.clone().hash_tree_root().unwrap();
 
@@ -294,47 +311,55 @@ mod tests {
         assert_valid_messages(&messages, &res);
 
         let mut corrupted_proofs = transaction_proofs.clone();
-        corrupted_proofs.messages[0].cc_id.id = "invalid".to_string().try_into().unwrap();
-        let messages = corrupted_proofs.messages.clone();
+        let mut messages = filter_message_variants_as_mutref(&mut corrupted_proofs);
+        messages[0].cc_id.id = "invalid".to_string().try_into().unwrap();
         let res = process_transaction_proofs(&corrupted_proofs, &target_block_root);
-        assert_invalid_messages(&messages, &res);
+        assert_invalid_messages(&filter_message_variants(&corrupted_proofs), &res);
     }
 
     fn extract_messages_from_block(target_block: &BlockProofsBatch) -> Vec<Message> {
         target_block
             .transactions_proofs
             .iter()
-            .flat_map(|transaction_proofs| transaction_proofs.messages.iter())
-            .cloned() // Clone here if necessary
+            .flat_map(|transaction_proofs| filter_message_variants(transaction_proofs).into_iter())
             .collect()
     }
 
-    fn assert_valid_messages(messages: &[Message], res: &Vec<(Message, Result<()>)>) {
+    fn assert_valid_messages(messages: &[Message], res: &Vec<(ContentVariant, Result<()>)>) {
         assert!(res.len() > 0);
         assert_eq!(res.len(), messages.len());
         for (index, message) in messages.iter().enumerate() {
-            assert_eq!(res[index].0, *message);
             assert!(res[index].1.is_ok());
+            if let ContentVariant::Message(m) = &res[index].0 {
+                assert_eq!(m, message);
+            } else {
+                assert!(false, "Not a message variant");
+            }
         }
     }
 
     fn corrupt_messages(target_block: &mut BlockProofsBatch) {
         for tx in target_block.transactions_proofs.iter_mut() {
-            for message in tx.messages.iter_mut() {
+            let mut messages = filter_message_variants_as_mutref(tx);
+            for message in messages.iter_mut() {
                 message.cc_id.id = "invalid".to_string().try_into().unwrap();
             }
         }
     }
 
-    fn assert_invalid_messages(messages: &[Message], res: &Vec<(Message, Result<()>)>) {
+    fn assert_invalid_messages(messages: &[Message], res: &Vec<(ContentVariant, Result<()>)>) {
         assert!(res.len() > 0);
         assert_eq!(res.len(), messages.len());
         for (index, message) in messages.iter().enumerate() {
-            assert_eq!(res[index].0, *message);
             assert_eq!(
                 res[index].1.as_ref().unwrap_err().to_string(),
                 "Missing ':' in message ID"
             );
+            if let ContentVariant::Message(m) = &res[index].0 {
+                assert_eq!(m, message);
+            } else {
+                assert!(false, "Not a message variant");
+            }
         }
     }
 
