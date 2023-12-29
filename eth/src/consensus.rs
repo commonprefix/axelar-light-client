@@ -66,6 +66,9 @@ impl EthBeaconAPI for ConsensusRPC {
             .await
             .map_err(|e| RPCError::RequestError(e.to_string()))?;
 
+        if res.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(RPCError::NotFoundError(slot.to_string()));
+        }
         if res.status() != reqwest::StatusCode::OK {
             return Err(RPCError::RequestError(format!(
                 "Unexpected status code: {}",
@@ -258,12 +261,17 @@ impl EthBeaconAPI for ConsensusRPC {
             match block_root {
                 Ok(block_root) => block_roots.push(*block_root),
                 Err(err) => {
-                    println!("There was an rpc error for {} {:?}", i, err);
-                    if let Some(last_root) = block_roots.last().cloned() {
-                        block_roots.push(last_root);
-                    }
-                    else {
-                        println!("Last root cannot be find for {:?}", i);
+                    match err {
+                        RPCError::NotFoundError(_) => {
+                            println!("There was a not found error for {} {:?}. Filling with previous", i, err);
+                            if let Some(last_root) = block_roots.last().cloned() {
+                                block_roots.push(last_root);
+                            }
+                        }
+                        _ => {
+                            println!("There was an rpc error for {} {:?}", i, err);
+                            return Err(err.clone());
+                        }
                     }
                 }
             }
