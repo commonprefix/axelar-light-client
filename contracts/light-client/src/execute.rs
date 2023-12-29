@@ -5,7 +5,8 @@ use types::common::ChainConfig;
 use types::consensus::BeaconBlockHeader;
 use types::execution::{ReceiptLog, ReceiptLogs};
 use types::proofs::{
-    BatchVerificationData, BlockProofsBatch, Message, TransactionProofsBatch, UpdateVariant,
+    BatchVerificationData, BlockProofsBatch, ContentVariant, Message, TransactionProofsBatch,
+    UpdateVariant,
 };
 use types::ssz_rs::{Merkleized, Node};
 use types::sync_committee_rs::consensus_types::Transaction;
@@ -49,7 +50,7 @@ fn verify_message(
 fn process_transaction_proofs(
     data: &TransactionProofsBatch,
     target_block_root: &Node,
-) -> Vec<(Message, Result<()>)> {
+) -> Vec<(ContentVariant, Result<()>)> {
     let result = verify_transaction_proof(&data.transaction_proof, target_block_root)
         .and_then(|_| {
             extract_logs_from_receipt_proof(
@@ -59,28 +60,31 @@ fn process_transaction_proofs(
             )
         })
         .map(|logs| {
-            data.messages
+            data.content
                 .iter()
-                .map(|message| {
+                .map(|content_variant| {
                     (
-                        message.to_owned(),
-                        verify_message(
-                            message,
-                            &data.transaction_proof.transaction,
-                            &logs,
-                            &compare_message_with_log,
-                        ),
+                        content_variant.to_owned(),
+                        match content_variant {
+                            ContentVariant::Message(message) => verify_message(
+                                message,
+                                &data.transaction_proof.transaction,
+                                &logs,
+                                &compare_message_with_log,
+                            ),
+                            ContentVariant::WorkerSet(..) => todo!(),
+                        },
                     )
                 })
-                .collect::<Vec<(Message, Result<()>)>>()
+                .collect::<Vec<(ContentVariant, Result<()>)>>()
         });
 
     match result {
         Ok(proof_results) => proof_results,
         Err(err) => data
-            .messages
+            .content
             .iter()
-            .map(|message| (message.to_owned(), Err(eyre!(err.to_string()))))
+            .map(|content_variant| (content_variant.to_owned(), Err(eyre!(err.to_string()))))
             .collect(),
     }
 }
@@ -88,7 +92,7 @@ fn process_transaction_proofs(
 fn process_block_proofs(
     recent_block: &BeaconBlockHeader,
     data: &BlockProofsBatch,
-) -> Vec<(Message, Result<()>)> {
+) -> Vec<(ContentVariant, Result<()>)> {
     let transactions_proofs = &data.transactions_proofs;
 
     let mut target_block_root = Node::default();
@@ -108,9 +112,9 @@ fn process_block_proofs(
             .iter()
             .flat_map(|proof| {
                 proof
-                    .messages
+                    .content
                     .iter()
-                    .map(|message| (message.clone(), Err(eyre!(err.to_string()))))
+                    .map(|content_variant| (content_variant.clone(), Err(eyre!(err.to_string()))))
             })
             .collect(),
     }
@@ -120,7 +124,7 @@ pub fn process_batch_data(
     deps: DepsMut,
     lightclient: &LightClient,
     data: &BatchVerificationData,
-) -> Result<Vec<(Message, Result<()>)>> {
+) -> Result<Vec<(ContentVariant, Result<()>)>> {
     match &data.update {
         UpdateVariant::Finality(update) => lightclient.verify_finality_update(update)?,
         UpdateVariant::Optimistic(update) => lightclient.verify_optimistic_update(update)?,
@@ -131,11 +135,16 @@ pub fn process_batch_data(
         .target_blocks
         .iter()
         .flat_map(|block_proofs_batch| process_block_proofs(&recent_block, block_proofs_batch))
-        .collect::<Vec<(Message, Result<()>)>>();
+        .collect::<Vec<(ContentVariant, Result<()>)>>();
 
-    for message_result in results.iter() {
-        if message_result.1.is_ok() {
-            VERIFIED_MESSAGES.save(deps.storage, message_result.0.hash(), &message_result.0)?
+    for content_variant_result in results.iter() {
+        if content_variant_result.1.is_ok() {
+            match &content_variant_result.0 {
+                ContentVariant::Message(message) => {
+                    VERIFIED_MESSAGES.save(deps.storage, message.hash(), message)?
+                }
+                ContentVariant::WorkerSet(..) => todo!(),
+            }
         }
     }
 
