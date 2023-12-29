@@ -1,8 +1,11 @@
 use std::{str::FromStr, sync::Arc};
 
-use cita_trie::{PatriciaTrie, MemoryDB, Trie};
+use cita_trie::{MemoryDB, PatriciaTrie, Trie};
 use consensus_types::proofs::CrossChainId;
-use ethers::{types::{TransactionReceipt, H256}, utils::rlp::{encode, RlpStream}};
+use ethers::{
+    types::{TransactionReceipt, H256},
+    utils::rlp::{encode, RlpStream},
+};
 use eyre::{anyhow, Result};
 use hasher::HasherKeccak;
 use ssz_rs::SszVariableOrIndex;
@@ -42,20 +45,20 @@ pub fn get_tx_hash_from_cc_id(cc_id: &CrossChainId) -> Result<H256> {
 }
 
 pub fn generate_trie<T>(
-        leaves: Vec<T>,
-        encode_fn: fn(&T) -> Vec<u8>,
-    ) -> PatriciaTrie<MemoryDB, HasherKeccak> {
-        let memdb = Arc::new(MemoryDB::new(true));
-        let hasher = Arc::new(HasherKeccak::new());
-        let mut trie = PatriciaTrie::new(Arc::clone(&memdb), Arc::clone(&hasher));
-        for (i, leaf) in leaves.iter().enumerate() {
-            let key = encode(&i);
-            let value = encode_fn(leaf);
-            trie.insert(key.to_vec(), value).unwrap();
-        }
-
-        trie
+    leaves: Vec<T>,
+    encode_fn: fn(&T) -> Vec<u8>,
+) -> PatriciaTrie<MemoryDB, HasherKeccak> {
+    let memdb = Arc::new(MemoryDB::new(true));
+    let hasher = Arc::new(HasherKeccak::new());
+    let mut trie = PatriciaTrie::new(Arc::clone(&memdb), Arc::clone(&hasher));
+    for (i, leaf) in leaves.iter().enumerate() {
+        let key = encode(&i);
+        let value = encode_fn(leaf);
+        trie.insert(key.to_vec(), value).unwrap();
     }
+
+    trie
+}
 
 pub fn encode_receipt(receipt: &TransactionReceipt) -> Vec<u8> {
     let mut stream = RlpStream::new();

@@ -1,13 +1,13 @@
 pub mod proof_generator;
 pub mod state_prover;
+mod test_helpers;
 pub mod types;
 pub mod utils;
-mod test_helpers;
 
 use std::sync::Arc;
 
 use self::{
-    proof_generator::{ProofGeneratorAPI, ProofGenerator},
+    proof_generator::{ProofGenerator, ProofGeneratorAPI},
     state_prover::StateProver,
     types::ProverConfig,
     utils::{get_tx_hash_from_cc_id, get_tx_index},
@@ -41,17 +41,13 @@ impl Prover<ProofGenerator<ConsensusRPC, StateProver>> {
         let state_prover = StateProver::new(prover_config.state_prover_rpc.clone());
         let proof_generator = ProofGenerator::new(consensus_rpc, state_prover.clone());
 
-        Prover {
-            proof_generator,
-        }
+        Prover { proof_generator }
     }
 }
 
 impl<PG: ProofGeneratorAPI> Prover<PG> {
     pub fn new(proof_generator: PG) -> Self {
-        Prover {
-            proof_generator
-        }
+        Prover { proof_generator }
     }
 
     pub async fn batch_messages(
@@ -177,10 +173,8 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         let recent_block_state_id = recent_block.state_root.to_string();
 
         let proof = if is_in_block_roots_range {
-            self.proof_generator.prove_ancestry_with_block_roots(
-                &target_block_slot,
-                recent_block_state_id.as_str(),
-            )
+            self.proof_generator
+                .prove_ancestry_with_block_roots(&target_block_slot, recent_block_state_id.as_str())
         } else {
             self.proof_generator
                 .prove_ancestry_with_historical_summaries(
@@ -261,10 +255,10 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
 
 #[cfg(test)]
 mod tests {
-    use crate::prover::proof_generator::MockProofGenerator;
-    use crate::prover::Prover;
-    use crate::prover::test_helpers::test_utils::*;
     use super::state_prover::MockStateProver;
+    use crate::prover::proof_generator::MockProofGenerator;
+    use crate::prover::test_helpers::test_utils::*;
+    use crate::prover::Prover;
     use consensus_types::consensus::to_beacon_header;
     use consensus_types::proofs::{AncestryProof, BatchVerificationData};
     use eth::consensus::MockConsensusRPC;

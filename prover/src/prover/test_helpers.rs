@@ -1,7 +1,10 @@
 #[cfg(test)]
 pub mod test_utils {
     use cita_trie::{MemoryDB, PatriciaTrie, Trie};
-    use consensus_types::{proofs::{UpdateVariant, Message, CrossChainId}, consensus::{OptimisticUpdate, FinalityUpdate, BeaconBlockAlias}};
+    use consensus_types::{
+        consensus::{BeaconBlockAlias, FinalityUpdate, OptimisticUpdate},
+        proofs::{CrossChainId, Message, UpdateVariant},
+    };
     use ethers::{
         types::{Block, Transaction, TransactionReceipt, H256},
         utils::rlp::encode,
@@ -12,7 +15,7 @@ pub mod test_utils {
     use std::{fs::File, sync::Arc};
     use sync_committee_rs::constants::Root;
 
-    use crate::prover::types::{EnrichedMessage, BatchMessageGroups};
+    use crate::prover::types::{BatchMessageGroups, EnrichedMessage};
 
     pub fn verify_trie_proof(root: Root, key: u64, proof_bytes: Vec<Vec<u8>>) -> Result<Vec<u8>> {
         let memdb = Arc::new(MemoryDB::new(true));
