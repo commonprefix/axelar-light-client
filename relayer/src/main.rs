@@ -18,6 +18,9 @@ use types::{Config, VerificationMethod};
 
 #[tokio::main]
 async fn main() {
+    // TODO: Move file limit to config
+    rlimit::increase_nofile_limit(u64::MAX).unwrap();
+
     let config = load_prover_config();
     let prover_config = ProverConfig::from(config.clone());
 

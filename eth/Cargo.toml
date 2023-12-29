@@ -20,3 +20,5 @@ types = {path = "../types"}
 tokio = {version = "1.4.0", features = ["rt", "rt-multi-thread", "macros"]}
 mockall = "0.11.4"
 httptest = "0.15.5"
+reqwest-retry = "0.3.0"
+reqwest-middleware = "0.2.4"

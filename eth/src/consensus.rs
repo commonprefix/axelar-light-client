@@ -2,6 +2,8 @@ use crate::{error::RPCError, types::*};
 use async_trait::async_trait;
 use futures::future;
 use mockall::automock;
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use ssz_rs::Vector;
 use std::{cmp, time::Duration};
 use sync_committee_rs::{
@@ -28,18 +30,24 @@ pub trait EthBeaconAPI: Sync + Send + 'static {
 #[derive(Clone)]
 pub struct ConsensusRPC {
     rpc: String,
-    client: reqwest::Client,
+    client: ClientWithMiddleware,
 }
 
 #[allow(dead_code)]
 impl ConsensusRPC {
     pub fn new(rpc: String) -> Self {
+        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
+
         let client = reqwest::Client::builder()
             .pool_max_idle_per_host(490)
             .connect_timeout(Duration::from_secs(60))
             .timeout(Duration::from_secs(60))
             .build()
             .unwrap();
+
+        let client = ClientBuilder::new(client)
+            .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+            .build();
 
         ConsensusRPC { rpc, client }
     }
@@ -58,6 +66,9 @@ impl EthBeaconAPI for ConsensusRPC {
             .await
             .map_err(|e| RPCError::RequestError(e.to_string()))?;
 
+        if res.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(RPCError::NotFoundError(slot.to_string()));
+        }
         if res.status() != reqwest::StatusCode::OK {
             return Err(RPCError::RequestError(format!(
                 "Unexpected status code: {}",
@@ -70,7 +81,6 @@ impl EthBeaconAPI for ConsensusRPC {
             .await
             .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
 
-        println!("resolved: {:?}", slot);
         Ok(data.data.root)
     }
 
@@ -247,14 +257,24 @@ impl EthBeaconAPI for ConsensusRPC {
 
         // If any of the block roots failed to resolve, fill in the gaps with the last known root.
         let mut block_roots = Vec::with_capacity(SLOTS_PER_HISTORICAL_ROOT);
-        for block_root in resolved {
+        for (i, block_root) in resolved.iter().enumerate() {
             match block_root {
-                Ok(block_root) => block_roots.push(block_root),
-                Err(_) => {
-                    if let Some(last_root) = block_roots.last().cloned() {
-                        block_roots.push(last_root);
+                Ok(block_root) => block_roots.push(*block_root),
+                Err(err) => match err {
+                    RPCError::NotFoundError(_) => {
+                        println!(
+                            "There was a not found error for {} {:?}. Filling with previous",
+                            i, err
+                        );
+                        if let Some(last_root) = block_roots.last().cloned() {
+                            block_roots.push(last_root);
+                        }
                     }
-                }
+                    _ => {
+                        println!("There was an rpc error for {} {:?}", i, err);
+                        return Err(err.clone());
+                    }
+                },
             }
         }
 
