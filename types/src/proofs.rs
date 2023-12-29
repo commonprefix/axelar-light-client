@@ -105,12 +105,12 @@ pub struct TransactionProofsBatch {
     pub transaction_proof: TransactionProof,
     pub receipt_proof: ReceiptProof,
     // Support multiple messages on a single tx, ie transaction level batching
-    pub content: ContentVariant,
+    pub content: Vec<ContentVariant>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub enum ContentVariant {
-    Messages(Vec<Message>),
+    Message(Message),
     WorkerSet(WorkerSetMessage),
 }
 
