@@ -30,7 +30,7 @@ pub trait EthBeaconAPI: Sync + Send + 'static {
 #[derive(Clone)]
 pub struct ConsensusRPC {
     rpc: String,
-    client: ClientWithMiddleware
+    client: ClientWithMiddleware,
 }
 
 #[allow(dead_code)]
@@ -260,20 +260,21 @@ impl EthBeaconAPI for ConsensusRPC {
         for (i, block_root) in resolved.iter().enumerate() {
             match block_root {
                 Ok(block_root) => block_roots.push(*block_root),
-                Err(err) => {
-                    match err {
-                        RPCError::NotFoundError(_) => {
-                            println!("There was a not found error for {} {:?}. Filling with previous", i, err);
-                            if let Some(last_root) = block_roots.last().cloned() {
-                                block_roots.push(last_root);
-                            }
-                        }
-                        _ => {
-                            println!("There was an rpc error for {} {:?}", i, err);
-                            return Err(err.clone());
+                Err(err) => match err {
+                    RPCError::NotFoundError(_) => {
+                        println!(
+                            "There was a not found error for {} {:?}. Filling with previous",
+                            i, err
+                        );
+                        if let Some(last_root) = block_roots.last().cloned() {
+                            block_roots.push(last_root);
                         }
                     }
-                }
+                    _ => {
+                        println!("There was an rpc error for {} {:?}", i, err);
+                        return Err(err.clone());
+                    }
+                },
             }
         }
 
