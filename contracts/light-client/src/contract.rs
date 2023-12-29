@@ -11,9 +11,10 @@ use crate::{lightclient::LightClient, state::*};
 use eyre::Result;
 
 use crate::execute::{self, process_batch_data};
+use crate::types::{ContentVariantId, VerificationResult};
 use cw2::{self, set_contract_version};
 use types::lightclient::Message;
-use types::proofs::CrossChainId;
+use types::proofs::ContentVariant;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -74,7 +75,14 @@ pub fn execute(
                     .iter()
                     .map(|result| {
                         (
-                            result.0.cc_id.to_owned(),
+                            match &result.0 {
+                                ContentVariant::Message(message) => {
+                                    ContentVariantId::CrossChainId(message.cc_id.to_owned())
+                                }
+                                ContentVariant::WorkerSet(message) => {
+                                    ContentVariantId::OperatorsHash(message.new_operators.hash())
+                                } // TODO: is this the right format?
+                            },
                             result
                                 .1
                                 .as_ref()
@@ -82,7 +90,7 @@ pub fn execute(
                                 .unwrap_or_else(|e| e.to_string()),
                         )
                     })
-                    .collect::<Vec<(CrossChainId, String)>>(),
+                    .collect::<VerificationResult>(),
             )?))
         }
         VerifyMessages {
