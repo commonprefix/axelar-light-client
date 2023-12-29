@@ -263,60 +263,13 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
 mod tests {
     use crate::prover::proof_generator::MockProofGenerator;
     use crate::prover::Prover;
-
+    use crate::prover::test_helpers::test_utils::*;
     use super::state_prover::MockStateProver;
-    use super::types::{BatchMessageGroups, EnrichedMessage};
-    use consensus_types::consensus::{
-        to_beacon_header, BeaconBlockAlias, FinalityUpdate, OptimisticUpdate,
-    };
-    use consensus_types::proofs::{
-        AncestryProof, BatchVerificationData, CrossChainId, Message, UpdateVariant,
-    };
+    use consensus_types::consensus::to_beacon_header;
+    use consensus_types::proofs::{AncestryProof, BatchVerificationData};
     use eth::consensus::MockConsensusRPC;
     use eth::execution::MockExecutionRPC;
-    use ethers::types::{Block, Transaction, TransactionReceipt, H256};
-    use indexmap::IndexMap;
-
-    fn get_mock_update(
-        is_optimistic: bool,
-        attested_slot: u64,
-        finality_slot: u64,
-    ) -> UpdateVariant {
-        if is_optimistic {
-            let mut update = OptimisticUpdate::default();
-            update.attested_header.beacon.slot = attested_slot;
-            UpdateVariant::Optimistic(update)
-        } else {
-            let mut update = FinalityUpdate::default();
-            update.finalized_header.beacon.slot = finality_slot;
-            update.attested_header.beacon.slot = attested_slot;
-            UpdateVariant::Finality(update)
-        }
-    }
-
-    fn get_mock_message(slot: u64, block_number: u64, tx_hash: H256) -> EnrichedMessage {
-        EnrichedMessage {
-            message: Message {
-                cc_id: CrossChainId {
-                    chain: "ethereum".parse().unwrap(),
-                    id: format!("{:x}:test", tx_hash).parse().unwrap(),
-                },
-                source_address: "0x0000000".parse().unwrap(),
-                destination_chain: "polygon".parse().unwrap(),
-                destination_address: "0x0000000".parse().unwrap(),
-                payload_hash: Default::default(),
-            },
-            tx_hash,
-            exec_block: get_mock_exec_block_with_txs(block_number),
-            beacon_block: get_mock_beacon_block(slot),
-            receipts: (1..100)
-                .map(|i| TransactionReceipt {
-                    transaction_hash: H256::from_low_u64_be(i),
-                    ..Default::default()
-                })
-                .collect(),
-        }
-    }
+    use ethers::types::H256;
 
     fn setup() -> (MockConsensusRPC, MockExecutionRPC, MockStateProver) {
         let consensus_rpc = MockConsensusRPC::new();
@@ -324,74 +277,6 @@ mod tests {
         let state_prover = MockStateProver::new();
 
         (consensus_rpc, execution_rpc, state_prover)
-    }
-
-    /*
-        Setup the following batch scenario:
-
-        * block 1 -> tx 1 -> message 1
-        * block 2 -> tx 2 -> message 2
-        *   \            \
-        *    \            -> message 3
-        *     \
-        *      --->  tx 3 -> message 4
-        *
-        * block 3 -> tx 4 -> message 5
-    */
-    fn get_mock_batch_message_groups() -> BatchMessageGroups {
-        let mut messages = vec![];
-        for i in 0..6 {
-            let m = get_mock_message(i, i, H256::from_low_u64_be(i));
-            messages.push(m);
-        }
-
-        let mut groups: BatchMessageGroups = IndexMap::new();
-        let mut blockgroup1 = IndexMap::new();
-        let mut blockgroup2 = IndexMap::new();
-        let mut blockgroup3 = IndexMap::new();
-
-        blockgroup1.insert(messages[1].tx_hash, vec![messages[1].clone()]);
-        blockgroup2.insert(
-            messages[2].tx_hash,
-            vec![messages[2].clone(), messages[3].clone()],
-        );
-        blockgroup2.insert(messages[4].tx_hash, vec![messages[4].clone()]);
-        blockgroup3.insert(messages[5].tx_hash, vec![messages[5].clone()]);
-
-        groups.insert(1, blockgroup1);
-        groups.insert(2, blockgroup2);
-        groups.insert(3, blockgroup3);
-
-        groups
-    }
-
-    fn get_mock_beacon_block(slot: u64) -> BeaconBlockAlias {
-        let mut block = BeaconBlockAlias {
-            slot,
-            ..Default::default()
-        };
-        block.body.execution_payload.transactions = ssz_rs::List::default();
-
-        for _ in 1..10 {
-            block
-                .body
-                .execution_payload
-                .transactions
-                .push(sync_committee_rs::consensus_types::Transaction::default());
-        }
-        block
-    }
-
-    fn get_mock_exec_block(block_number: u64) -> Block<H256> {
-        let mut block = Block::default();
-        block.number = Some(ethers::types::U64::from(block_number));
-        block
-    }
-
-    fn get_mock_exec_block_with_txs(block_number: u64) -> Block<Transaction> {
-        let mut block = Block::<Transaction>::default();
-        block.number = Some(ethers::types::U64::from(block_number));
-        block
     }
 
     #[tokio::test]

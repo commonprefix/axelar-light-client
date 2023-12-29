@@ -246,9 +246,7 @@ mod tests {
 
     use super::{ProofGenerator, ProofGeneratorAPI};
     use crate::prover::state_prover::MockStateProver;
-    use crate::prover::test_helpers::get_mock_block_receipts;
-    use crate::prover::test_helpers::get_mock_block_with_txs;
-    use crate::prover::test_helpers::verify_trie_proof;
+    use crate::prover::test_helpers::test_utils::*;
     use crate::prover::types::GindexOrPath;
     use crate::prover::types::ProofResponse;
     use crate::prover::utils::parse_path;
