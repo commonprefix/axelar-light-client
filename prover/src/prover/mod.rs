@@ -20,6 +20,7 @@ use consensus_types::{
     },
 };
 
+use consensus_types::proofs::ContentVariant;
 use eth::consensus::ConsensusRPC;
 use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use eyre::{anyhow, Context, Result};
@@ -123,7 +124,9 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
                 let tx_level_verification = TransactionProofsBatch {
                     transaction_proof,
                     receipt_proof,
-                    messages: messages.iter().map(|m| m.message.clone()).collect(),
+                    content: ContentVariant::Messages(
+                        messages.iter().map(|m| m.message.clone()).collect(),
+                    ),
                 };
 
                 block_proof.transactions_proofs.push(tx_level_verification);
@@ -260,7 +263,7 @@ mod tests {
     use crate::prover::test_helpers::test_utils::*;
     use crate::prover::Prover;
     use consensus_types::consensus::to_beacon_header;
-    use consensus_types::proofs::{AncestryProof, BatchVerificationData};
+    use consensus_types::proofs::{AncestryProof, BatchVerificationData, ContentVariant};
     use eth::consensus::MockConsensusRPC;
     use eth::execution::MockExecutionRPC;
     use ethers::types::H256;
@@ -316,10 +319,21 @@ mod tests {
         assert_eq!(target_blocks[0].transactions_proofs.len(), 1);
         assert_eq!(target_blocks[1].transactions_proofs.len(), 2);
         assert_eq!(target_blocks[2].transactions_proofs.len(), 1);
-        assert_eq!(target_blocks[0].transactions_proofs[0].messages.len(), 1);
-        assert_eq!(target_blocks[1].transactions_proofs[0].messages.len(), 2);
-        assert_eq!(target_blocks[1].transactions_proofs[1].messages.len(), 1);
-        assert_eq!(target_blocks[2].transactions_proofs[0].messages.len(), 1);
+
+        for i in 0..target_blocks.len() {
+            for j in 0..target_blocks[i].transactions_proofs.len() {
+                match &target_blocks[i].transactions_proofs[j].content {
+                    ContentVariant::Messages(messages) => {
+                        if i == 1 && j == 0 {
+                            assert_eq!(messages.len(), 2);
+                        } else {
+                            assert_eq!(messages.len(), 1);
+                        }
+                    }
+                    ContentVariant::WorkerSet(..) => panic!("Unexpected workerset message"),
+                }
+            }
+        }
     }
 
     #[tokio::test]
