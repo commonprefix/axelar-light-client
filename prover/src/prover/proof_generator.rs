@@ -5,8 +5,10 @@ use crate::prover::{
     types::{GindexOrPath, ProofResponse},
 };
 use async_trait::async_trait;
+use cita_trie::Trie;
 use consensus_types::{consensus::BeaconStateType, proofs::AncestryProof};
 use eth::consensus::EthBeaconAPI;
+use ethers::{types::TransactionReceipt, utils::rlp::encode};
 use eyre::{anyhow, Result};
 use mockall::automock;
 use ssz_rs::{get_generalized_index, Node, SszVariableOrIndex, Vector};
@@ -14,10 +16,12 @@ use sync_committee_rs::constants::{
     CAPELLA_FORK_EPOCH, SLOTS_PER_EPOCH, SLOTS_PER_HISTORICAL_ROOT,
 };
 
+use super::utils;
+
 const CAPELLA_FORK_SLOT: u64 = CAPELLA_FORK_EPOCH * SLOTS_PER_EPOCH;
 
 #[async_trait]
-pub trait ConsensusProverAPI {
+pub trait ProofGeneratorAPI {
     async fn generate_transaction_proof(
         &self,
         block_id: &str,
@@ -43,10 +47,15 @@ pub trait ConsensusProverAPI {
         target_block_slot: &u64,
         recent_block_state_id: &str,
     ) -> Result<AncestryProof>;
+    fn generate_receipt_proof(
+        &self,
+        receipts: &[TransactionReceipt],
+        index: u64,
+    ) -> Result<Vec<Vec<u8>>>;
 }
 
 #[derive(Clone)]
-pub struct ConsensusProver<CR: EthBeaconAPI, SP: StateProverAPI> {
+pub struct ProofGenerator<CR: EthBeaconAPI, SP: StateProverAPI> {
     consensus_rpc: Arc<CR>,
     state_prover: SP,
 }
@@ -54,9 +63,9 @@ pub struct ConsensusProver<CR: EthBeaconAPI, SP: StateProverAPI> {
 /**
  * Generates a merkle proof from the transaction to the beacon block root.
 */
-impl<CR: EthBeaconAPI, SP: StateProverAPI> ConsensusProver<CR, SP> {
+impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGenerator<CR, SP> {
     pub fn new(consensus_rpc: Arc<CR>, state_prover: SP) -> Self {
-        ConsensusProver {
+        ProofGenerator {
             consensus_rpc,
             state_prover,
         }
@@ -65,7 +74,7 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ConsensusProver<CR, SP> {
 
 #[automock]
 #[async_trait]
-impl<CR: EthBeaconAPI, SP: StateProverAPI> ConsensusProverAPI for ConsensusProver<CR, SP> {
+impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<CR, SP> {
     async fn generate_transaction_proof(
         &self,
         block_id: &str,
@@ -209,6 +218,25 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ConsensusProverAPI for ConsensusProve
 
         Ok(res)
     }
+
+    /**
+     * Generates an MPT proof from a receipt to the receipts_root.
+     */
+    fn generate_receipt_proof(
+        &self,
+        receipts: &[TransactionReceipt],
+        index: u64,
+    ) -> Result<Vec<Vec<u8>>> {
+        let mut trie = utils::generate_trie(receipts.to_owned(), utils::encode_receipt);
+        let _trie_root = trie.root().unwrap();
+
+        let receipt_index = encode(&index);
+        let proof = trie
+            .get_proof(receipt_index.to_vec().as_slice())
+            .map_err(|e| anyhow!("Failed to generate proof: {:?}", e));
+
+        proof
+    }
 }
 
 #[cfg(test)]
@@ -216,8 +244,11 @@ mod tests {
     use std::fs::File;
     use std::sync::Arc;
 
-    use super::{ConsensusProver, ConsensusProverAPI};
+    use super::{ProofGenerator, ProofGeneratorAPI};
     use crate::prover::state_prover::MockStateProver;
+    use crate::prover::test_helpers::get_mock_block_receipts;
+    use crate::prover::test_helpers::get_mock_block_with_txs;
+    use crate::prover::test_helpers::verify_trie_proof;
     use crate::prover::types::GindexOrPath;
     use crate::prover::types::ProofResponse;
     use crate::prover::utils::parse_path;
@@ -228,6 +259,7 @@ mod tests {
     use ssz_rs::{
         get_generalized_index, GeneralizedIndex, Merkleized, Node, SszVariableOrIndex, Vector,
     };
+    use sync_committee_rs::constants::Root;
     use sync_committee_rs::{
         consensus_types::BeaconBlockHeader, constants::SLOTS_PER_HISTORICAL_ROOT,
     };
@@ -322,13 +354,13 @@ mod tests {
     async fn test_transactions_proof_valid() {
         let (consensus, state_prover, mut block, block_root) =
             setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(consensus, state_prover);
+        let proof_generator = ProofGenerator::new(consensus, state_prover);
         let tx_index = 15;
 
         let transaction = &mut block.body.execution_payload.transactions[tx_index];
         let node = transaction.hash_tree_root().unwrap();
 
-        let proof = consensus_prover
+        let proof = proof_generator
             .generate_transaction_proof(&block_root.to_string(), tx_index as u64)
             .await
             .unwrap();
@@ -347,7 +379,7 @@ mod tests {
     async fn test_transactions_proof_invalid_transaction() {
         let (consensus, state_prover, mut block, block_root) =
             setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(consensus, state_prover);
+        let proof_generator = ProofGenerator::new(consensus, state_prover);
 
         let tx_index = 15;
 
@@ -356,7 +388,7 @@ mod tests {
 
         let node = transaction.hash_tree_root().unwrap();
 
-        let proof = consensus_prover
+        let proof = proof_generator
             .generate_transaction_proof(&block_root.to_string(), tx_index as u64)
             .await
             .unwrap();
@@ -378,14 +410,14 @@ mod tests {
     async fn test_transactions_proof_wrong_transaction() {
         let (consensus, state_prover, mut block, block_root) =
             setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(consensus, state_prover);
+        let proof_generator = ProofGenerator::new(consensus, state_prover);
         let tx_index = 15;
 
         // Different transaction
         let transaction = &mut block.body.execution_payload.transactions[16];
         let node = transaction.hash_tree_root().unwrap();
 
-        let proof = consensus_prover
+        let proof = proof_generator
             .generate_transaction_proof(&block_root.to_string(), tx_index as u64)
             .await
             .unwrap();
@@ -404,13 +436,13 @@ mod tests {
     async fn test_transactions_proof_invalid_block_root() {
         let (consensus, state_prover, mut block, block_root) =
             setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(consensus, state_prover);
+        let proof_generator = ProofGenerator::new(consensus, state_prover);
 
         let tx_index = 15;
         let transaction = &mut block.body.execution_payload.transactions[tx_index];
         let node = transaction.hash_tree_root().unwrap();
 
-        let proof = consensus_prover
+        let proof = proof_generator
             .generate_transaction_proof(&block_root.to_string(), tx_index as u64)
             .await
             .unwrap();
@@ -432,12 +464,12 @@ mod tests {
     async fn test_transactions_proof_invalid_proof() {
         let (consensus, state_prover, mut block, block_root) =
             setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(consensus, state_prover);
+        let proof_generator = ProofGenerator::new(consensus, state_prover);
         let tx_index = 15;
         let transaction = &mut block.body.execution_payload.transactions[tx_index];
         let node = transaction.hash_tree_root().unwrap();
 
-        let proof = consensus_prover
+        let proof = proof_generator
             .generate_transaction_proof(&block_root.to_string(), tx_index as u64)
             .await
             .unwrap();
@@ -459,9 +491,9 @@ mod tests {
     async fn test_receipts_root_proof_valid() {
         let (consensus, state_prover, mut block, block_root) =
             setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(consensus, state_prover);
+        let proof_generator = ProofGenerator::new(consensus, state_prover);
 
-        let proof = consensus_prover
+        let proof = proof_generator
             .generate_receipts_root_proof(&block_root.to_string())
             .await
             .unwrap();
@@ -485,9 +517,9 @@ mod tests {
     async fn test_receipts_root_proof_invalid_proof() {
         let (consensus, state_prover, mut block, block_root) =
             setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(consensus, state_prover);
+        let proof_generator = ProofGenerator::new(consensus, state_prover);
 
-        let proof = consensus_prover
+        let proof = proof_generator
             .generate_receipts_root_proof(&block_root.to_string())
             .await
             .unwrap();
@@ -513,9 +545,9 @@ mod tests {
     #[tokio_test]
     async fn test_receipts_root_proof_invalid_receipts_root() {
         let (consensus, state_prover, _, block_root) = setup_block_and_provers(7807119).await;
-        let consensus_prover = ConsensusProver::new(consensus, state_prover);
+        let proof_generator = ProofGenerator::new(consensus, state_prover);
 
-        let proof = consensus_prover
+        let proof = proof_generator
             .generate_receipts_root_proof(&block_root.to_string())
             .await
             .unwrap();
@@ -535,10 +567,10 @@ mod tests {
         let (consensus, state_prover, _, _) = setup_block_and_provers(7807119).await;
         let latest_block_7878867 = consensus.get_beacon_block_header(7878867).await.unwrap();
         let latest_block_7879376 = consensus.get_beacon_block_header(7879376).await.unwrap();
-        let consensus_prover = ConsensusProver::new(consensus, state_prover);
+        let proof_generator = ProofGenerator::new(consensus, state_prover);
 
         let old_block_slot = 7878867 - 1000;
-        let proof = consensus_prover
+        let proof = proof_generator
             .prove_ancestry_with_block_roots(
                 &old_block_slot,
                 &latest_block_7878867.state_root.to_string(),
@@ -557,7 +589,7 @@ mod tests {
         }
 
         let old_block_slot = 7870916 - 8196;
-        let proof = consensus_prover
+        let proof = proof_generator
             .prove_ancestry_with_historical_summaries(
                 &old_block_slot,
                 &latest_block_7879376.state_root.to_string(),
@@ -583,9 +615,9 @@ mod tests {
             .await
             .unwrap();
 
-        let consensus_prover = ConsensusProver::new(consensus, state_prover);
+        let proof_generator = ProofGenerator::new(consensus, state_prover);
 
-        let proof = consensus_prover
+        let proof = proof_generator
             .prove_ancestry_with_block_roots(&old_block.slot, &latest_block.state_root.to_string())
             .await
             .unwrap();
@@ -616,9 +648,9 @@ mod tests {
             .await
             .unwrap();
 
-        let consensus_prover = ConsensusProver::new(consensus, state_prover);
+        let proof_generator = ProofGenerator::new(consensus, state_prover);
 
-        let proof = consensus_prover
+        let proof = proof_generator
             .prove_ancestry_with_block_roots(&old_block.slot, &latest_block.state_root.to_string())
             .await
             .unwrap();
@@ -652,9 +684,9 @@ mod tests {
             .await
             .unwrap();
 
-        let consensus_prover = ConsensusProver::new(consensus, state_prover);
+        let proof_generator = ProofGenerator::new(consensus, state_prover);
 
-        let proof = consensus_prover
+        let proof = proof_generator
             .prove_ancestry_with_historical_summaries(
                 &(old_block.slot),
                 &latest_block.state_root.to_string(),
@@ -707,9 +739,9 @@ mod tests {
             .await
             .unwrap();
 
-        let consensus_prover = ConsensusProver::new(consensus, state_prover);
+        let proof_generator = ProofGenerator::new(consensus, state_prover);
 
-        let proof = consensus_prover
+        let proof = proof_generator
             .prove_ancestry_with_historical_summaries(
                 &(old_block.slot),
                 &latest_block.state_root.to_string(),
@@ -755,5 +787,43 @@ mod tests {
             }
             _ => panic!("Expected block roots proof"),
         }
+    }
+
+    #[tokio_test]
+    async fn test_receipts_proof_valid() {
+        let execution_block = get_mock_block_with_txs(18615160);
+        let receipts = get_mock_block_receipts(18615160);
+
+        let (consensus, state_prover, _, _) = setup_block_and_provers(7807119).await;
+        let proof_generator = ProofGenerator::new(consensus, state_prover);
+        let proof = proof_generator
+            .generate_receipt_proof(&receipts, 1)
+            .unwrap();
+
+        let bytes: Result<[u8; 32], _> = execution_block.receipts_root[0..32].try_into();
+        let root = Root::from_bytes(bytes.unwrap());
+
+        let valid_proof = verify_trie_proof(root, 1, proof.clone());
+
+        assert!(valid_proof.is_ok());
+    }
+
+    #[tokio_test]
+    async fn test_receipts_proof_invalid() {
+        let execution_block = get_mock_block_with_txs(18615160);
+        let receipts = get_mock_block_receipts(18615160);
+
+        let (consensus, state_prover, _, _) = setup_block_and_provers(7807119).await;
+        let proof_generator = ProofGenerator::new(consensus, state_prover);
+        let proof = proof_generator
+            .generate_receipt_proof(&receipts, 1)
+            .unwrap();
+
+        let bytes: Result<[u8; 32], _> = execution_block.receipts_root[0..32].try_into();
+        let root = Root::from_bytes(bytes.unwrap());
+
+        let invalid_proof = verify_trie_proof(root, 2, proof);
+
+        assert!(invalid_proof.is_err());
     }
 }

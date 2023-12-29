@@ -1,8 +1,10 @@
-use std::str::FromStr;
+use std::{str::FromStr, sync::Arc};
 
+use cita_trie::{PatriciaTrie, MemoryDB, Trie};
 use consensus_types::proofs::CrossChainId;
-use ethers::types::{TransactionReceipt, H256};
+use ethers::{types::{TransactionReceipt, H256}, utils::rlp::{encode, RlpStream}};
 use eyre::{anyhow, Result};
+use hasher::HasherKeccak;
 use ssz_rs::SszVariableOrIndex;
 
 use super::types::BatchMessageGroups;
@@ -39,6 +41,39 @@ pub fn get_tx_hash_from_cc_id(cc_id: &CrossChainId) -> Result<H256> {
     Ok(H256::from_str(tx_hash)?)
 }
 
+pub fn generate_trie<T>(
+        leaves: Vec<T>,
+        encode_fn: fn(&T) -> Vec<u8>,
+    ) -> PatriciaTrie<MemoryDB, HasherKeccak> {
+        let memdb = Arc::new(MemoryDB::new(true));
+        let hasher = Arc::new(HasherKeccak::new());
+        let mut trie = PatriciaTrie::new(Arc::clone(&memdb), Arc::clone(&hasher));
+        for (i, leaf) in leaves.iter().enumerate() {
+            let key = encode(&i);
+            let value = encode_fn(leaf);
+            trie.insert(key.to_vec(), value).unwrap();
+        }
+
+        trie
+    }
+
+pub fn encode_receipt(receipt: &TransactionReceipt) -> Vec<u8> {
+    let mut stream = RlpStream::new();
+    stream.begin_list(4);
+    stream.append(&receipt.status.unwrap());
+    stream.append(&receipt.cumulative_gas_used);
+    stream.append(&receipt.logs_bloom);
+    stream.append_list(&receipt.logs);
+
+    let legacy_receipt_encoded = stream.out();
+    let tx_type = receipt.transaction_type.unwrap().as_u64();
+
+    match tx_type {
+        0 => legacy_receipt_encoded.to_vec(),
+        _ => [&tx_type.to_be_bytes()[7..8], &legacy_receipt_encoded].concat(),
+    }
+}
+
 #[cfg(not(tarpaulin_include))]
 pub fn debug_print_batch_message_groups(batch_message_groups: &BatchMessageGroups) {
     for (block_number, message_groups) in batch_message_groups {
@@ -59,10 +94,7 @@ mod tests {
     use ethers::types::{TransactionReceipt, H256};
     use ssz_rs::SszVariableOrIndex;
 
-    use crate::prover::{
-        execution::ExecutionProver,
-        utils::{get_tx_hash_from_cc_id, get_tx_index, parse_path},
-    };
+    use crate::prover::utils::{get_tx_hash_from_cc_id, get_tx_index, parse_path};
 
     fn get_mock_receipt() -> TransactionReceipt {
         TransactionReceipt {
@@ -74,7 +106,6 @@ mod tests {
     #[test]
     fn test_get_tx_index_valid() {
         let receipts = vec![get_mock_receipt(), get_mock_receipt(), get_mock_receipt()];
-        let _execution_prover = ExecutionProver::new();
 
         for (i, receipt) in receipts.iter().enumerate() {
             let tx_hash = receipt.transaction_hash;
@@ -95,9 +126,6 @@ mod tests {
 
     #[test]
     fn test_get_tx_index_invalid_cc_id_format() {
-        let _receipts = vec![get_mock_receipt()];
-        let _execution_prover = ExecutionProver::new();
-
         let cc_id = CrossChainId {
             id: "invalid_format".parse().unwrap(),
             chain: "ethereum".parse().unwrap(),

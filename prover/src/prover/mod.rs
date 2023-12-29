@@ -1,19 +1,17 @@
-pub mod consensus;
-pub mod execution;
+pub mod proof_generator;
 pub mod state_prover;
 pub mod types;
 pub mod utils;
+mod test_helpers;
 
 use std::sync::Arc;
 
 use self::{
-    consensus::ConsensusProver,
-    execution::ExecutionProver,
+    proof_generator::{ProofGeneratorAPI, ProofGenerator},
     state_prover::StateProver,
     types::ProverConfig,
     utils::{get_tx_hash_from_cc_id, get_tx_index},
 };
-use crate::prover::{consensus::ConsensusProverAPI, execution::ExecutionProverAPI};
 use consensus_types::{
     consensus::{to_beacon_header, BeaconBlockAlias},
     proofs::{
@@ -34,29 +32,25 @@ use sync_committee_rs::{
 use types::BatchMessageGroups;
 use types::EnrichedMessage;
 
-pub struct Prover<CP: ConsensusProverAPI, EP: ExecutionProverAPI> {
-    consensus_prover: CP,
-    execution_prover: EP,
+pub struct Prover<PG> {
+    proof_generator: PG,
 }
 
-impl Prover<ConsensusProver<ConsensusRPC, StateProver>, ExecutionProver> {
+impl Prover<ProofGenerator<ConsensusRPC, StateProver>> {
     pub fn with_config(consensus_rpc: Arc<ConsensusRPC>, prover_config: ProverConfig) -> Self {
         let state_prover = StateProver::new(prover_config.state_prover_rpc.clone());
-        let consensus_prover = ConsensusProver::new(consensus_rpc, state_prover.clone());
-        let execution_prover = ExecutionProver::new();
+        let proof_generator = ProofGenerator::new(consensus_rpc, state_prover.clone());
 
         Prover {
-            consensus_prover,
-            execution_prover,
+            proof_generator,
         }
     }
 }
 
-impl<CP: ConsensusProverAPI, EP: ExecutionProverAPI> Prover<CP, EP> {
-    pub fn new(consensus_prover: CP, execution_prover: EP) -> Self {
+impl<PG: ProofGeneratorAPI> Prover<PG> {
+    pub fn new(proof_generator: PG) -> Self {
         Prover {
-            consensus_prover,
-            execution_prover,
+            proof_generator
         }
     }
 
@@ -183,12 +177,12 @@ impl<CP: ConsensusProverAPI, EP: ExecutionProverAPI> Prover<CP, EP> {
         let recent_block_state_id = recent_block.state_root.to_string();
 
         let proof = if is_in_block_roots_range {
-            self.consensus_prover.prove_ancestry_with_block_roots(
+            self.proof_generator.prove_ancestry_with_block_roots(
                 &target_block_slot,
                 recent_block_state_id.as_str(),
             )
         } else {
-            self.consensus_prover
+            self.proof_generator
                 .prove_ancestry_with_historical_summaries(
                     &target_block_slot,
                     &recent_block_state_id,
@@ -211,7 +205,7 @@ impl<CP: ConsensusProverAPI, EP: ExecutionProverAPI> Prover<CP, EP> {
         tx_index: u64,
     ) -> Result<ReceiptProof> {
         let receipt_proof = self
-            .execution_prover
+            .proof_generator
             .generate_receipt_proof(receipts, tx_index)
             .wrap_err(format!(
                 "Failed to generate receipt proof for block {} and tx: {}",
@@ -219,7 +213,7 @@ impl<CP: ConsensusProverAPI, EP: ExecutionProverAPI> Prover<CP, EP> {
             ))?;
 
         let receipts_root_proof = self
-            .consensus_prover
+            .proof_generator
             .generate_receipts_root_proof(block_hash.to_string().as_str())
             .await
             .wrap_err(format!(
@@ -246,7 +240,7 @@ impl<CP: ConsensusProverAPI, EP: ExecutionProverAPI> Prover<CP, EP> {
             beacon_block.body.execution_payload.transactions[tx_index as usize].clone();
 
         let proof = self
-            .consensus_prover
+            .proof_generator
             .generate_transaction_proof(block_hash.to_string().as_str(), tx_index)
             .await
             .wrap_err(format!(
@@ -267,8 +261,7 @@ impl<CP: ConsensusProverAPI, EP: ExecutionProverAPI> Prover<CP, EP> {
 
 #[cfg(test)]
 mod tests {
-    use crate::prover::consensus::MockConsensusProver;
-    use crate::prover::execution::MockExecutionProver;
+    use crate::prover::proof_generator::MockProofGenerator;
     use crate::prover::Prover;
 
     use super::state_prover::MockStateProver;
@@ -408,8 +401,8 @@ mod tests {
 
         let (_consensus_rpc, _execution_rpc, _state_prover) = setup();
 
-        let mut consensus_prover = MockConsensusProver::<MockConsensusRPC, MockStateProver>::new();
-        consensus_prover
+        let mut proof_generator = MockProofGenerator::<MockConsensusRPC, MockStateProver>::new();
+        proof_generator
             .expect_prove_ancestry_with_block_roots()
             .returning(|_, _| {
                 Ok(AncestryProof::BlockRoots {
@@ -417,19 +410,17 @@ mod tests {
                     block_root_proof: vec![],
                 })
             });
-        consensus_prover
+        proof_generator
             .expect_generate_transaction_proof()
             .returning(|_, _| Ok(Default::default()));
-        consensus_prover
+        proof_generator
             .expect_generate_receipts_root_proof()
             .returning(|_| Ok(Default::default()));
-
-        let mut execution_prover = MockExecutionProver::new();
-        execution_prover
+        proof_generator
             .expect_generate_receipt_proof()
             .returning(|_, _| Ok(Default::default()));
 
-        let prover = Prover::new(consensus_prover, execution_prover);
+        let prover = Prover::new(proof_generator);
 
         let res = prover
             .batch_generate_proofs(batch_message_groups, mock_update.clone())
@@ -454,8 +445,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_ancestry_proof_block_roots() {
-        let mut consensus_prover = MockConsensusProver::<MockConsensusRPC, MockStateProver>::new();
-        let execution_prover = MockExecutionProver::new();
+        let mut proof_generator = MockProofGenerator::<MockConsensusRPC, MockStateProver>::new();
 
         let recent_block = get_mock_beacon_block(1000);
         let recent_block_header = to_beacon_header(&recent_block).unwrap();
@@ -466,11 +456,11 @@ mod tests {
             block_root_proof: vec![],
         };
 
-        consensus_prover
+        proof_generator
             .expect_prove_ancestry_with_block_roots()
             .returning(move |_, _| Ok(proof.clone()));
 
-        let prover = Prover::new(consensus_prover, execution_prover);
+        let prover = Prover::new(proof_generator);
 
         let res = prover
             .get_ancestry_proof(target_block_slot, &recent_block_header)
@@ -482,8 +472,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_ancestry_proof_historical_roots() {
-        let mut consensus_prover = MockConsensusProver::<MockConsensusRPC, MockStateProver>::new();
-        let execution_prover = MockExecutionProver::new();
+        let mut proof_generator = MockProofGenerator::<MockConsensusRPC, MockStateProver>::new();
 
         let recent_block = get_mock_beacon_block(10000);
         let recent_block_header = to_beacon_header(&recent_block).unwrap();
@@ -496,11 +485,11 @@ mod tests {
             block_summary_root_gindex: Default::default(),
         };
 
-        consensus_prover
+        proof_generator
             .expect_prove_ancestry_with_historical_summaries()
             .returning(move |_, _| Ok(proof.clone()));
 
-        let prover = Prover::new(consensus_prover, execution_prover);
+        let prover = Prover::new(proof_generator);
 
         let res = prover
             .get_ancestry_proof(target_block_slot, &recent_block_header)
@@ -546,10 +535,8 @@ mod tests {
             mock_message5.clone(),
         ];
 
-        let consensus_prover = MockConsensusProver::<MockConsensusRPC, MockStateProver>::new();
-        let execution_prover = MockExecutionProver::new();
-
-        let prover = Prover::new(consensus_prover, execution_prover);
+        let proof_generator = MockProofGenerator::<MockConsensusRPC, MockStateProver>::new();
+        let prover = Prover::new(proof_generator);
 
         let result = prover
             .batch_messages(messages.as_ref(), &update)
