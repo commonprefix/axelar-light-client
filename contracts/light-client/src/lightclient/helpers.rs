@@ -341,7 +341,10 @@ pub fn calc_sync_period(slot: u64) -> u64 {
 pub mod test_helpers {
     use std::fs::File;
 
-    use types::proofs::{BatchVerificationData, TransactionProofsBatch, UpdateVariant};
+    use types::lightclient::Message;
+    use types::proofs::{
+        BatchVerificationData, ContentVariant, TransactionProofsBatch, UpdateVariant,
+    };
     use types::ssz_rs::Node;
     use types::{
         common::{ChainConfig, Fork, Forks},
@@ -424,5 +427,16 @@ pub mod test_helpers {
                 fork_version: hex_str_to_bytes("0x03000000").unwrap().try_into().unwrap(),
             },
         }
+    }
+
+    pub fn filter_message_variants(proofs_batch: &TransactionProofsBatch) -> Vec<Message> {
+        proofs_batch
+            .content
+            .iter()
+            .filter_map(|c| match c {
+                ContentVariant::Message(m) => Some((*m).clone()),
+                ContentVariant::WorkerSet(..) => None,
+            })
+            .collect()
     }
 }
