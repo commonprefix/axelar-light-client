@@ -122,10 +122,7 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
                 let tx_level_verification = TransactionProofsBatch {
                     transaction_proof,
                     receipt_proof,
-                    content: messages
-                        .iter()
-                        .map(|m| m.content.clone())
-                        .collect(),
+                    content: messages.iter().map(|m| m.content.clone()).collect(),
                 };
 
                 block_proof.transactions_proofs.push(tx_level_verification);
