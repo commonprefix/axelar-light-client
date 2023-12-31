@@ -35,12 +35,12 @@ pub struct ConsensusRPC {
 
 #[allow(dead_code)]
 impl ConsensusRPC {
-    pub fn new(rpc: String) -> Self {
+    pub fn new(rpc: String, config: EthConfig) -> Self {
         let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
 
         let client = reqwest::Client::builder()
-            .pool_max_idle_per_host(490)
-            .connect_timeout(Duration::from_secs(60))
+            .pool_max_idle_per_host(config.pool_max_idle_per_host)
+            .connect_timeout(Duration::from_secs(config.timeout_secs))
             .timeout(Duration::from_secs(60))
             .build()
             .unwrap();
@@ -292,7 +292,7 @@ mod tests {
     fn setup_server_and_rpc() -> (Server, ConsensusRPC) {
         let server = Server::run();
         let url = server.url("");
-        let rpc = ConsensusRPC::new(url.to_string());
+        let rpc = ConsensusRPC::new(url.to_string(), EthConfig::default());
         (server, rpc)
     }
     #[tokio::test]

@@ -1,3 +1,4 @@
+use ethers::contract::EthEvent;
 use prover::prover::types::ProverConfig;
 pub use std::str::FromStr;
 
@@ -29,6 +30,10 @@ pub struct Config {
     pub historical_roots_enabled: bool,
     pub historical_roots_block_roots_batch_size: u64,
     pub verification_method: VerificationMethod,
+    pub sentinel_queue_addr: String,
+    pub sentinel_queue_name: String,
+    pub rpc_pool_max_idle_per_host: usize,
+    pub rpc_timeout_secs: u64,
 }
 
 impl From<Config> for ProverConfig {
@@ -41,4 +46,27 @@ impl From<Config> for ProverConfig {
             historical_roots_block_roots_batch_size: config.historical_roots_block_roots_batch_size,
         }
     }
+}
+
+impl From<Config> for EthConfig {
+    fn from(config: Config) -> Self {
+        EthConfig {
+            pool_max_idle_per_host: config.rpc_pool_max_idle_per_host,
+            timeout_secs: config.rpc_timeout_secs
+        }
+    }
+}
+
+// Events
+#[derive(Debug, Clone, EthEvent, PartialEq)]
+pub struct ContractCallWithToken {
+    #[ethevent(indexed)]
+    pub sender: Address,
+    pub destination_chain: String,
+    pub destination_contract_address: String,
+    #[ethevent(indexed)]
+    pub payload_hash: H256,
+    pub payload: Bytes,
+    pub symbol: String,
+    pub amount: U256,
 }

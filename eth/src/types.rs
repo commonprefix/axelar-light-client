@@ -1,7 +1,24 @@
+use ethers::types::{Block, Transaction, TransactionReceipt};
 use ssz_rs::Node;
 use sync_committee_rs::consensus_types::BeaconBlockHeader;
 use types::consensus::{BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update};
 pub type UpdateResponse = Vec<UpdateData>;
+
+pub struct EthConfig {
+    pub pool_max_idle_per_host: usize,
+    pub timeout_secs: u64
+}
+
+impl Default for EthConfig {
+    fn default() -> Self {
+        EthConfig {
+            pool_max_idle_per_host: 10,
+            timeout_secs: 10
+        }
+    }
+
+}
+
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct UpdateData {
