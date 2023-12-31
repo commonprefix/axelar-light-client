@@ -38,7 +38,6 @@ fn enrich_content(content: &ContentVariant, log: &Log, block_details: &FullBlock
 }
 
 fn generate_cc_id(log: &Log, receipts: &[TransactionReceipt]) -> Result<CrossChainId> {
-    let tx_hash = log.transaction_hash.unwrap();
     let tx_log_index = calculate_tx_log_index(log, receipts);
 
     let cc_id = CrossChainId {

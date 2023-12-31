@@ -52,4 +52,4 @@ pub struct ProverConfig {
 }
 
 // A map from block number to a map from tx hash to messages
-pub type BatchMessageGroups = IndexMap<u64, IndexMap<H256, Vec<EnrichedContent>>>;
+pub type BatchContentGroups = IndexMap<u64, IndexMap<H256, Vec<EnrichedContent>>>;

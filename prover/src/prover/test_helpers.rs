@@ -15,7 +15,7 @@ pub mod test_utils {
     use std::{fs::File, sync::Arc};
     use sync_committee_rs::constants::Root;
 
-    use crate::prover::types::{BatchMessageGroups, EnrichedContent};
+    use crate::prover::types::{BatchContentGroups, EnrichedContent};
 
     pub fn verify_trie_proof(root: Root, key: u64, proof_bytes: Vec<Vec<u8>>) -> Result<Vec<u8>> {
         let memdb = Arc::new(MemoryDB::new(true));
@@ -113,14 +113,14 @@ pub mod test_utils {
         *
         * block 3 -> tx 4 -> message 5
     */
-    pub fn get_mock_batch_message_groups() -> BatchMessageGroups {
+    pub fn get_mock_batch_message_groups() -> BatchContentGroups {
         let mut messages = vec![];
         for i in 0..6 {
             let m = get_mock_message(i, i, H256::from_low_u64_be(i));
             messages.push(m);
         }
 
-        let mut groups: BatchMessageGroups = IndexMap::new();
+        let mut groups: BatchContentGroups = IndexMap::new();
         let mut blockgroup1 = IndexMap::new();
         let mut blockgroup2 = IndexMap::new();
         let mut blockgroup3 = IndexMap::new();
