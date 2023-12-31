@@ -19,6 +19,12 @@ impl Default for EthConfig {
 
 }
 
+#[derive(Debug)]
+pub struct FullBlockDetails {
+    pub exec_block: Block<Transaction>,
+    pub beacon_block: BeaconBlockAlias,
+    pub receipts: Vec<TransactionReceipt>,
+}
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct UpdateData {

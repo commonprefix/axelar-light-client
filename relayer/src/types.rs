@@ -1,5 +1,7 @@
-use ethers::contract::EthEvent;
+use ethers::{contract::EthEvent, types::{U256, Bytes, Address, H256, Log}};
 use prover::prover::types::ProverConfig;
+use eth::types::EthConfig;
+use serde::{Serialize, Deserialize};
 pub use std::str::FromStr;
 
 // Step 1: Define the enum
@@ -70,3 +72,14 @@ pub struct ContractCallWithToken {
     pub symbol: String,
     pub amount: U256,
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct EnrichedLog {
+    pub event_name: String,
+    contract_name: String,
+    chain: String, // Assuming ChainName is a simple string, replace with actual type if not
+    pub log: Log,
+    source: String,
+    tx_to: Address,
+}
+

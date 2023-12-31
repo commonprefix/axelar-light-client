@@ -51,22 +51,16 @@ async fn main() {
     //         println!("Received message: {:?}", std::str::from_utf8(&delivery.data).unwrap());
     //     }
     // }
-    let json = get_json();
 
-    match json {
-        Some(json) => {
-            println!("JSON: {:?}", json);
-        },
-        None => {
-            println!("No JSON");
-        }
-    }
-
-    // let consensus = Arc::new(ConsensusRPC::new(config.consensus_rpc.clone()));
-    // let execution = Arc::new(ExecutionRPC::new(config.execution_rpc.clone()));
-    // let gateway: Gateway = Gateway::new(consensus.clone(), execution.clone(), config.gateway_addr);
-
-    // let prover = Prover::with_config(consensus.clone(), prover_config);
+    let enriched_log = get_json().unwrap();
+    println!("Got enriched log for block with block num {:?}", enriched_log.log.block_number);
+    let block_details = get_full_block_details(
+        consensus.clone(),
+        execution.clone(),
+        enriched_log.log.block_number.unwrap().as_u64(),
+    ).await.unwrap();
+    let enriched_content = parse_enriched_log(&enriched_log, &block_details);
+    println!("We have enriched content {:#?}", enriched_content);
 
     // let finality_update = consensus.get_finality_update().await.unwrap();
     // let update = UpdateVariant::Finality(finality_update.clone());
@@ -100,20 +94,23 @@ async fn main() {
 
 
 
-async fn consume_messages(
-    gateway: &Gateway,
-    from: u64,
-    to: u64,
-    limit: u64,
-) -> Vec<EnrichedMessage> {
-    gateway
-        .get_messages_in_slot_range(from, to, limit)
-        .await
-        .unwrap()[0..limit as usize]
-        .to_vec()
+// async fn consume_messages(
+//     gateway: &Gateway,
+//     from: u64,
+//     to: u64,
+//     limit: u64,
+// ) -> Vec<EnrichedMessage> {
+//     gateway
+//         .get_messages_in_slot_range(from, to, limit)
+//         .await
+//         .unwrap()[0..limit as usize]
+//         .to_vec()
+// }
+
+fn process_queue_messages(messages: &[&str]) {
 }
 
-fn load_prover_config() -> Config {
+fn load_config() -> Config {
     dotenv().ok();
 
     Config {
@@ -130,10 +127,10 @@ fn load_prover_config() -> Config {
                 .expect("VERIFICATION not found")
                 .as_str(),
         ).unwrap(),
+        rpc_pool_max_idle_per_host: usize::from_str(env::var("RPC_POOL_MAX_IDLE_PER_HOST").expect("Missing RPC_POOL_MAX_IDLE_PER_HOST from .env").as_str()).unwrap(),
+        rpc_timeout_secs: u64::from_str(env::var("RPC_TIMEOUT_SECS").expect("Missing RPC_TIMEOUT_SECS from .env").as_str()).unwrap()
     }
 }
-
-
 
 fn get_json() -> Option<EnrichedLog>   {
     let file = File::open("./src/test.json").unwrap();

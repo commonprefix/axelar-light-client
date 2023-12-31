@@ -31,7 +31,7 @@ use sync_committee_rs::{
     constants::{Root, SLOTS_PER_HISTORICAL_ROOT},
 };
 use types::BatchMessageGroups;
-use types::EnrichedMessage;
+use types::EnrichedContent;
 
 pub struct Prover<PG> {
     proof_generator: PG,
@@ -53,7 +53,7 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
 
     pub async fn batch_messages(
         &self,
-        messages: &[EnrichedMessage],
+        messages: &[EnrichedContent],
         update: &UpdateVariant,
     ) -> Result<BatchMessageGroups> {
         let recent_block_slot = match update {
@@ -72,12 +72,10 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         let mut groups: BatchMessageGroups = IndexMap::new();
 
         for message in messages {
-            let tx_hash = get_tx_hash_from_cc_id(&message.message.cc_id)?;
-
             groups
                 .entry(message.exec_block.number.unwrap().as_u64())
                 .or_default()
-                .entry(tx_hash)
+                .entry(message.tx_hash)
                 .or_default()
                 .push(message.clone());
         }
@@ -126,7 +124,7 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
                     receipt_proof,
                     content: messages
                         .iter()
-                        .map(|m| ContentVariant::Message(m.message.clone()))
+                        .map(|m| m.content.clone())
                         .collect(),
                 };
 
@@ -143,7 +141,7 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
     }
 
     pub fn get_block_of_batch(
-        batch: &IndexMap<H256, Vec<EnrichedMessage>>,
+        batch: &IndexMap<H256, Vec<EnrichedContent>>,
     ) -> Result<
         (
             BeaconBlockAlias,

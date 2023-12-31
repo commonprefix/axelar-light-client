@@ -3,7 +3,7 @@ pub mod test_utils {
     use cita_trie::{MemoryDB, PatriciaTrie, Trie};
     use consensus_types::{
         consensus::{BeaconBlockAlias, FinalityUpdate, OptimisticUpdate},
-        proofs::{CrossChainId, Message, UpdateVariant},
+        proofs::{CrossChainId, Message, UpdateVariant, ContentVariant},
     };
     use ethers::{
         types::{Block, Transaction, TransactionReceipt, H256},
@@ -15,7 +15,7 @@ pub mod test_utils {
     use std::{fs::File, sync::Arc};
     use sync_committee_rs::constants::Root;
 
-    use crate::prover::types::{BatchMessageGroups, EnrichedMessage};
+    use crate::prover::types::{BatchMessageGroups, EnrichedContent};
 
     pub fn verify_trie_proof(root: Root, key: u64, proof_bytes: Vec<Vec<u8>>) -> Result<Vec<u8>> {
         let memdb = Arc::new(MemoryDB::new(true));
@@ -75,18 +75,20 @@ pub mod test_utils {
         }
     }
 
-    pub fn get_mock_message(slot: u64, block_number: u64, tx_hash: H256) -> EnrichedMessage {
-        EnrichedMessage {
-            message: Message {
-                cc_id: CrossChainId {
-                    chain: "ethereum".parse().unwrap(),
-                    id: format!("{:x}:test", tx_hash).parse().unwrap(),
-                },
-                source_address: "0x0000000".parse().unwrap(),
-                destination_chain: "polygon".parse().unwrap(),
-                destination_address: "0x0000000".parse().unwrap(),
-                payload_hash: Default::default(),
+    pub fn get_mock_message(slot: u64, block_number: u64, tx_hash: H256) -> EnrichedContent {
+        let message = Message {
+            cc_id: CrossChainId {
+                chain: "ethereum".parse().unwrap(),
+                id: format!("{:x}:test", tx_hash).parse().unwrap(),
             },
+            source_address: "0x0000000".parse().unwrap(),
+            destination_chain: "polygon".parse().unwrap(),
+            destination_address: "0x0000000".parse().unwrap(),
+            payload_hash: Default::default(),
+        };
+
+        EnrichedContent {
+            content: ContentVariant::Message(message),
             tx_hash,
             exec_block: get_mock_exec_block_with_txs(block_number),
             beacon_block: get_mock_beacon_block(slot),
