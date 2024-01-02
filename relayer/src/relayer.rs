@@ -61,6 +61,7 @@ impl<PG: ProofGeneratorAPI> Relayer<PG> {
                 self.consensus.clone(),
                 self.execution.clone(),
                 enriched_log.log.block_number.unwrap().as_u64(),
+                self.config.genesis_timestamp
             ).await?;
 
             let content = parse_enriched_log(enriched_log, &block_details)?;

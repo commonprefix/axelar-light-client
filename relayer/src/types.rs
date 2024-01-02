@@ -37,6 +37,7 @@ pub struct Config {
     pub sentinel_queue_name: String,
     pub rpc_pool_max_idle_per_host: usize,
     pub rpc_timeout_secs: u64,
+    pub genesis_timestamp: u64,
 }
 
 impl From<Config> for ProverConfig {
