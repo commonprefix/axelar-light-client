@@ -44,6 +44,7 @@ pub enum GindexOrPath {
 }
 
 pub struct ProverConfig {
+    pub network: String,
     pub consensus_rpc: String,
     pub execution_rpc: String,
     pub state_prover_rpc: String,

@@ -39,7 +39,7 @@ pub struct Prover<PG> {
 
 impl Prover<ProofGenerator<ConsensusRPC, StateProver>> {
     pub fn with_config(consensus_rpc: Arc<ConsensusRPC>, prover_config: ProverConfig) -> Self {
-        let state_prover = StateProver::new(prover_config.state_prover_rpc.clone());
+        let state_prover = StateProver::new(prover_config.network, prover_config.state_prover_rpc.clone());
         let proof_generator = ProofGenerator::new(consensus_rpc, state_prover.clone());
 
         Prover { proof_generator }
