@@ -7,6 +7,7 @@ pub fn load_config() -> Config {
     dotenv().ok();
 
     Config {
+        network: env::var("NETWORK").expect("Missing NETWORK from .env"),
         consensus_rpc: env::var("CONSENSUS_RPC").expect("Missing CONSENSUS_RPC from .env"),
         execution_rpc: env::var("EXECUTION_RPC").expect("Missing EXECUTION_RPC from .env"),
         state_prover_rpc: env::var("STATE_PROVER_RPC").expect("Missing STATE_PROVER from .env"),

@@ -5,6 +5,7 @@ mod wasm;
 mod parser;
 mod relayer;
 
+use eth::consensus::EthBeaconAPI;
 use eth::types::EthConfig;
 use eth::{consensus::ConsensusRPC, execution::ExecutionRPC};
 use prover::prover::types::ProverConfig;
@@ -29,8 +30,13 @@ async fn main() {
     let prover = Prover::with_config(consensus.clone(), prover_config);
     let relayer = Relayer::new(config.clone(), consensus.clone(), execution.clone(), prover);
 
-    let enriched_logs = vec![get_json().unwrap()];
-    println!("Got enriched logs {:#?}", enriched_logs);
+    //let enriched_logs = vec![get_json().unwrap()];
+    let consumer = consumer::Gateway::new(consensus.clone(), execution.clone(), config.gateway_addr.clone());
+    let finality_update = consensus.get_finality_update().await.unwrap();
+    let latest_slot = finality_update.attested_header.beacon.slot;
+    println!("Processing logs for slot {}", latest_slot);
+    let enriched_logs = consumer.get_logs_in_slot_range(latest_slot - 7000, latest_slot, 5).await.unwrap();
+    println!("Got logs {:#?}", enriched_logs.len());
     let res = relayer.digest_messages(&enriched_logs).await;
     println!("Res {:?}", res);
 

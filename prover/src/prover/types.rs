@@ -1,6 +1,6 @@
 use consensus_types::{
     consensus::BeaconBlockAlias,
-    proofs::{ContentVariant, Message},
+    proofs::ContentVariant,
 };
 use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use indexmap::IndexMap;

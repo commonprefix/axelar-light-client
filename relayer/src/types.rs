@@ -25,6 +25,7 @@ impl FromStr for VerificationMethod {
 
 #[derive(Debug, Clone)]
 pub struct Config {
+    pub network: String,
     pub consensus_rpc: String,
     pub execution_rpc: String,
     pub state_prover_rpc: String,
@@ -41,6 +42,7 @@ pub struct Config {
 impl From<Config> for ProverConfig {
     fn from(config: Config) -> Self {
         ProverConfig {
+            network: config.network,
             consensus_rpc: config.consensus_rpc,
             execution_rpc: config.execution_rpc,
             state_prover_rpc: config.state_prover_rpc,
@@ -76,10 +78,10 @@ pub struct ContractCallWithToken {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct EnrichedLog {
     pub event_name: String,
-    contract_name: String,
-    chain: String, // Assuming ChainName is a simple string, replace with actual type if not
+    pub contract_name: String,
+    pub chain: String, // Assuming ChainName is a simple string, replace with actual type if not
     pub log: Log,
-    source: String,
-    tx_to: Address,
+    pub source: String,
+    pub tx_to: Address,
 }
 
