@@ -109,6 +109,12 @@ pub struct TransactionProofsBatch {
     pub content: Vec<ContentVariant>,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+pub enum ContentVariantId {
+    CrossChainId(CrossChainId),
+    OperatorsHash(axelar_wasm_std::hash::Hash),
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
 pub enum ContentVariant {
     Message(Message),

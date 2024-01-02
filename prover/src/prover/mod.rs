@@ -5,7 +5,6 @@ pub mod types;
 pub mod utils;
 
 use std::sync::Arc;
-
 use self::{
     proof_generator::{ProofGenerator, ProofGeneratorAPI},
     state_prover::StateProver,
@@ -20,10 +19,9 @@ use consensus_types::{
         TransactionProofsBatch, UpdateVariant,
     },
 };
-
 use eth::consensus::ConsensusRPC;
 use ethers::types::{Block, Transaction, TransactionReceipt, H256};
-use eyre::{anyhow, Context, Result};
+use eyre::{Context, Result};
 use indexmap::IndexMap;
 use ssz_rs::{Merkleized, Node};
 use sync_committee_rs::{
@@ -51,24 +49,10 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         Prover { proof_generator }
     }
 
-    pub async fn batch_messages(
+    pub fn batch_messages(
         &self,
-        contents: &[EnrichedContent],
-        update: &UpdateVariant,
-    ) -> Result<BatchContentGroups> {
-        let recent_block_slot = match update {
-            UpdateVariant::Finality(update) => update.finalized_header.beacon.slot,
-            UpdateVariant::Optimistic(update) => update.attested_header.beacon.slot,
-        };
-
-        // Reality check
-        if !contents
-            .iter()
-            .all(|m| m.beacon_block.slot < recent_block_slot)
-        {
-            return Err(anyhow!("Messages provided are not preceeding the update"));
-        }
-
+        contents: &[EnrichedContent]
+    ) -> BatchContentGroups {
         let mut groups: BatchContentGroups = IndexMap::new();
 
         for content in contents {
@@ -80,7 +64,7 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
                 .push(content.clone());
         }
 
-        Ok(groups)
+        groups
     }
 
     /// Generates proofs for a batch of contents.
@@ -102,9 +86,14 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
 
             let ancestry_proof = self
                 .get_ancestry_proof(beacon_block.slot, &recent_block)
-                .await?;
+                .await;
+            if ancestry_proof.is_err() {
+                println!("Error generating ancestry proof {:?}", ancestry_proof.err());
+                continue;
+            }
+
             let mut block_proof = BlockProofsBatch {
-                ancestry_proof,
+                ancestry_proof: ancestry_proof.unwrap(),
                 target_block: to_beacon_header(&beacon_block)?,
                 transactions_proofs: vec![],
             };
@@ -114,14 +103,23 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
 
                 let transaction_proof = self
                     .get_transaction_proof(&beacon_block, block_hash, tx_index)
-                    .await?;
+                    .await;
+                if transaction_proof.is_err() {
+                    println!("Error generating tx proof {} {:?}", tx_hash, transaction_proof.err());
+                    continue;
+                }
+
                 let receipt_proof = self
                     .get_receipt_proof(&exec_block, block_hash, &receipts, tx_index)
-                    .await?;
+                    .await;
+                if receipt_proof.is_err() {
+                    println!("Error generating receipt proof {} {:?}", tx_hash, receipt_proof.err());
+                    continue;
+                }
 
                 let tx_level_verification = TransactionProofsBatch {
-                    transaction_proof,
-                    receipt_proof,
+                    transaction_proof: transaction_proof.unwrap(),
+                    receipt_proof: receipt_proof.unwrap(),
                     content: contents.iter().map(|m| m.content.clone()).collect(),
                 };
 
@@ -397,8 +395,6 @@ mod tests {
         let _consensus_rpc = MockConsensusRPC::new();
         let mut execution_rpc = MockExecutionRPC::new();
 
-        let update = get_mock_update(true, 1000, 505);
-
         execution_rpc.expect_get_blocks().returning(move |_| {
             Ok(vec![
                 Some(get_mock_exec_block(1)),
@@ -429,9 +425,7 @@ mod tests {
         let prover = Prover::new(proof_generator);
 
         let result = prover
-            .batch_messages(messages.as_ref(), &update)
-            .await
-            .unwrap();
+            .batch_messages(messages.as_ref());
 
         assert_eq!(result.len(), 3);
         assert_eq!(result.get(&1).unwrap().len(), 1);

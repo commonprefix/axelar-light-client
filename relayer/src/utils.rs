@@ -24,5 +24,7 @@ pub fn load_config() -> Config {
         rpc_pool_max_idle_per_host: usize::from_str(env::var("RPC_POOL_MAX_IDLE_PER_HOST").expect("Missing RPC_POOL_MAX_IDLE_PER_HOST from .env").as_str()).unwrap(),
         rpc_timeout_secs: u64::from_str(env::var("RPC_TIMEOUT_SECS").expect("Missing RPC_TIMEOUT_SECS from .env").as_str()).unwrap(),
         genesis_timestamp: u64::from_str(env::var("GENESIS_TIMESTAMP").expect("Missing GENESIS_TIMESTAMP from .env").as_str()).unwrap(),
+        max_batch_size: usize::from_str(env::var("MAX_BATCH_SIZE").expect("Missing MAX_BATCH_SIZE from .env").as_str()).unwrap(),
+        process_interval: u64::from_str(env::var("PROCESS_INTERVAL").expect("Missing PROCESS_INTERVAL from .env").as_str()).unwrap(),
     }
 }

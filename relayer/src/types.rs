@@ -38,6 +38,8 @@ pub struct Config {
     pub rpc_pool_max_idle_per_host: usize,
     pub rpc_timeout_secs: u64,
     pub genesis_timestamp: u64,
+    pub max_batch_size: usize,
+    pub process_interval: u64,
 }
 
 impl From<Config> for ProverConfig {
@@ -76,7 +78,7 @@ pub struct ContractCallWithToken {
     pub amount: U256,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct EnrichedLog {
     pub event_name: String,
     pub contract_name: String,
