@@ -2,15 +2,15 @@ use crate::ContractError;
 use cosmwasm_std::{DepsMut, Env, Response};
 use eyre::{eyre, Result};
 use types::consensus::BeaconBlockHeader;
-use types::execution::{ReceiptLog, ReceiptLogs};
+use types::execution::ReceiptLogs;
 use types::proofs::{
-    BatchVerificationData, BlockProofsBatch, Message, TransactionProofsBatch, UpdateVariant,
+    BatchVerificationData, BlockProofsBatch, TransactionProofsBatch, UpdateVariant,
 };
 use types::ssz_rs::{Merkleized, Node};
 use types::sync_committee_rs::consensus_types::Transaction;
 use types::sync_committee_rs::constants::MAX_BYTES_PER_TRANSACTION;
 use types::{
-    common::{ChainConfig, ContentVariant, Forks, WorkerSetMessage},
+    common::{ChainConfig, ContentVariant, Forks},
     consensus::Update,
 };
 
@@ -21,48 +21,27 @@ use crate::lightclient::helpers::{
 use crate::lightclient::LightClient;
 use crate::state::{CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE, VERIFIED_MESSAGES};
 
-type MessageLogCompareFn = dyn Fn(&Message, &ReceiptLog, &Vec<u8>) -> Result<()>;
-
-fn verify_message(
-    message: &Message,
+fn verify_content(
+    content: &ContentVariant,
     transaction: &Transaction<MAX_BYTES_PER_TRANSACTION>,
     logs: &ReceiptLogs,
-    compare_fn: &MessageLogCompareFn,
 ) -> Result<()> {
-    let log_index_str = message
-        .cc_id
-        .id
-        .split(':')
-        .nth(1)
-        .ok_or_else(|| eyre!("Missing ':' in message ID"))?;
-    let log_index = log_index_str
-        .parse::<usize>()
-        .map_err(|_| eyre!("Failed to parse log index"))?;
+    let log_index = match content {
+        ContentVariant::Message(message) => parse_message_id(&message.cc_id.id)?.1,
+        ContentVariant::WorkerSet(message) => parse_message_id(&message.message_id)?.1,
+    };
+
     let log = logs
         .0
         .get(log_index)
         .ok_or_else(|| eyre!("Log index out of bounds"))?;
 
-    // TODO: no dep injection
-    compare_fn(message, log, transaction)?;
-
-    Ok(())
-}
-
-fn verify_workerset_message(
-    message: &WorkerSetMessage,
-    transaction: &Transaction<MAX_BYTES_PER_TRANSACTION>,
-    logs: &ReceiptLogs,
-) -> Result<()> {
-    let (_, log_index) = parse_message_id(&message.message_id)?;
-    let log = logs
-        .0
-        .get(log_index)
-        .ok_or_else(|| eyre!("Log index out of bounds"))?;
-
-    compare_workerset_message_with_log(message, log, transaction)?;
-
-    Ok(())
+    match content {
+        ContentVariant::Message(message) => compare_message_with_log(message, log, transaction),
+        ContentVariant::WorkerSet(message) => {
+            compare_workerset_message_with_log(message, log, transaction)
+        }
+    }
 }
 
 fn process_transaction_proofs(
@@ -83,19 +62,7 @@ fn process_transaction_proofs(
                 .map(|content_variant| {
                     (
                         content_variant.to_owned(),
-                        match content_variant {
-                            ContentVariant::Message(message) => verify_message(
-                                message,
-                                &data.transaction_proof.transaction,
-                                &logs,
-                                &compare_message_with_log,
-                            ),
-                            ContentVariant::WorkerSet(message) => verify_workerset_message(
-                                message,
-                                &data.transaction_proof.transaction,
-                                &logs,
-                            ),
-                        },
+                        verify_content(content_variant, &data.transaction_proof.transaction, &logs),
                     )
                 })
                 .collect::<Vec<(ContentVariant, Result<()>)>>()
@@ -204,15 +171,17 @@ pub fn update_forks(deps: DepsMut, forks: Forks) -> Result<Response> {
 
 #[cfg(test)]
 mod tests {
-    use crate::execute::{process_block_proofs, process_transaction_proofs, verify_message};
-    use crate::lightclient::helpers::test_helpers::{filter_message_variants, get_batched_data};
+    use crate::execute::{process_block_proofs, process_transaction_proofs, verify_content};
+    use crate::lightclient::helpers::test_helpers::{
+        filter_message_variants, filter_workeset_message_variants, get_batched_data,
+    };
     use crate::lightclient::helpers::{extract_logs_from_receipt_proof, extract_recent_block};
     use crate::lightclient::tests::tests::init_lightclient;
     use cosmwasm_std::testing::mock_dependencies;
     use eyre::{eyre, Result};
     use types::common::ContentVariant;
     use types::consensus::FinalityUpdate;
-    use types::execution::ReceiptLogs;
+    use types::execution::{ReceiptLog, ReceiptLogs};
     use types::proofs::{BlockProofsBatch, Message, TransactionProofsBatch, UpdateVariant};
     use types::ssz_rs::Merkleized;
 
@@ -237,45 +206,39 @@ mod tests {
         let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
 
-        let mock_compare_ok = |_: &_, _: &_, _: &_| Ok(());
-        let mock_compare_err = |_: &_, _: &_, _: &_| Err(eyre!("always fail"));
-
         let messages = filter_message_variants(proofs);
 
         let mut message = messages.get(0).unwrap().clone();
         message.cc_id.id = String::from("broken_id").try_into().unwrap();
         assert_eq!(
-            verify_message(
-                &message,
+            verify_content(
+                &ContentVariant::Message(message.clone()),
                 &proofs.transaction_proof.transaction,
                 &ReceiptLogs::default(),
-                &mock_compare_ok
             )
             .unwrap_err()
             .to_string(),
-            "Missing ':' in message ID"
+            "Invalid message id format"
         );
 
         message.cc_id.id = String::from("foo:bar").try_into().unwrap();
         assert_eq!(
-            verify_message(
-                &message,
+            verify_content(
+                &ContentVariant::Message(message.clone()),
                 &proofs.transaction_proof.transaction,
                 &ReceiptLogs::default(),
-                &mock_compare_ok
             )
             .unwrap_err()
             .to_string(),
-            "Failed to parse log index"
+            "Invalid transaction hash in message id"
         );
 
         message = messages.get(0).unwrap().clone();
         assert_eq!(
-            verify_message(
-                &message,
+            verify_content(
+                &ContentVariant::Message(message.clone()),
                 &proofs.transaction_proof.transaction,
                 &ReceiptLogs::default(),
-                &mock_compare_ok
             )
             .unwrap_err()
             .to_string(),
@@ -292,21 +255,94 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
-        // returns the result of the compare function (OK)
-        assert!(verify_message(
-            &message,
+        // valid comparison
+        assert!(verify_content(
+            &ContentVariant::Message(message.clone()),
             &proofs.transaction_proof.transaction,
             &logs,
-            &mock_compare_ok
         )
         .is_ok());
 
-        // returns the result of the compare function (Err)
-        assert!(verify_message(
-            &message,
+        let logs = ReceiptLogs(vec![ReceiptLog::default()]);
+        // invalid comparison
+        assert!(verify_content(
+            &ContentVariant::Message(message.clone()),
             &proofs.transaction_proof.transaction,
             &logs,
-            &mock_compare_err
+        )
+        .is_err());
+    }
+
+    #[test]
+    #[ignore]
+    fn test_verify_workerset_message() {
+        let verification_data = get_batched_data(false).1;
+        let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
+        let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
+
+        let messages = filter_workeset_message_variants(proofs);
+
+        let mut message = messages.first().unwrap().clone();
+        message.message_id = String::from("broken_id").try_into().unwrap();
+        assert_eq!(
+            verify_content(
+                &ContentVariant::WorkerSet(message.clone()),
+                &proofs.transaction_proof.transaction,
+                &ReceiptLogs::default(),
+            )
+            .unwrap_err()
+            .to_string(),
+            "Invalid message id format"
+        );
+
+        message.message_id = String::from("foo:bar").try_into().unwrap();
+        assert_eq!(
+            verify_content(
+                &ContentVariant::WorkerSet(message.clone()),
+                &proofs.transaction_proof.transaction,
+                &ReceiptLogs::default(),
+            )
+            .unwrap_err()
+            .to_string(),
+            "Invalid transaction hash in message id"
+        );
+
+        message = messages.get(0).unwrap().clone();
+        assert_eq!(
+            verify_content(
+                &ContentVariant::WorkerSet(message.clone()),
+                &proofs.transaction_proof.transaction,
+                &ReceiptLogs::default(),
+            )
+            .unwrap_err()
+            .to_string(),
+            "Log index out of bounds"
+        );
+
+        let logs = extract_logs_from_receipt_proof(
+            &proofs.receipt_proof,
+            proofs.transaction_proof.transaction_index,
+            &target_block_proofs
+                .target_block
+                .clone()
+                .hash_tree_root()
+                .unwrap(),
+        )
+        .unwrap();
+        // valid comparison
+        assert!(verify_content(
+            &ContentVariant::WorkerSet(message.clone()),
+            &proofs.transaction_proof.transaction,
+            &logs,
+        )
+        .is_ok());
+
+        let logs = ReceiptLogs(vec![ReceiptLog::default()]);
+        // invalid comparison
+        assert!(verify_content(
+            &ContentVariant::WorkerSet(message.clone()),
+            &proofs.transaction_proof.transaction,
+            &logs,
         )
         .is_err());
     }
@@ -374,7 +410,7 @@ mod tests {
         for (index, message) in messages.iter().enumerate() {
             assert_eq!(
                 res[index].1.as_ref().unwrap_err().to_string(),
-                "Missing ':' in message ID"
+                "Invalid message id format"
             );
             if let ContentVariant::Message(m) = &res[index].0 {
                 assert_eq!(m, message);

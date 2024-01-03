@@ -283,7 +283,6 @@ pub fn parse_log(log: &ReceiptLog) -> Result<GatewayEvent> {
         if let AbiItem::Event(e) = item {
             let event_signature_hash = hasher.digest(e.signature().as_bytes());
             if first_topic == event_signature_hash.as_slice() {
-                println!("Matched topic {}", e.signature());
                 if e.signature().starts_with("ContractCall") {
                     return parse_contract_call_event(log, &e);
                 } else if e.signature().starts_with("OperatorshipTransferred") {
@@ -302,11 +301,12 @@ pub fn parse_message_id(id: &nonempty::String) -> Result<(String, usize)> {
         return Err(eyre!("Invalid message id format"));
     }
 
-    if components[0].len() != 64 {
+    let tx_hash = components[0].strip_prefix("0x").unwrap_or(components[0]);
+    if tx_hash.len() != 64 {
         return Err(eyre!("Invalid transaction hash in message id"));
     }
 
-    Ok((components[0].to_string(), components[1].parse::<usize>()?))
+    Ok((tx_hash.to_string(), components[1].parse::<usize>()?))
 }
 
 pub fn compare_workerset_message_with_log(
@@ -417,6 +417,7 @@ pub fn calc_sync_period(slot: u64) -> u64 {
 pub mod test_helpers {
     use std::fs::File;
 
+    use types::common::WorkerSetMessage;
     use types::lightclient::Message;
     use types::proofs::{BatchVerificationData, TransactionProofsBatch, UpdateVariant};
     use types::ssz_rs::Node;
@@ -514,6 +515,19 @@ pub mod test_helpers {
             .filter_map(|c| match c {
                 ContentVariant::Message(m) => Some((*m).clone()),
                 ContentVariant::WorkerSet(..) => None,
+            })
+            .collect()
+    }
+
+    pub fn filter_workeset_message_variants(
+        proofs_batch: &TransactionProofsBatch,
+    ) -> Vec<WorkerSetMessage> {
+        proofs_batch
+            .content
+            .iter()
+            .filter_map(|c| match c {
+                ContentVariant::Message(..) => None,
+                ContentVariant::WorkerSet(m) => Some((*m).clone()),
             })
             .collect()
     }
