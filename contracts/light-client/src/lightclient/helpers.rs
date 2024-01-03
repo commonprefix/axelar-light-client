@@ -5,12 +5,15 @@ use alloy_json_abi::{AbiItem, JsonAbi};
 use cita_trie::{MemoryDB, PatriciaTrie, Trie};
 use eyre::{anyhow, eyre, Result};
 use types::alloy_primitives::{Bytes, FixedBytes, Log};
-use types::alloy_rlp::encode;
 
 use crate::ContractError;
 use hasher::{Hasher, HasherKeccak};
-use types::execution::{ReceiptLogs, RECEIPTS_ROOT_GINDEX};
-use types::proofs::{AncestryProof, ReceiptProof, TransactionProof, UpdateVariant};
+use types::common::WorkerSetMessage;
+use types::execution::{
+    GatewayEvent, OperatorshipTransferredBase, ReceiptLogs, RECEIPTS_ROOT_GINDEX,
+};
+use types::lightclient::ID_SEPARATOR;
+use types::proofs::{nonempty, AncestryProof, ReceiptProof, TransactionProof, UpdateVariant};
 use types::ssz_rs::{
     get_generalized_index, is_valid_merkle_branch, verify_merkle_proof, GeneralizedIndex,
     Merkleized, Node, SszVariableOrIndex, Vector,
@@ -186,79 +189,149 @@ pub fn verify_transaction_proof(proof: &TransactionProof, target_block_root: &No
     Ok(())
 }
 
-pub fn parse_log(log: &ReceiptLog) -> Result<ContractCallBase> {
+pub fn parse_contract_call_event(
+    log: &ReceiptLog,
+    e: &alloy_json_abi::Event,
+) -> Result<GatewayEvent> {
+    // let AbiItem::Event(e) = event_item;
+    let topics: Vec<FixedBytes<32>> = log.topics.iter().map(FixedBytes::from).collect();
+    let alloy_log = Log::new(topics, Bytes::from(log.data.clone()))
+        .ok_or_else(|| eyre!("Failed to create log"))?;
+    let decoded = e.decode_log(&alloy_log, true)?;
+
+    let mut indexed_consumed = 0;
+    let mut base = ContractCallBase::default();
+    for (idx, param) in e.inputs.iter().enumerate() {
+        let value = if param.indexed {
+            decoded.indexed.get(indexed_consumed).cloned()
+        } else {
+            decoded.body.get(idx - indexed_consumed).cloned()
+        };
+
+        if let Some(value) = value {
+            match param.name.as_str() {
+                "sender" => {
+                    let parsed_value = value
+                        .as_address()
+                        .ok_or_else(|| eyre!("Can't parse 'sender' from topics"))?;
+                    base.source_address = Some(parsed_value);
+                }
+                "destinationChain" => {
+                    let parsed_value = value
+                        .as_str()
+                        .ok_or_else(|| eyre!("Can't parse 'destinationChain' from topics"))?;
+                    base.destination_chain = Some(parsed_value.to_string());
+                }
+                "destinationContractAddress" => {
+                    let parsed_value = value.as_str().ok_or_else(|| {
+                        eyre!("Can't parse 'destinationContractAddress' from topics")
+                    })?;
+                    base.destination_address = Some(parsed_value.to_string());
+                }
+                "payloadHash" => {
+                    let (payload_bytes, _) = value
+                        .as_fixed_bytes()
+                        .ok_or_else(|| eyre!("Can't parse 'payloadHash' from topics"))?;
+                    let payload: [u8; 32] = payload_bytes.try_into()?;
+                    base.payload_hash = Some(payload);
+                }
+                _ => {}
+            }
+        }
+
+        if param.indexed {
+            indexed_consumed += 1
+        }
+    }
+    return Ok(GatewayEvent::ContactCall(base));
+}
+
+pub fn parse_operatorship_transferred_event(
+    log: &ReceiptLog,
+    e: &alloy_json_abi::Event,
+) -> Result<GatewayEvent> {
+    let topics: Vec<FixedBytes<32>> = log.topics.iter().map(FixedBytes::from).collect();
+    let alloy_log = Log::new(topics, Bytes::from(log.data.clone()))
+        .ok_or_else(|| eyre!("Failed to create log"))?;
+    let decoded = e.decode_log(&alloy_log, true)?;
+    let new_operators_data = decoded
+        .body
+        .get(0)
+        .and_then(|value| value.as_bytes())
+        .ok_or_else(|| eyre!("Can't parse 'newOperatorsData' from topics"))?;
+
+    Ok(GatewayEvent::OperatorshipTransferred(
+        OperatorshipTransferredBase {
+            new_operators_data: Some(Vec::from(new_operators_data)),
+        },
+    ))
+}
+
+pub fn parse_log(log: &ReceiptLog) -> Result<GatewayEvent> {
     let abi = JsonAbi::parse([
         "event ContractCall(address indexed sender,string destinationChain,string destinationContractAddress,bytes32 indexed payloadHash,bytes payload)",
-        "event ContractCallWithToken(address indexed sender,string destinationChain,string destinationContractAddress,bytes32 indexed payloadHash,bytes payload,string symbol,uint256 amount)"])
-        .unwrap();
+        "event ContractCallWithToken(address indexed sender,string destinationChain,string destinationContractAddress,bytes32 indexed payloadHash,bytes payload,string symbol,uint256 amount)",
+        "event OperatorshipTransferred(bytes newOperatorsData)"]).map_err(|err| eyre!("Failed to parse ABI: {}", err))?;
+    let hasher = HasherKeccak::new();
+    let first_topic = log
+        .topics
+        .first()
+        .ok_or_else(|| eyre!("No topics in log"))?;
+
     for item in abi.items() {
         if let AbiItem::Event(e) = item {
-            let hasher = HasherKeccak::new();
-            if log.topics.first().map_or(false, |t| {
-                t.as_ref() == hasher.digest(e.signature().as_bytes())
-            }) {
-                let topics: Vec<FixedBytes<32>> = log.topics.iter().map(FixedBytes::from).collect();
-
-                let decoded = e.decode_log(
-                    &Log::new(topics, Bytes::from(log.data.clone())).unwrap(),
-                    true,
-                )?;
-
-                let mut indexed_consumed = 0;
-                let mut base = ContractCallBase {
-                    source_address: None,
-                    destination_chain: None,
-                    destination_address: None,
-                    payload_hash: None,
-                };
-                for (idx, param) in e.inputs.iter().enumerate() {
-                    let value = if param.indexed {
-                        decoded.indexed.get(indexed_consumed).cloned()
-                    } else {
-                        decoded.body.get(idx - indexed_consumed).cloned()
-                    };
-
-                    if let Some(value) = value {
-                        match param.name.as_str() {
-                            "sender" => {
-                                let parsed_value = value
-                                    .as_address()
-                                    .ok_or_else(|| eyre!("Can't parse 'sender' from topics"))?;
-                                base.source_address = Some(parsed_value);
-                            }
-                            "destinationChain" => {
-                                let parsed_value = value.as_str().ok_or_else(|| {
-                                    eyre!("Can't parse 'destinationChain' from topics")
-                                })?;
-                                base.destination_chain = Some(parsed_value.to_string());
-                            }
-                            "destinationContractAddress" => {
-                                let parsed_value = value.as_str().ok_or_else(|| {
-                                    eyre!("Can't parse 'destinationContractAddress' from topics")
-                                })?;
-                                base.destination_address = Some(parsed_value.to_string());
-                            }
-                            "payloadHash" => {
-                                let (payload_bytes, _) =
-                                    value.as_fixed_bytes().ok_or_else(|| {
-                                        eyre!("Can't parse 'payloadHash' from topics")
-                                    })?;
-                                let payload: [u8; 32] = payload_bytes.try_into()?;
-                                base.payload_hash = Some(payload);
-                            }
-                            _ => {}
-                        }
-                    }
-
-                    if param.indexed {
-                        indexed_consumed += 1
-                    }
+            let event_signature_hash = hasher.digest(e.signature().as_bytes());
+            if first_topic == event_signature_hash.as_slice() {
+                println!("Matched topic {}", e.signature());
+                if e.signature().starts_with("ContractCall") {
+                    return parse_contract_call_event(log, &e);
+                } else if e.signature().starts_with("OperatorshipTransferred") {
+                    return parse_operatorship_transferred_event(log, &e);
                 }
-                return Ok(base);
             }
         }
     }
     Err(eyre!("Couldn't match an event to decode the log"))
+}
+
+pub fn parse_message_id(id: &nonempty::String) -> Result<(String, usize)> {
+    let components = id.split(ID_SEPARATOR).collect::<Vec<_>>();
+
+    if components.len() != 2 {
+        return Err(eyre!("Invalid message id format"));
+    }
+
+    if components[0].len() != 64 {
+        return Err(eyre!("Invalid transaction hash in message id"));
+    }
+
+    Ok((components[0].try_into()?, components[1].parse::<usize>()?))
+}
+
+pub fn compare_workerset_message_with_log(
+    message: &WorkerSetMessage,
+    log: &ReceiptLog,
+    transaction: &Vec<u8>,
+) -> Result<()> {
+    let hasher = HasherKeccak::new();
+    let transaction_hash = hex::encode(hasher.digest(transaction.as_slice()));
+
+    // TODO: don't hardcode
+    let gateway_address = hex::decode("4f4495243837681061c4743b74b3eedf548d56a5")?;
+
+    let (message_tx_hash, _) = parse_message_id(&message.message_id)?;
+
+    let GatewayEvent::OperatorshipTransferred(event) = parse_log(log)? else {
+        return Err(eyre!("Unexpected event type"));
+    };
+
+    if !(message_tx_hash == transaction_hash
+        && gateway_address == log.address
+        && *message.new_operators_data == event.new_operators_data.unwrap())
+    {
+        return Err(eyre!("Invalid workerset message"));
+    }
+    Ok(())
 }
 
 pub fn compare_message_with_log(
@@ -285,7 +358,9 @@ pub fn compare_message_with_log(
         return Err(eyre!("Invalid transaction hash size"));
     }
 
-    let event = parse_log(log)?;
+    let GatewayEvent::ContactCall(event) = parse_log(log)? else {
+        return Err(eyre!("Unexpected event type"));
+    };
     if event.source_address.is_none()
         || event.destination_address.is_none()
         || event.destination_chain.is_none()
@@ -342,12 +417,10 @@ pub mod test_helpers {
     use std::fs::File;
 
     use types::lightclient::Message;
-    use types::proofs::{
-        BatchVerificationData, ContentVariant, TransactionProofsBatch, UpdateVariant,
-    };
+    use types::proofs::{BatchVerificationData, TransactionProofsBatch, UpdateVariant};
     use types::ssz_rs::Node;
     use types::{
-        common::{ChainConfig, Fork, Forks},
+        common::{ChainConfig, ContentVariant, Fork, Forks},
         consensus::{Bootstrap, Update},
     };
 
