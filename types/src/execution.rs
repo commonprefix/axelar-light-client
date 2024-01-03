@@ -23,6 +23,17 @@ pub struct ContractCallBase {
 }
 
 #[derive(Default, Debug)]
+pub struct OperatorshipTransferredBase {
+    pub new_operators_data: Option<Vec<u8>>,
+}
+
+#[derive(Debug)]
+pub enum GatewayEvent {
+    ContactCall(ContractCallBase),
+    OperatorshipTransferred(OperatorshipTransferredBase),
+}
+
+#[derive(Default, Debug)]
 pub struct ReceiptLogs(pub Vec<ReceiptLog>);
 
 impl Decodable for ReceiptLogs {

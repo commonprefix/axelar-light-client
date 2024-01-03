@@ -1,3 +1,4 @@
+use crate::common::ContentVariant;
 use crate::consensus::{FinalityUpdate, OptimisticUpdate};
 pub use axelar_wasm_std::{nonempty, operators::Operators};
 pub use connection_router::state::{Address as AddressType, ChainName, CrossChainId, Message};
@@ -106,18 +107,6 @@ pub struct TransactionProofsBatch {
     pub receipt_proof: ReceiptProof,
     // Support multiple messages on a single tx, ie transaction level batching
     pub content: Vec<ContentVariant>,
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-pub enum ContentVariant {
-    Message(Message),
-    WorkerSet(WorkerSetMessage),
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-pub struct WorkerSetMessage {
-    pub message_id: nonempty::String,
-    pub new_operators: Operators,
 }
 
 fn hex_array_deserializer<'de, D>(deserializer: D) -> Result<Vec<Vec<u8>>, D::Error>
