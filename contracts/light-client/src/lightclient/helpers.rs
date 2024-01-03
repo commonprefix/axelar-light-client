@@ -244,7 +244,7 @@ pub fn parse_contract_call_event(
             indexed_consumed += 1
         }
     }
-    return Ok(GatewayEvent::ContactCall(base));
+    Ok(GatewayEvent::ContactCall(base))
 }
 
 pub fn parse_operatorship_transferred_event(
@@ -257,7 +257,7 @@ pub fn parse_operatorship_transferred_event(
     let decoded = e.decode_log(&alloy_log, true)?;
     let new_operators_data = decoded
         .body
-        .get(0)
+        .first()
         .and_then(|value| value.as_bytes())
         .ok_or_else(|| eyre!("Can't parse 'newOperatorsData' from topics"))?;
 
@@ -306,7 +306,7 @@ pub fn parse_message_id(id: &nonempty::String) -> Result<(String, usize)> {
         return Err(eyre!("Invalid transaction hash in message id"));
     }
 
-    Ok((components[0].try_into()?, components[1].parse::<usize>()?))
+    Ok((components[0].to_string(), components[1].parse::<usize>()?))
 }
 
 pub fn compare_workerset_message_with_log(

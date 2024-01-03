@@ -18,7 +18,7 @@ pub mod tests {
     };
     use cosmwasm_std::testing::mock_env;
     use cosmwasm_std::Timestamp;
-    use ethabi::{decode, ParamType, Token};
+    use ethabi::{decode, ParamType};
     use types::alloy_primitives::Address;
     use types::consensus::Bootstrap;
     use types::execution::{GatewayEvent, ReceiptLog};
@@ -692,7 +692,7 @@ pub mod tests {
     #[test]
     fn test_parse_log_operatorship() {
         let file = File::open("testdata/receipt_log_operatorship.json").unwrap();
-        let mut log: ReceiptLog = serde_json::from_reader(file).unwrap();
+        let log: ReceiptLog = serde_json::from_reader(file).unwrap();
 
         let parsing_result = parse_log(&log);
         println!("{:?}", parsing_result);

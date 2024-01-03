@@ -41,12 +41,12 @@ pub enum ContentVariant {
 }
 impl PrimaryKey for WorkerSetMessage {
     fn key(&self) -> String {
-        return format!("workersetmessage:{}", self.message_id.to_string());
+        format!("workersetmessage:{}", *self.message_id)
     }
 }
 
 impl PrimaryKey for Message {
     fn key(&self) -> String {
-        return format!("message:{}", self.cc_id.to_string());
+        format!("message:{}", self.cc_id)
     }
 }

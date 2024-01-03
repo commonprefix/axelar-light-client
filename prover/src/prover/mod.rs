@@ -153,7 +153,7 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         &'static str,
     > {
         let messages = batch.values().next().ok_or("Batch is empty")?;
-        let first_message = messages.get(0).ok_or("No messages in the batch")?;
+        let first_message = messages.first().ok_or("No messages in the batch")?;
 
         let exec_block = first_message.exec_block.clone();
         let beacon_block = first_message.beacon_block.clone();
