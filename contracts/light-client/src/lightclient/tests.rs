@@ -6,7 +6,7 @@ pub mod tests {
     use crate::lightclient::helpers::test_helpers::{filter_message_variants, get_batched_data};
     use crate::lightclient::helpers::{
         calc_sync_period, compare_message_with_log, extract_logs_from_receipt_proof,
-        hex_str_to_bytes, is_proof_valid, parse_log, parse_logs_from_receipt,
+        hex_str_to_bytes, is_proof_valid, parse_log, parse_logs_from_receipt, parse_message_id,
         verify_block_roots_proof, verify_historical_roots_proof, verify_transaction_proof,
         verify_trie_proof,
     };
@@ -18,11 +18,12 @@ pub mod tests {
     };
     use cosmwasm_std::testing::mock_env;
     use cosmwasm_std::Timestamp;
+    use ethabi::{decode, ParamType, Token};
     use types::alloy_primitives::Address;
     use types::consensus::Bootstrap;
     use types::execution::{GatewayEvent, ReceiptLog};
     use types::lightclient::LightClientState;
-    use types::proofs::{AncestryProof, UpdateVariant};
+    use types::proofs::{nonempty, AncestryProof, UpdateVariant};
     use types::ssz_rs::{Bitvector, Merkleized, Node};
     use types::sync_committee_rs::consensus_types::Transaction;
     use types::sync_committee_rs::constants::{Bytes32, Root};
@@ -654,8 +655,8 @@ pub mod tests {
     }
 
     #[test]
-    fn test_verify_parse_log() {
-        let file = File::open("testdata/receipt_log.json").unwrap();
+    fn test_parse_log_contractcall() {
+        let file = File::open("testdata/receipt_log_contractcall.json").unwrap();
         let log: ReceiptLog = serde_json::from_reader(file).unwrap();
 
         let parsing_result = parse_log(&log);
@@ -686,8 +687,33 @@ pub mod tests {
                 14, 249, 200, 50, 140, 182, 107, 223, 224, 230, 18, 217, 208, 55
             ]
         );
+    }
 
-        // fails to decode without topic 0 (function signature)
+    #[test]
+    fn test_parse_log_operatorship() {
+        let file = File::open("testdata/receipt_log_operatorship.json").unwrap();
+        let mut log: ReceiptLog = serde_json::from_reader(file).unwrap();
+
+        let parsing_result = parse_log(&log);
+        println!("{:?}", parsing_result);
+        assert!(parsing_result.is_ok());
+        let GatewayEvent::OperatorshipTransferred(event) = parsing_result.unwrap() else {
+            panic!("Unexpected log")
+        };
+        assert_eq!(
+            event.new_operators_data.unwrap(),
+            decode(&[ParamType::Bytes], log.data.as_slice()).unwrap()[0]
+                .clone()
+                .into_bytes()
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn test_parse_log_failure() {
+        let file = File::open("testdata/receipt_log_operatorship.json").unwrap();
+        let log: ReceiptLog = serde_json::from_reader(file).unwrap();
+
         let mut broken_log = log.clone();
         broken_log.topics.remove(0);
         assert!(parse_log(&broken_log).is_err());
@@ -703,6 +729,32 @@ pub mod tests {
         let mut broken_log = log.clone();
         broken_log.data = vec![1, 2, 3];
         assert!(parse_log(&broken_log).is_err());
+    }
+
+    #[test]
+    fn test_parse_message_id() {
+        let id = nonempty::String::try_from(
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef:123",
+        )
+        .unwrap();
+        let result = parse_message_id(&id).unwrap();
+        assert_eq!(
+            result.0,
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        );
+        assert_eq!(result.1, 123);
+
+        let id = nonempty::String::try_from("invalid_format").unwrap();
+        assert!(parse_message_id(&id).is_err());
+
+        let id = nonempty::String::try_from("0123:123").unwrap();
+        assert!(parse_message_id(&id).is_err());
+
+        let id = nonempty::String::try_from(
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef:abc",
+        )
+        .unwrap();
+        assert!(parse_message_id(&id).is_err());
     }
 
     #[test]

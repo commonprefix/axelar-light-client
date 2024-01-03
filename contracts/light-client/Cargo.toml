@@ -47,4 +47,5 @@ types = {path = "../../types"}
 
 [dev-dependencies]
 cw-multi-test = "0.16.2"
+ethabi = "18.0.0"
 serde_json = "1.0.105"
