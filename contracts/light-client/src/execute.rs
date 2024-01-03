@@ -15,33 +15,28 @@ use types::{
 };
 
 use crate::lightclient::helpers::{
-    compare_message_with_log, compare_workerset_message_with_log, extract_logs_from_receipt_proof,
-    extract_recent_block, parse_message_id, verify_ancestry_proof, verify_transaction_proof,
+    compare_content_with_log, extract_logs_from_receipt_proof, extract_recent_block,
+    parse_message_id, verify_ancestry_proof, verify_transaction_proof,
 };
 use crate::lightclient::LightClient;
 use crate::state::{CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE, VERIFIED_MESSAGES};
 
 fn verify_content(
-    content: &ContentVariant,
+    content: ContentVariant,
     transaction: &Transaction<MAX_BYTES_PER_TRANSACTION>,
     logs: &ReceiptLogs,
 ) -> Result<()> {
-    let log_index = match content {
-        ContentVariant::Message(message) => parse_message_id(&message.cc_id.id)?.1,
-        ContentVariant::WorkerSet(message) => parse_message_id(&message.message_id)?.1,
-    };
+    let (_, log_index) = match &content {
+        ContentVariant::Message(message) => parse_message_id(&message.cc_id.id),
+        ContentVariant::WorkerSet(message) => parse_message_id(&message.message_id),
+    }?;
 
     let log = logs
         .0
         .get(log_index)
         .ok_or_else(|| eyre!("Log index out of bounds"))?;
 
-    match content {
-        ContentVariant::Message(message) => compare_message_with_log(message, log, transaction),
-        ContentVariant::WorkerSet(message) => {
-            compare_workerset_message_with_log(message, log, transaction)
-        }
-    }
+    compare_content_with_log(content, log, transaction)
 }
 
 fn process_transaction_proofs(
@@ -62,7 +57,11 @@ fn process_transaction_proofs(
                 .map(|content_variant| {
                     (
                         content_variant.to_owned(),
-                        verify_content(content_variant, &data.transaction_proof.transaction, &logs),
+                        verify_content(
+                            content_variant.clone(),
+                            &data.transaction_proof.transaction,
+                            &logs,
+                        ),
                     )
                 })
                 .collect::<Vec<(ContentVariant, Result<()>)>>()
@@ -178,7 +177,7 @@ mod tests {
     use crate::lightclient::helpers::{extract_logs_from_receipt_proof, extract_recent_block};
     use crate::lightclient::tests::tests::init_lightclient;
     use cosmwasm_std::testing::mock_dependencies;
-    use eyre::{eyre, Result};
+    use eyre::Result;
     use types::common::ContentVariant;
     use types::consensus::FinalityUpdate;
     use types::execution::{ReceiptLog, ReceiptLogs};
@@ -212,7 +211,7 @@ mod tests {
         message.cc_id.id = String::from("broken_id").try_into().unwrap();
         assert_eq!(
             verify_content(
-                &ContentVariant::Message(message.clone()),
+                ContentVariant::Message(message.clone()).clone(),
                 &proofs.transaction_proof.transaction,
                 &ReceiptLogs::default(),
             )
@@ -224,7 +223,7 @@ mod tests {
         message.cc_id.id = String::from("foo:bar").try_into().unwrap();
         assert_eq!(
             verify_content(
-                &ContentVariant::Message(message.clone()),
+                ContentVariant::Message(message.clone()).clone(),
                 &proofs.transaction_proof.transaction,
                 &ReceiptLogs::default(),
             )
@@ -236,7 +235,7 @@ mod tests {
         message = messages.get(0).unwrap().clone();
         assert_eq!(
             verify_content(
-                &ContentVariant::Message(message.clone()),
+                ContentVariant::Message(message.clone()).clone(),
                 &proofs.transaction_proof.transaction,
                 &ReceiptLogs::default(),
             )
@@ -257,7 +256,7 @@ mod tests {
         .unwrap();
         // valid comparison
         assert!(verify_content(
-            &ContentVariant::Message(message.clone()),
+            ContentVariant::Message(message.clone()).clone(),
             &proofs.transaction_proof.transaction,
             &logs,
         )
@@ -266,7 +265,7 @@ mod tests {
         let logs = ReceiptLogs(vec![ReceiptLog::default()]);
         // invalid comparison
         assert!(verify_content(
-            &ContentVariant::Message(message.clone()),
+            ContentVariant::Message(message.clone()).clone(),
             &proofs.transaction_proof.transaction,
             &logs,
         )
@@ -286,7 +285,7 @@ mod tests {
         message.message_id = String::from("broken_id").try_into().unwrap();
         assert_eq!(
             verify_content(
-                &ContentVariant::WorkerSet(message.clone()),
+                ContentVariant::WorkerSet(message.clone()).clone(),
                 &proofs.transaction_proof.transaction,
                 &ReceiptLogs::default(),
             )
@@ -298,7 +297,7 @@ mod tests {
         message.message_id = String::from("foo:bar").try_into().unwrap();
         assert_eq!(
             verify_content(
-                &ContentVariant::WorkerSet(message.clone()),
+                ContentVariant::WorkerSet(message.clone()).clone(),
                 &proofs.transaction_proof.transaction,
                 &ReceiptLogs::default(),
             )
@@ -310,7 +309,7 @@ mod tests {
         message = messages.get(0).unwrap().clone();
         assert_eq!(
             verify_content(
-                &ContentVariant::WorkerSet(message.clone()),
+                ContentVariant::WorkerSet(message.clone()).clone(),
                 &proofs.transaction_proof.transaction,
                 &ReceiptLogs::default(),
             )
@@ -331,7 +330,7 @@ mod tests {
         .unwrap();
         // valid comparison
         assert!(verify_content(
-            &ContentVariant::WorkerSet(message.clone()),
+            ContentVariant::WorkerSet(message.clone()).clone(),
             &proofs.transaction_proof.transaction,
             &logs,
         )
@@ -340,7 +339,7 @@ mod tests {
         let logs = ReceiptLogs(vec![ReceiptLog::default()]);
         // invalid comparison
         assert!(verify_content(
-            &ContentVariant::WorkerSet(message.clone()),
+            ContentVariant::WorkerSet(message.clone()).clone(),
             &proofs.transaction_proof.transaction,
             &logs,
         )

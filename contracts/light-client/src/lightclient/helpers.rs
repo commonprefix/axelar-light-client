@@ -3,13 +3,13 @@ use std::sync::Arc;
 use alloy_dyn_abi::EventExt;
 use alloy_json_abi::{AbiItem, JsonAbi};
 use cita_trie::{MemoryDB, PatriciaTrie, Trie};
-use eyre::{anyhow, eyre, Result};
+use eyre::{eyre, Result};
 use types::alloy_primitives::{Bytes, FixedBytes, Log};
 
 use crate::ContractError;
 use hasher::{Hasher, HasherKeccak};
 use types::alloy_rlp::encode;
-use types::common::WorkerSetMessage;
+use types::common::{ContentVariant, WorkerSetMessage};
 use types::execution::{
     GatewayEvent, OperatorshipTransferredBase, ReceiptLogs, RECEIPTS_ROOT_GINDEX,
 };
@@ -309,59 +309,41 @@ pub fn parse_message_id(id: &nonempty::String) -> Result<(String, usize)> {
     Ok((tx_hash.to_string(), components[1].parse::<usize>()?))
 }
 
-pub fn compare_workerset_message_with_log(
-    message: &WorkerSetMessage,
+pub fn compare_content_with_log(
+    content: ContentVariant,
     log: &ReceiptLog,
     transaction: &Vec<u8>,
 ) -> Result<()> {
     let hasher = HasherKeccak::new();
     let transaction_hash = hex::encode(hasher.digest(transaction.as_slice()));
+    let gateway_address = hex::decode("4f4495243837681061c4743b74b3eedf548d56a5")?; // TODO: don't hardcode
+    let (message_tx_hash, _) = match &content {
+        ContentVariant::Message(message) => parse_message_id(&message.cc_id.id),
+        ContentVariant::WorkerSet(message) => parse_message_id(&message.message_id),
+    }?;
+    let gateway_event = parse_log(log)?;
 
-    // TODO: don't hardcode
-    let gateway_address = hex::decode("4f4495243837681061c4743b74b3eedf548d56a5")?;
-
-    let (message_tx_hash, _) = parse_message_id(&message.message_id)?;
-
-    let GatewayEvent::OperatorshipTransferred(event) = parse_log(log)? else {
-        return Err(eyre!("Unexpected event type"));
-    };
-
-    if !(message_tx_hash == transaction_hash
-        && gateway_address == log.address
-        && *message.new_operators_data == event.new_operators_data.unwrap())
-    {
-        return Err(eyre!("Invalid workerset message"));
+    if !(message_tx_hash == transaction_hash && gateway_address == log.address) {
+        return Err(eyre!("Message tx hash or log address invalid"));
     }
-    Ok(())
+
+    match gateway_event {
+        GatewayEvent::ContactCall(event) => {
+            let ContentVariant::Message(message) = content else {
+                return Err(eyre!("Invalid content variant"));
+            };
+            compare_contract_call_with_message(event, message)
+        }
+        GatewayEvent::OperatorshipTransferred(event) => {
+            let ContentVariant::WorkerSet(message) = content else {
+                return Err(eyre!("Invalid content variant"));
+            };
+            compare_operatorship_transferred_with_message(event, message)
+        }
+    }
 }
 
-pub fn compare_message_with_log(
-    message: &Message,
-    log: &ReceiptLog,
-    transaction: &Vec<u8>,
-) -> Result<()> {
-    let hasher = HasherKeccak::new();
-    let transaction_hash = hex::encode(hasher.digest(transaction.as_slice()));
-
-    // TODO: don't hardcode
-    let gateway_address = hex::decode("4f4495243837681061c4743b74b3eedf548d56a5")?;
-
-    let message_tx_hash = message
-        .cc_id
-        .id
-        .split(':')
-        .next()
-        .ok_or_else(|| anyhow!("Failed to extract transaction hash from Message."))?
-        .strip_prefix("0x")
-        .ok_or_else(|| anyhow!("Invalid transaction hash format."))?;
-
-    if message_tx_hash.len() != 64 {
-        return Err(eyre!("Invalid transaction hash size"));
-    }
-
-    let GatewayEvent::ContactCall(event) = parse_log(log)? else {
-        return Err(eyre!("Unexpected event type"));
-    };
+pub fn compare_contract_call_with_message(event: ContractCallBase, message: Message) -> Result<()> {
     if event.source_address.is_none()
         || event.destination_address.is_none()
         || event.destination_chain.is_none()
@@ -370,10 +352,8 @@ pub fn compare_message_with_log(
         return Err(eyre!("Event could not be parsed"));
     }
 
-    if !(message_tx_hash == transaction_hash
-        && gateway_address == log.address
-        && *message.source_address.to_string().to_lowercase()
-            == event.source_address.unwrap().to_string().to_lowercase()
+    if !(message.source_address.to_string().to_lowercase()
+        == event.source_address.unwrap().to_string().to_lowercase()
         && String::from(message.destination_chain.clone()).to_lowercase()
             == event.destination_chain.unwrap().to_lowercase()
         && *message.destination_address.to_string().to_lowercase()
@@ -381,6 +361,20 @@ pub fn compare_message_with_log(
         && message.payload_hash == event.payload_hash.unwrap())
     {
         return Err(eyre!("Invalid message"));
+    }
+    Ok(())
+}
+
+pub fn compare_operatorship_transferred_with_message(
+    event: OperatorshipTransferredBase,
+    message: WorkerSetMessage,
+) -> Result<()> {
+    if event.new_operators_data.is_none() {
+        return Err(eyre!("Event could not be parsed"));
+    }
+
+    if message.new_operators_data != event.new_operators_data.unwrap() {
+        return Err(eyre!("Invalid workerset message"));
     }
     Ok(())
 }
