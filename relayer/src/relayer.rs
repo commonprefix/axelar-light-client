@@ -67,8 +67,7 @@ impl<PG: ProofGeneratorAPI> Relayer<PG> {
                 continue;
             }
 
-            let processed_messages = Self::_extract_all_contents(&batch_verification_data.unwrap());
-
+            let processed_messages = Self::extract_all_contents(&batch_verification_data.unwrap());
             for (i, content) in successful_contents.iter().enumerate() {
                 let delivery_tag = delivery_tags[i];
                 if processed_messages.contains(&content.content) {
@@ -130,7 +129,6 @@ impl<PG: ProofGeneratorAPI> Relayer<PG> {
                 break;
             }
         }
-    
         println!("Got {} logs from sentinel", deliveries.len());
     
         let mut enriched_logs: HashMap<u64, EnrichedLog> = HashMap::new();
@@ -146,7 +144,6 @@ impl<PG: ProofGeneratorAPI> Relayer<PG> {
         return enriched_logs;
     }
 
-
     async fn get_update(&self, verification_method: &VerificationMethod) -> Result<UpdateVariant> {
         match verification_method {
             VerificationMethod::Finality => match self.consensus.get_finality_update().await {
@@ -160,7 +157,7 @@ impl<PG: ProofGeneratorAPI> Relayer<PG> {
         }
     }
 
-    pub fn _extract_all_contents(data: &BatchVerificationData) -> Vec<ContentVariant> {
+    pub fn extract_all_contents(data: &BatchVerificationData) -> Vec<ContentVariant> {
         data.target_blocks.iter()
             .flat_map(|block| &block.transactions_proofs)
             .flat_map(|transaction| &transaction.content)
