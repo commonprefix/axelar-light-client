@@ -1,21 +1,22 @@
 use crate::ContractError;
 use cosmwasm_std::{DepsMut, Env, Response};
 use eyre::{eyre, Result};
-use types::common::ChainConfig;
 use types::consensus::BeaconBlockHeader;
 use types::execution::{ReceiptLog, ReceiptLogs};
 use types::proofs::{
-    BatchVerificationData, BlockProofsBatch, ContentVariant, Message, TransactionProofsBatch,
-    UpdateVariant,
+    BatchVerificationData, BlockProofsBatch, Message, TransactionProofsBatch, UpdateVariant,
 };
 use types::ssz_rs::{Merkleized, Node};
 use types::sync_committee_rs::consensus_types::Transaction;
 use types::sync_committee_rs::constants::MAX_BYTES_PER_TRANSACTION;
-use types::{common::Forks, consensus::Update};
+use types::{
+    common::{ChainConfig, ContentVariant, Forks, WorkerSetMessage},
+    consensus::Update,
+};
 
 use crate::lightclient::helpers::{
-    compare_message_with_log, extract_logs_from_receipt_proof, extract_recent_block,
-    verify_ancestry_proof, verify_transaction_proof,
+    compare_message_with_log, compare_workerset_message_with_log, extract_logs_from_receipt_proof,
+    extract_recent_block, parse_message_id, verify_ancestry_proof, verify_transaction_proof,
 };
 use crate::lightclient::LightClient;
 use crate::state::{CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE, VERIFIED_MESSAGES};
@@ -42,7 +43,24 @@ fn verify_message(
         .get(log_index)
         .ok_or_else(|| eyre!("Log index out of bounds"))?;
 
+    // TODO: no dep injection
     compare_fn(message, log, transaction)?;
+
+    Ok(())
+}
+
+fn verify_workerset_message(
+    message: &WorkerSetMessage,
+    transaction: &Transaction<MAX_BYTES_PER_TRANSACTION>,
+    logs: &ReceiptLogs,
+) -> Result<()> {
+    let (_, log_index) = parse_message_id(&message.message_id)?;
+    let log = logs
+        .0
+        .get(log_index)
+        .ok_or_else(|| eyre!("Log index out of bounds"))?;
+
+    compare_workerset_message_with_log(message, log, transaction)?;
 
     Ok(())
 }
@@ -72,7 +90,11 @@ fn process_transaction_proofs(
                                 &logs,
                                 &compare_message_with_log,
                             ),
-                            ContentVariant::WorkerSet(..) => todo!(),
+                            ContentVariant::WorkerSet(message) => verify_workerset_message(
+                                message,
+                                &data.transaction_proof.transaction,
+                                &logs,
+                            ),
                         },
                     )
                 })
@@ -188,11 +210,10 @@ mod tests {
     use crate::lightclient::tests::tests::init_lightclient;
     use cosmwasm_std::testing::mock_dependencies;
     use eyre::{eyre, Result};
+    use types::common::ContentVariant;
     use types::consensus::FinalityUpdate;
     use types::execution::ReceiptLogs;
-    use types::proofs::{
-        BlockProofsBatch, ContentVariant, Message, TransactionProofsBatch, UpdateVariant,
-    };
+    use types::proofs::{BlockProofsBatch, Message, TransactionProofsBatch, UpdateVariant};
     use types::ssz_rs::Merkleized;
 
     use super::process_batch_data;

@@ -11,10 +11,10 @@ use crate::{lightclient::LightClient, state::*};
 use eyre::Result;
 
 use crate::execute::{self, process_batch_data};
-use crate::types::{ContentVariantId, VerificationResult};
+use crate::types::VerificationResult;
 use cw2::{self, set_contract_version};
+use types::common::{ContentVariant, PrimaryKey};
 use types::lightclient::Message;
-use types::proofs::ContentVariant;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -74,21 +74,17 @@ pub fn execute(
                     .unwrap()
                     .iter()
                     .map(|result| {
-                        (
-                            match &result.0 {
-                                ContentVariant::Message(message) => {
-                                    ContentVariantId::CrossChainId(message.cc_id.to_owned())
-                                }
-                                ContentVariant::WorkerSet(message) => {
-                                    ContentVariantId::OperatorsHash(message.new_operators.hash())
-                                } // TODO: is this the right format?
-                            },
-                            result
-                                .1
-                                .as_ref()
-                                .map(|()| String::from("OK"))
-                                .unwrap_or_else(|e| e.to_string()),
-                        )
+                        let key = match &result.0 {
+                            ContentVariant::Message(message) => message.key(),
+                            ContentVariant::WorkerSet(message) => message.key(),
+                        };
+                        let status = result
+                            .1
+                            .as_ref()
+                            .map(|_| String::from("OK"))
+                            .unwrap_or_else(|e| e.to_string());
+
+                        (key, status)
                     })
                     .collect::<VerificationResult>(),
             )?))
@@ -96,7 +92,7 @@ pub fn execute(
         VerifyMessages {
             messages: _messages,
         } => Ok(Response::new()),
-        VerifyWorkerSet { .. } => todo!(),
+        VerifyWorkerSet { .. } => Ok(Response::new()),
     }
 }
 
