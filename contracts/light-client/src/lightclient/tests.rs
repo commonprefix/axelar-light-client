@@ -541,62 +541,10 @@ pub mod tests {
         .unwrap();
         let log = logs.0[log_index].clone();
 
-        assert!(compare_content_with_log(
-            ContentVariant::Message(message.clone()).clone(),
-            &log,
-            &transaction_proof.transaction
-        )
-        .is_ok());
-
-        // test source address check
-        let mut modified_log = log.clone();
-        // TODO: don't hardcode
-        assert_eq!(
-            modified_log.address,
-            hex::decode("4f4495243837681061c4743b74b3eedf548d56a5")
-                .unwrap()
-                .as_slice()
+        assert!(
+            compare_content_with_log(ContentVariant::Message(message.clone()).clone(), &log,)
+                .is_ok()
         );
-        assert!(compare_content_with_log(
-            ContentVariant::Message(message.clone()).clone(),
-            &modified_log,
-            &transaction_proof.transaction
-        )
-        .is_ok());
-        modified_log.address = Address::ZERO.to_vec().try_into().unwrap();
-        assert!(compare_content_with_log(
-            ContentVariant::Message(message.clone()).clone(),
-            &modified_log,
-            &transaction_proof.transaction
-        )
-        .is_err());
-
-        // test transaction hash check
-        let mut modified_message = message.clone();
-        assert_eq!(
-            modified_message.cc_id.id.split(':').next().unwrap(),
-            "0xc3f20082fe6416efefcec8148c91ce28cd79a026d2062076f67f48a7095eabb9"
-        );
-        assert!(compare_content_with_log(
-            ContentVariant::Message(modified_message.clone()).clone(),
-            &log,
-            &transaction_proof.transaction
-        )
-        .is_ok());
-        modified_message.cc_id.id = String::from("foo:bar").try_into().unwrap();
-        assert!(compare_content_with_log(
-            ContentVariant::Message(modified_message.clone()).clone(),
-            &log,
-            &transaction_proof.transaction
-        )
-        .is_err());
-        modified_message.cc_id.id = String::from("0x1234567:bar").try_into().unwrap();
-        assert!(compare_content_with_log(
-            ContentVariant::Message(modified_message.clone()).clone(),
-            &log,
-            &transaction_proof.transaction
-        )
-        .is_err());
 
         // test source_address check
         let mut modified_message = message.clone();
@@ -607,14 +555,12 @@ pub mod tests {
         assert!(compare_content_with_log(
             ContentVariant::Message(modified_message.clone()).clone(),
             &log,
-            &transaction_proof.transaction
         )
         .is_ok());
         modified_message.source_address = Address::ZERO.to_string().try_into().unwrap();
         assert!(compare_content_with_log(
             ContentVariant::Message(modified_message.clone()).clone(),
             &log,
-            &transaction_proof.transaction
         )
         .is_err());
 
@@ -630,14 +576,12 @@ pub mod tests {
         assert!(compare_content_with_log(
             ContentVariant::Message(modified_message.clone()).clone(),
             &log,
-            &transaction_proof.transaction
         )
         .is_ok());
         modified_message.destination_chain = String::from("none").try_into().unwrap();
         assert!(compare_content_with_log(
             ContentVariant::Message(modified_message.clone()).clone(),
             &log,
-            &transaction_proof.transaction
         )
         .is_err());
 
@@ -650,14 +594,12 @@ pub mod tests {
         assert!(compare_content_with_log(
             ContentVariant::Message(modified_message.clone()).clone(),
             &log,
-            &transaction_proof.transaction
         )
         .is_ok());
         modified_message.destination_address = Address::ZERO.to_string().try_into().unwrap();
         assert!(compare_content_with_log(
             ContentVariant::Message(modified_message.clone()).clone(),
             &log,
-            &transaction_proof.transaction
         )
         .is_err());
 
@@ -670,25 +612,21 @@ pub mod tests {
         assert!(compare_content_with_log(
             ContentVariant::Message(modified_message.clone()).clone(),
             &log,
-            &transaction_proof.transaction
         )
         .is_ok());
         modified_message.payload_hash = Default::default();
         assert!(compare_content_with_log(
             ContentVariant::Message(modified_message.clone()).clone(),
             &log,
-            &transaction_proof.transaction
         )
         .is_err());
 
         // failure on invalid log
         let log = ReceiptLog::default();
-        assert!(compare_content_with_log(
-            ContentVariant::Message(message.clone()).clone(),
-            &log,
-            &transaction_proof.transaction
-        )
-        .is_err());
+        assert!(
+            compare_content_with_log(ContentVariant::Message(message.clone()).clone(), &log,)
+                .is_err()
+        );
     }
 
     #[test]

@@ -1,6 +1,7 @@
 use crate::ContractError;
 use cosmwasm_std::{DepsMut, Env, Response};
 use eyre::{eyre, Result};
+use hasher::{Hasher, HasherKeccak};
 use types::consensus::BeaconBlockHeader;
 use types::execution::ReceiptLogs;
 use types::proofs::{
@@ -26,17 +27,28 @@ fn verify_content(
     transaction: &Transaction<MAX_BYTES_PER_TRANSACTION>,
     logs: &ReceiptLogs,
 ) -> Result<()> {
-    let (_, log_index) = match &content {
+    let gateway_address = hex::decode("4f4495243837681061c4743b74b3eedf548d56a5")?; // TODO: don't hardcode
+    let hasher = HasherKeccak::new();
+    let transaction_hash = hex::encode(hasher.digest(transaction.as_slice()));
+    let (message_tx_hash, log_index) = match &content {
         ContentVariant::Message(message) => parse_message_id(&message.cc_id.id),
         ContentVariant::WorkerSet(message) => parse_message_id(&message.message_id),
     }?;
+
+    if message_tx_hash != transaction_hash {
+        return Err(eyre!("Invalid content transaction hash"));
+    }
 
     let log = logs
         .0
         .get(log_index)
         .ok_or_else(|| eyre!("Log index out of bounds"))?;
 
-    compare_content_with_log(content, log, transaction)
+    if gateway_address != log.address {
+        return Err(eyre!("Invalid log address"));
+    }
+
+    compare_content_with_log(content, log)
 }
 
 fn process_transaction_proofs(
@@ -174,10 +186,13 @@ mod tests {
     use crate::lightclient::helpers::test_helpers::{
         filter_message_variants, filter_workeset_message_variants, get_batched_data,
     };
-    use crate::lightclient::helpers::{extract_logs_from_receipt_proof, extract_recent_block};
+    use crate::lightclient::helpers::{
+        extract_logs_from_receipt_proof, extract_recent_block, parse_message_id,
+    };
     use crate::lightclient::tests::tests::init_lightclient;
     use cosmwasm_std::testing::mock_dependencies;
     use eyre::Result;
+    use types::alloy_primitives::Address;
     use types::common::ContentVariant;
     use types::consensus::FinalityUpdate;
     use types::execution::{ReceiptLog, ReceiptLogs};
@@ -200,7 +215,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_message() {
+    fn test_verify_content_failures() {
         let verification_data = get_batched_data(false).1;
         let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
@@ -244,6 +259,61 @@ mod tests {
             "Log index out of bounds"
         );
 
+        message = messages.get(0).unwrap().clone();
+        message.cc_id.id =
+            String::from("0xa92d426734f1f7054b89a68b2a71f2f19f8150716bf046c59a3cd819413afd13:0")
+                .try_into()
+                .unwrap();
+        assert_eq!(
+            verify_content(
+                ContentVariant::Message(message.clone()).clone(),
+                &proofs.transaction_proof.transaction,
+                &ReceiptLogs::default(),
+            )
+            .unwrap_err()
+            .to_string(),
+            "Invalid content transaction hash"
+        );
+
+        message = messages.get(0).unwrap().clone();
+        message.cc_id.id = String::from(format!(
+            "{}:0",
+            parse_message_id(&message.cc_id.id).unwrap().0
+        ))
+        .try_into()
+        .unwrap();
+        let mut logs = extract_logs_from_receipt_proof(
+            &proofs.receipt_proof,
+            proofs.transaction_proof.transaction_index,
+            &target_block_proofs
+                .target_block
+                .clone()
+                .hash_tree_root()
+                .unwrap(),
+        )
+        .unwrap();
+        logs.0[0].address = Address::ZERO.to_vec().try_into().unwrap();
+        assert_eq!(
+            verify_content(
+                ContentVariant::Message(message.clone()).clone(),
+                &proofs.transaction_proof.transaction,
+                &logs,
+            )
+            .unwrap_err()
+            .to_string(),
+            "Invalid log address"
+        );
+    }
+
+    #[test]
+    fn test_verify_message() {
+        let verification_data = get_batched_data(false).1;
+        let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
+        let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
+
+        let messages = filter_message_variants(proofs);
+
+        let message = messages.get(0).unwrap().clone();
         let logs = extract_logs_from_receipt_proof(
             &proofs.receipt_proof,
             proofs.transaction_proof.transaction_index,

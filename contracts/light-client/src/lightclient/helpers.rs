@@ -309,23 +309,8 @@ pub fn parse_message_id(id: &nonempty::String) -> Result<(String, usize)> {
     Ok((tx_hash.to_string(), components[1].parse::<usize>()?))
 }
 
-pub fn compare_content_with_log(
-    content: ContentVariant,
-    log: &ReceiptLog,
-    transaction: &Vec<u8>,
-) -> Result<()> {
-    let hasher = HasherKeccak::new();
-    let transaction_hash = hex::encode(hasher.digest(transaction.as_slice()));
-    let gateway_address = hex::decode("4f4495243837681061c4743b74b3eedf548d56a5")?; // TODO: don't hardcode
-    let (message_tx_hash, _) = match &content {
-        ContentVariant::Message(message) => parse_message_id(&message.cc_id.id),
-        ContentVariant::WorkerSet(message) => parse_message_id(&message.message_id),
-    }?;
+pub fn compare_content_with_log(content: ContentVariant, log: &ReceiptLog) -> Result<()> {
     let gateway_event = parse_log(log)?;
-
-    if !(message_tx_hash == transaction_hash && gateway_address == log.address) {
-        return Err(eyre!("Message tx hash or log address invalid"));
-    }
 
     match gateway_event {
         GatewayEvent::ContactCall(event) => {
