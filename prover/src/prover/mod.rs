@@ -13,6 +13,7 @@ use self::{
     utils::{get_tx_hash_from_cc_id, get_tx_index},
 };
 use consensus_types::{
+    common::ContentVariant,
     consensus::{to_beacon_header, BeaconBlockAlias},
     proofs::{
         AncestryProof, BatchVerificationData, BlockProofsBatch, ReceiptProof, TransactionProof,
@@ -20,7 +21,6 @@ use consensus_types::{
     },
 };
 
-use consensus_types::proofs::ContentVariant;
 use eth::consensus::ConsensusRPC;
 use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use eyre::{anyhow, Context, Result};
@@ -263,8 +263,9 @@ mod tests {
     use crate::prover::proof_generator::MockProofGenerator;
     use crate::prover::test_helpers::test_utils::*;
     use crate::prover::Prover;
+    use consensus_types::common::ContentVariant;
     use consensus_types::consensus::to_beacon_header;
-    use consensus_types::proofs::{AncestryProof, BatchVerificationData, ContentVariant};
+    use consensus_types::proofs::{AncestryProof, BatchVerificationData};
     use eth::consensus::MockConsensusRPC;
     use eth::execution::MockExecutionRPC;
     use ethers::types::H256;
