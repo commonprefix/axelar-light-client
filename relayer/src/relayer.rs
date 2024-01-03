@@ -33,7 +33,7 @@ impl<PG: ProofGeneratorAPI> Relayer<PG> {
         Relayer { config, channel, consumer, consensus, execution, prover} 
     }
 
-    pub async fn start(&mut self) {
+    pub async fn start(&mut self) -> Result<()> {
         let mut interval = interval(Duration::from_secs(self.config.process_interval));
 
         loop {
@@ -46,35 +46,21 @@ impl<PG: ProofGeneratorAPI> Relayer<PG> {
             }
 
             let fetched_logs = self.collect_messages(self.config.max_batch_size).await;
-            let mut contents = vec![];
-            let mut delivery_tags_to_content_variant = HashMap::new();
 
-            for (delivery_tag, enriched_log) in fetched_logs {
-                println!("Working on log {}", enriched_log.event_name);
-                let block_details = get_full_block_details(
-                    self.consensus.clone(),
-                    self.execution.clone(),
-                    enriched_log.log.block_number.unwrap().as_u64(),
-                    self.config.genesis_timestamp
-                ).await;
-
-                if block_details.is_err() {
-                    println!("Error fetching block details {:?}. Requeuing", block_details);
-                    self.nack_delivery(delivery_tag).await;
+            let contents = self.process_logs(fetched_logs).await;
+            let mut successful_contents = vec![];
+            let mut delivery_tags = vec![];
+            for (delivery_tag, content) in contents {
+                if content.is_none() {
+                    self.nack_delivery(delivery_tag).await?;
                 }
-
-                let content = parse_enriched_log(&enriched_log, &block_details.unwrap());
-                if content.is_err() {
-                    println!("Error parsing enriched log {:?}", content);
-                    self.nack_delivery(delivery_tag).await;
+                else {
+                    delivery_tags.push(delivery_tag);
+                    successful_contents.push(content.unwrap()); 
                 }
-
-                let content = content.unwrap();
-                delivery_tags_to_content_variant.insert(delivery_tag, content.content.clone());
-                contents.push(content)
             }
 
-            let batch_contents = self.prover.batch_messages(&contents);
+            let batch_contents = self.prover.batch_messages(&successful_contents);
             let batch_verification_data: std::prelude::v1::Result<BatchVerificationData, eyre::Error> = self.prover.batch_generate_proofs(batch_contents, update.unwrap()).await;
             if batch_verification_data.is_err() {
                 println!("Error generating proofs {:?}", batch_verification_data);
@@ -83,19 +69,52 @@ impl<PG: ProofGeneratorAPI> Relayer<PG> {
 
             let processed_messages = Self::_extract_all_contents(&batch_verification_data.unwrap());
 
-            for (delivery_tag, content) in delivery_tags_to_content_variant {
-                if processed_messages.contains(&content) {
+            for (i, content) in successful_contents.iter().enumerate() {
+                let delivery_tag = delivery_tags[i];
+                if processed_messages.contains(&content.content) {
                     println!("Message {:?} succeeded", content);
-                    let _ = self.nack_delivery(delivery_tag).await;
+                    // TODO: Change to ack
+                    self.nack_delivery(delivery_tag).await?;
                 }
                 else {
                     println!("Message {:?} failed", content);
-                    let _ = self.nack_delivery(delivery_tag).await;
+                    self.nack_delivery(delivery_tag).await?;
                 }
             }
 
             println!("Processed {} messages", processed_messages.len());
         };
+    }
+
+    async fn process_logs(&mut self, fetched_logs: HashMap<u64, EnrichedLog>) -> Vec<(u64, Option<EnrichedContent>)> {
+        let mut contents: Vec<(u64, Option<EnrichedContent>)> = vec![];
+
+        for (delivery_tag, enriched_log) in fetched_logs {
+            println!("Working on log {}", enriched_log.event_name);
+            let block_details = get_full_block_details(
+                self.consensus.clone(),
+                self.execution.clone(),
+                enriched_log.log.block_number.unwrap().as_u64(),
+                self.config.genesis_timestamp
+            ).await;
+
+            if block_details.is_err() {
+                println!("Error fetching block details {:?}. Requeuing", block_details);
+                contents.push((delivery_tag, None));
+            }
+
+            let content = parse_enriched_log(&enriched_log, &block_details.unwrap());
+            if content.is_err() {
+                println!("Error parsing enriched log {:?} {:?}. Requeuing", enriched_log, content.err());
+                contents.push((delivery_tag, None));
+                continue
+            }
+
+            let content = content.unwrap();
+            contents.push((delivery_tag, Some(content)))
+        }
+
+        contents
     }
 
     async fn collect_messages(&mut self, max_messages: usize) -> HashMap<u64, EnrichedLog> {
@@ -107,7 +126,7 @@ impl<PG: ProofGeneratorAPI> Relayer<PG> {
             deliveries.push(delivery);
             count += 1;
     
-            if count >= 5 {
+            if count >= max_messages {
                 break;
             }
         }
@@ -155,7 +174,9 @@ impl<PG: ProofGeneratorAPI> Relayer<PG> {
             ..Default::default()
         };
 
-        self.channel.basic_nack(delivery_tag, requeue_nack).await?;
+        self.channel.basic_nack(delivery_tag, requeue_nack).await
+            .map_err(|e| eyre!("Error nacking delivery {} {}", delivery_tag, e))?;
+
         Ok(())
     }
 }
