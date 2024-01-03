@@ -8,6 +8,7 @@ use types::alloy_primitives::{Bytes, FixedBytes, Log};
 
 use crate::ContractError;
 use hasher::{Hasher, HasherKeccak};
+use types::alloy_rlp::encode;
 use types::common::WorkerSetMessage;
 use types::execution::{
     GatewayEvent, OperatorshipTransferredBase, ReceiptLogs, RECEIPTS_ROOT_GINDEX,
