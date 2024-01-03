@@ -20,7 +20,7 @@ pub mod tests {
     use cosmwasm_std::Timestamp;
     use types::alloy_primitives::Address;
     use types::consensus::Bootstrap;
-    use types::execution::ReceiptLog;
+    use types::execution::{GatewayEvent, ReceiptLog};
     use types::lightclient::LightClientState;
     use types::proofs::{AncestryProof, UpdateVariant};
     use types::ssz_rs::{Bitvector, Merkleized, Node};
@@ -660,7 +660,9 @@ pub mod tests {
 
         let parsing_result = parse_log(&log);
         assert!(parsing_result.is_ok());
-        let event = parsing_result.unwrap();
+        let GatewayEvent::ContactCall(event) = parsing_result.unwrap() else {
+            panic!("Unexpected log")
+        };
         assert_eq!(
             event.source_address.unwrap().to_string().to_lowercase(),
             "0xce16f69375520ab01377ce7b88f5ba8c48f8d666"
