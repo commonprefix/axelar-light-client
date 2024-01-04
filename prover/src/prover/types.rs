@@ -2,7 +2,7 @@ use consensus_types::{
     consensus::BeaconBlockAlias,
     proofs::ContentVariant,
 };
-use ethers::types::{Block, Transaction, TransactionReceipt, H256, Log};
+use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use ssz_rs::{Node, SszVariableOrIndex};

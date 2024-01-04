@@ -8,7 +8,7 @@ mod wasm;
 use consumer::LapinConsumer;
 use eth::types::EthConfig;
 use eth::{consensus::ConsensusRPC, execution::ExecutionRPC};
-use lapin::{Connection, ConnectionProperties};
+
 use prover::prover::types::ProverConfig;
 use prover::Prover;
 use std::sync::Arc;
@@ -38,6 +38,7 @@ async fn main() {
         prover,
     )
     .await;
+
     relayer.start().await;
 
     //let enriched_logs = vec![get_json().unwrap()];

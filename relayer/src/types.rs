@@ -9,16 +9,14 @@ pub use std::str::FromStr;
 
 // Step 1: Define the enum
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub enum VerificationMethod {
     Optimistic,
+    #[default]
     Finality,
 }
 
-impl Default for VerificationMethod {
-    fn default() -> Self {
-        VerificationMethod::Finality
-    }
-}
+
 
 impl FromStr for VerificationMethod {
     type Err = ();

@@ -9,7 +9,7 @@ use lapin::{
 use mockall::automock;
 
 #[async_trait]
-pub trait AMQP {
+pub trait Amqp {
     async fn consume(&mut self, max_deliveries: usize) -> Result<Vec<(u64, String)>>;
     async fn nack_delivery(&self, delivery_tag: u64) -> Result<()>;
     async fn ack_delivery(&self, delivery_tag: u64) -> Result<()>;
@@ -42,7 +42,7 @@ impl LapinConsumer {
 
 #[automock]
 #[async_trait]
-impl AMQP for LapinConsumer {
+impl Amqp for LapinConsumer {
     async fn consume(&mut self, max_deliveries: usize) -> Result<Vec<(u64, String)>> {
         let mut deliveries = Vec::with_capacity(max_deliveries);
         let mut count = 0;

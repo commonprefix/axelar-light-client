@@ -1,13 +1,13 @@
 use crate::{
-    consumer::{LapinConsumer, AMQP},
+    consumer::Amqp,
     parser::parse_enriched_log,
     types::{Config, EnrichedLog, VerificationMethod},
 };
 use async_trait::async_trait;
 use consensus_types::proofs::{BatchVerificationData, ContentVariant, UpdateVariant};
 use eth::{
-    consensus::{ConsensusRPC, EthBeaconAPI},
-    execution::{EthExecutionAPI, ExecutionRPC},
+    consensus::EthBeaconAPI,
+    execution::EthExecutionAPI,
     utils::get_full_block_details,
 };
 use eyre::{eyre, Result};
@@ -18,7 +18,7 @@ use tokio::time::interval;
 #[async_trait]
 pub trait RelayerAPI {
     async fn start(&self);
-    async fn digest_messages(&self, messages: &Vec<EnrichedLog>) -> Result<()>;
+    async fn digest_messages(&self, messages: &[EnrichedLog]) -> Result<()>;
     async fn process_logs(
         &self,
         fetched_logs: HashMap<u64, EnrichedLog>,
@@ -36,7 +36,7 @@ pub struct Relayer<P, C, CR, ER> {
     prover: Arc<P>,
 }
 
-impl<C: AMQP, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C, CR, ER> {
+impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C, CR, ER> {
     pub async fn new(
         config: Config,
         consumer: C,
@@ -53,7 +53,7 @@ impl<C: AMQP, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
         }
     }
 
-    pub async fn start(&mut self) -> Result<()> {
+    pub async fn start(&mut self) {
         let mut interval = interval(Duration::from_secs(self.config.process_interval));
 
         loop {
@@ -199,7 +199,7 @@ impl<C: AMQP, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
             enriched_logs.insert(delivery_tag, enriched_log.unwrap());
         }
 
-        return enriched_logs;
+        enriched_logs
     }
 
     async fn get_update(&self, verification_method: &VerificationMethod) -> Result<UpdateVariant> {
@@ -239,7 +239,7 @@ mod tests {
     use eth::types::FullBlockDetails;
     use ethers::types::{Block, Transaction, H256};
     use indexmap::IndexMap;
-    use mockall::{predicate, Predicate};
+    use mockall::predicate;
     use prover::prover::proof_generator::MockProofGenerator;
     use prover::prover::state_prover::MockStateProver;
     use prover::prover::types::BatchContentGroups;
@@ -439,7 +439,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_process_logs_valid() {
-        let (config, consumer, mut consensus, mut execution, prover) = setup_test();
+        let (config, consumer, mut consensus, mut execution, _) = setup_test();
         let file = File::open("testdata/contract_call_with_token.json").unwrap();
         let enriched_log: EnrichedLog = serde_json::from_reader(file).unwrap();
         let prover = Prover::new(MockProofGenerator::<MockConsensusRPC, MockStateProver>::new());
