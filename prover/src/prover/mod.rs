@@ -13,6 +13,7 @@ use self::{
     utils::{get_tx_hash_from_cc_id, get_tx_index},
 };
 use consensus_types::{
+    common::ContentVariant,
     consensus::{to_beacon_header, BeaconBlockAlias},
     proofs::{
         AncestryProof, BatchVerificationData, BlockProofsBatch, ReceiptProof, TransactionProof,
@@ -123,7 +124,10 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
                 let tx_level_verification = TransactionProofsBatch {
                     transaction_proof,
                     receipt_proof,
-                    messages: messages.iter().map(|m| m.message.clone()).collect(),
+                    content: messages
+                        .iter()
+                        .map(|m| ContentVariant::Message(m.message.clone()))
+                        .collect(),
                 };
 
                 block_proof.transactions_proofs.push(tx_level_verification);
@@ -259,6 +263,7 @@ mod tests {
     use crate::prover::proof_generator::MockProofGenerator;
     use crate::prover::test_helpers::test_utils::*;
     use crate::prover::Prover;
+    use consensus_types::common::ContentVariant;
     use consensus_types::consensus::to_beacon_header;
     use consensus_types::proofs::{AncestryProof, BatchVerificationData};
     use eth::consensus::MockConsensusRPC;
@@ -316,10 +321,21 @@ mod tests {
         assert_eq!(target_blocks[0].transactions_proofs.len(), 1);
         assert_eq!(target_blocks[1].transactions_proofs.len(), 2);
         assert_eq!(target_blocks[2].transactions_proofs.len(), 1);
-        assert_eq!(target_blocks[0].transactions_proofs[0].messages.len(), 1);
-        assert_eq!(target_blocks[1].transactions_proofs[0].messages.len(), 2);
-        assert_eq!(target_blocks[1].transactions_proofs[1].messages.len(), 1);
-        assert_eq!(target_blocks[2].transactions_proofs[0].messages.len(), 1);
+
+        for i in 0..target_blocks.len() {
+            for j in 0..target_blocks[i].transactions_proofs.len() {
+                let messages_count = target_blocks[i].transactions_proofs[j]
+                    .content
+                    .iter()
+                    .filter(|c| matches!(c, ContentVariant::Message(_)))
+                    .count();
+                if i == 1 && j == 0 {
+                    assert_eq!(messages_count, 2);
+                } else {
+                    assert_eq!(messages_count, 1);
+                }
+            }
+        }
     }
 
     #[tokio::test]

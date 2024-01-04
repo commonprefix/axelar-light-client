@@ -1,4 +1,6 @@
+use crate::common::ContentVariant;
 use crate::consensus::{FinalityUpdate, OptimisticUpdate};
+pub use axelar_wasm_std::{nonempty, operators::Operators};
 pub use connection_router::state::{Address as AddressType, ChainName, CrossChainId, Message};
 use eyre::Result;
 use serde::de::Error as SerdeError;
@@ -104,7 +106,7 @@ pub struct TransactionProofsBatch {
     pub transaction_proof: TransactionProof,
     pub receipt_proof: ReceiptProof,
     // Support multiple messages on a single tx, ie transaction level batching
-    pub messages: Vec<Message>,
+    pub content: Vec<ContentVariant>,
 }
 
 fn hex_array_deserializer<'de, D>(deserializer: D) -> Result<Vec<Vec<u8>>, D::Error>

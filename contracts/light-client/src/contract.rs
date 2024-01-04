@@ -11,9 +11,10 @@ use crate::{lightclient::LightClient, state::*};
 use eyre::Result;
 
 use crate::execute::{self, process_batch_data};
+use crate::types::VerificationResult;
 use cw2::{self, set_contract_version};
-use types::lightclient::Message;
-use types::proofs::CrossChainId;
+use types::common::{ContentVariant, PrimaryKey};
+use types::connection_router::Message;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -73,21 +74,25 @@ pub fn execute(
                     .unwrap()
                     .iter()
                     .map(|result| {
-                        (
-                            result.0.cc_id.to_owned(),
-                            result
-                                .1
-                                .as_ref()
-                                .map(|()| String::from("OK"))
-                                .unwrap_or_else(|e| e.to_string()),
-                        )
+                        let key = match &result.0 {
+                            ContentVariant::Message(message) => message.key(),
+                            ContentVariant::WorkerSet(message) => message.key(),
+                        };
+                        let status = result
+                            .1
+                            .as_ref()
+                            .map(|_| String::from("OK"))
+                            .unwrap_or_else(|e| e.to_string());
+
+                        (key, status)
                     })
-                    .collect::<Vec<(CrossChainId, String)>>(),
+                    .collect::<VerificationResult>(),
             )?))
         }
         VerifyMessages {
             messages: _messages,
         } => Ok(Response::new()),
+        VerifyWorkerSet { .. } => Ok(Response::new()),
     }
 }
 
@@ -112,6 +117,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 })
                 .collect::<Vec<(Message, bool)>>(),
         ),
+        IsWorkerSetVerified { new_operators } => {
+            let result = VERIFIED_WORKER_SETS.load(deps.storage, new_operators.hash());
+            to_json_binary(&result.is_ok())
+        }
     }
 }
 

@@ -1,14 +1,16 @@
 #[cfg(test)]
 pub mod tests {
-    use std::fs::File;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use crate::lightclient::helpers::test_helpers::get_batched_data;
+    use crate::lightclient::helpers::test_helpers::{
+        filter_message_variants, get_batched_data, mock_contractcall_message_with_log,
+        mock_workerset_message_with_log,
+    };
     use crate::lightclient::helpers::{
-        calc_sync_period, compare_message_with_log, extract_logs_from_receipt_proof,
-        hex_str_to_bytes, is_proof_valid, parse_log, parse_logs_from_receipt,
-        verify_block_roots_proof, verify_historical_roots_proof, verify_transaction_proof,
-        verify_trie_proof,
+        calc_sync_period, compare_content_with_log, extract_logs_from_receipt_proof,
+        extract_recent_block, hex_str_to_bytes, is_proof_valid, parse_log, parse_logs_from_receipt,
+        parse_message_id, verify_block_roots_proof, verify_historical_roots_proof,
+        verify_transaction_proof, verify_trie_proof, Comparison,
     };
     use crate::{
         lightclient::error::ConsensusError,
@@ -18,11 +20,13 @@ pub mod tests {
     };
     use cosmwasm_std::testing::mock_env;
     use cosmwasm_std::Timestamp;
+    use ethabi::{decode, ParamType};
     use types::alloy_primitives::Address;
-    use types::consensus::Bootstrap;
-    use types::execution::ReceiptLog;
+    use types::common::ContentVariant;
+    use types::consensus::{Bootstrap, OptimisticUpdate};
+    use types::execution::GatewayEvent;
     use types::lightclient::LightClientState;
-    use types::proofs::{AncestryProof, UpdateVariant};
+    use types::proofs::{nonempty, AncestryProof, UpdateVariant};
     use types::ssz_rs::{Bitvector, Merkleized, Node};
     use types::sync_committee_rs::consensus_types::Transaction;
     use types::sync_committee_rs::constants::{Bytes32, Root};
@@ -122,7 +126,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_trie_proof() {
-        let verification_data = get_batched_data().1;
+        let verification_data = get_batched_data(false).1;
         let proofs = verification_data.target_blocks[0].transactions_proofs[0].clone();
         let receipt_proof = proofs.receipt_proof.clone();
         let transaction_proof = proofs.transaction_proof;
@@ -170,7 +174,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_block_roots_proof() {
-        let data = get_batched_data().1;
+        let data = get_batched_data(false).1;
         let (block_roots_index, block_root_proof) = match &data.target_blocks[0].ancestry_proof {
             AncestryProof::BlockRoots {
                 block_roots_index,
@@ -242,9 +246,8 @@ pub mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_verify_historical_roots_proof() {
-        let verification_data = get_batched_data().1;
+        let verification_data = get_batched_data(true).1;
         let (
             block_root_proof,
             block_summary_root,
@@ -360,7 +363,7 @@ pub mod tests {
 
     #[test]
     fn test_parse_logs_from_receipt() {
-        let verification_data = get_batched_data().1;
+        let verification_data = get_batched_data(false).1;
         let proofs = verification_data.target_blocks[0].transactions_proofs[0].clone();
         let mut receipt = verify_trie_proof(
             proofs.receipt_proof.receipts_root,
@@ -394,15 +397,15 @@ pub mod tests {
             .try_into()
             .unwrap(),
             vec![
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 206, 22, 246, 147, 117, 82, 10, 176, 19, 119,
-                206, 123, 136, 245, 186, 140, 72, 248, 214, 102,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 79, 211, 156, 158, 21, 30, 80, 88, 7, 121, 189,
+                4, 177, 247, 236, 195, 16, 7, 159, 211,
             ]
             .try_into()
             .unwrap(),
         ];
         let expected_data: Vec<u8> = vec![
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13,
-            102, 10, 194,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2,
+            198, 78, 221, 99,
         ];
 
         assert_eq!(first_log.address, expected_address);
@@ -437,7 +440,7 @@ pub mod tests {
 
     #[test]
     fn test_extract_logs_from_receipt_proof() {
-        let verification_data = get_batched_data().1;
+        let verification_data = get_batched_data(false).1;
         let proofs = verification_data.target_blocks[0].transactions_proofs[0].clone();
         let target_block_root = verification_data.target_blocks[0]
             .target_block
@@ -490,7 +493,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_transaction_proof() {
-        let verification_data = get_batched_data().1;
+        let verification_data = get_batched_data(false).1;
         let transaction_proof = verification_data.target_blocks[0].transactions_proofs[0]
             .transaction_proof
             .clone();
@@ -519,15 +522,14 @@ pub mod tests {
     }
 
     #[test]
-    fn test_compare_message_with_log() {
-        let verification_data = get_batched_data().1;
+    fn test_compare_message_with_event() {
+        let verification_data = get_batched_data(false).1;
         let transaction_proofs = verification_data.target_blocks[0].transactions_proofs[0].clone();
-        let message = transaction_proofs.messages[0].clone();
+        let message = filter_message_variants(&transaction_proofs)[0].clone();
         let receipt_proof = transaction_proofs.receipt_proof;
         let transaction_proof = transaction_proofs.transaction_proof;
 
-        let log_index_str = message.cc_id.id.split(':').nth(1).unwrap();
-        let log_index: usize = log_index_str.parse().unwrap();
+        let (_, log_index) = parse_message_id(&message.cc_id.id).unwrap();
         let logs = extract_logs_from_receipt_proof(
             &receipt_proof,
             transaction_proof.transaction_index,
@@ -539,48 +541,11 @@ pub mod tests {
         )
         .unwrap();
         let log = logs.0[log_index].clone();
+        let GatewayEvent::ContactCall(event) = parse_log(&log).unwrap() else {
+            panic!("Invalid event type");
+        };
 
-        assert!(compare_message_with_log(&message, &log, &transaction_proof.transaction).is_ok());
-
-        // test source address check
-        let mut modified_log = log.clone();
-        // TODO: don't hardcode
-        assert_eq!(
-            modified_log.address,
-            hex::decode("4f4495243837681061c4743b74b3eedf548d56a5")
-                .unwrap()
-                .as_slice()
-        );
-        assert!(
-            compare_message_with_log(&message, &modified_log, &transaction_proof.transaction)
-                .is_ok()
-        );
-        modified_log.address = Address::ZERO.to_vec().try_into().unwrap();
-        assert!(
-            compare_message_with_log(&message, &modified_log, &transaction_proof.transaction)
-                .is_err()
-        );
-
-        // test transaction hash check
-        let mut modified_message = message.clone();
-        assert_eq!(
-            modified_message.cc_id.id.split(':').next().unwrap(),
-            "0x31155423f6f436823239ebfc5cbe90eacc42a31b8add287b2579d6df1358014c"
-        );
-        assert!(
-            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
-                .is_ok()
-        );
-        modified_message.cc_id.id = String::from("foo:bar").try_into().unwrap();
-        assert!(
-            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
-                .is_err()
-        );
-        modified_message.cc_id.id = String::from("0x1234567:bar").try_into().unwrap();
-        assert!(
-            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
-                .is_err()
-        );
+        assert!(message.compare_with_event(event.clone()).is_ok());
 
         // test source_address check
         let mut modified_message = message.clone();
@@ -588,15 +553,9 @@ pub mod tests {
             modified_message.source_address.to_string().to_lowercase(),
             "0xce16f69375520ab01377ce7b88f5ba8c48f8d666"
         );
-        assert!(
-            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
-                .is_ok()
-        );
+        assert!(modified_message.compare_with_event(event.clone()).is_ok());
         modified_message.source_address = Address::ZERO.to_string().try_into().unwrap();
-        assert!(
-            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
-                .is_err()
-        );
+        assert!(modified_message.compare_with_event(event.clone()).is_err());
 
         // test destination_chain check
         let mut modified_message = message.clone();
@@ -605,17 +564,11 @@ pub mod tests {
                 .destination_chain
                 .to_string()
                 .to_lowercase(),
-            "mantle"
+            "polygon"
         );
-        assert!(
-            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
-                .is_ok()
-        );
+        assert!(modified_message.compare_with_event(event.clone()).is_ok());
         modified_message.destination_chain = String::from("none").try_into().unwrap();
-        assert!(
-            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
-                .is_err()
-        );
+        assert!(modified_message.compare_with_event(event.clone()).is_err());
 
         // test destination_address check
         let mut modified_message = message.clone();
@@ -623,52 +576,86 @@ pub mod tests {
             modified_message.destination_address.to_string(),
             "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
         );
-        assert!(
-            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
-                .is_ok()
-        );
+        assert!(modified_message.compare_with_event(event.clone()).is_ok());
         modified_message.destination_address = Address::ZERO.to_string().try_into().unwrap();
-        assert!(
-            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
-                .is_err()
-        );
+        assert!(modified_message.compare_with_event(event.clone()).is_err());
 
         // test payload_hash check
         let mut modified_message = message.clone();
         assert_eq!(
             hex::encode(modified_message.payload_hash),
-            "f62948e23f22323adee5f2099661ee15413f33d60d754ccacd2a9d67e1fc5243"
+            "51217189ef268163d2f8d62d908f0337e978c554f6978b4d494ff24310c6abd7"
         );
-        assert!(
-            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
-                .is_ok()
-        );
+        assert!(modified_message.compare_with_event(event.clone()).is_ok());
         modified_message.payload_hash = Default::default();
-        assert!(
-            compare_message_with_log(&modified_message, &log, &transaction_proof.transaction)
-                .is_err()
-        );
-
-        // failure on invalid log
-        let log = ReceiptLog::default();
-        assert!(compare_message_with_log(&message, &log, &transaction_proof.transaction).is_err());
+        assert!(modified_message.compare_with_event(event.clone()).is_err());
     }
 
     #[test]
-    fn test_verify_parse_log() {
-        let file = File::open("testdata/receipt_log.json").unwrap();
-        let log: ReceiptLog = serde_json::from_reader(file).unwrap();
+    fn test_compare_workerset_message_with_event() {
+        let (message, log) = mock_workerset_message_with_log();
+
+        let GatewayEvent::OperatorshipTransferred(event) = parse_log(&log).unwrap() else {
+            panic!("Invalid event type")
+        };
+
+        assert!(message.compare_with_event(event.clone()).is_ok());
+        let mut modified_message = message.clone();
+        modified_message.new_operators_data = vec![];
+        assert!(modified_message.compare_with_event(event.clone()).is_err());
+    }
+
+    #[test]
+    fn test_compare_content_with_log() {
+        let (message, contractcall_log) = mock_contractcall_message_with_log();
+        let (workerset_message, operatorship_log) = mock_workerset_message_with_log();
+
+        // assert happy path
+        assert!(compare_content_with_log(
+            ContentVariant::Message(message.clone()),
+            &contractcall_log
+        )
+        .is_ok());
+        assert!(compare_content_with_log(
+            ContentVariant::WorkerSet(workerset_message.clone()),
+            &operatorship_log
+        )
+        .is_ok());
+
+        // assert failure in either of the messages
+        let mut modified_message = message.clone();
+        let mut modified_workerset_message = workerset_message.clone();
+
+        modified_message.payload_hash = <[u8; 32]>::default();
+        modified_workerset_message.new_operators_data = vec![];
+        assert!(compare_content_with_log(
+            ContentVariant::Message(modified_message.clone()),
+            &contractcall_log
+        )
+        .is_err());
+        assert!(compare_content_with_log(
+            ContentVariant::WorkerSet(modified_workerset_message.clone()),
+            &operatorship_log
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_parse_log_contractcall() {
+        let (message, log) = mock_contractcall_message_with_log();
 
         let parsing_result = parse_log(&log);
         assert!(parsing_result.is_ok());
-        let event = parsing_result.unwrap();
+        let GatewayEvent::ContactCall(event) = parsing_result.unwrap() else {
+            panic!("Unexpected log")
+        };
         assert_eq!(
             event.source_address.unwrap().to_string().to_lowercase(),
-            "0xce16f69375520ab01377ce7b88f5ba8c48f8d666"
+            message.source_address.to_string()
         );
         assert_eq!(
             event.destination_chain.unwrap().to_string().to_lowercase(),
-            "fantom"
+            message.destination_chain.to_string()
         );
         assert_eq!(
             event
@@ -676,17 +663,33 @@ pub mod tests {
                 .unwrap()
                 .to_string()
                 .to_lowercase(),
-            "0xce16f69375520ab01377ce7b88f5ba8c48f8d666"
+            message.destination_address.to_string()
         );
-        assert_eq!(
-            event.payload_hash.unwrap(),
-            [
-                68, 249, 93, 245, 6, 157, 169, 86, 138, 243, 82, 53, 145, 70, 138, 171, 153, 223,
-                14, 249, 200, 50, 140, 182, 107, 223, 224, 230, 18, 217, 208, 55
-            ]
-        );
+        assert_eq!(event.payload_hash.unwrap(), message.payload_hash);
+    }
 
-        // fails to decode without topic 0 (function signature)
+    #[test]
+    fn test_parse_log_operatorship() {
+        let (_, log) = mock_workerset_message_with_log();
+
+        let parsing_result = parse_log(&log);
+        assert!(parsing_result.is_ok());
+        let GatewayEvent::OperatorshipTransferred(event) = parsing_result.unwrap() else {
+            panic!("Unexpected log")
+        };
+        assert_eq!(
+            event.new_operators_data.unwrap(),
+            decode(&[ParamType::Bytes], log.data.as_slice()).unwrap()[0]
+                .clone()
+                .into_bytes()
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn test_parse_log_failure() {
+        let (_, log) = mock_contractcall_message_with_log();
+
         let mut broken_log = log.clone();
         broken_log.topics.remove(0);
         assert!(parse_log(&broken_log).is_err());
@@ -702,6 +705,51 @@ pub mod tests {
         let mut broken_log = log.clone();
         broken_log.data = vec![1, 2, 3];
         assert!(parse_log(&broken_log).is_err());
+    }
+
+    #[test]
+    fn test_parse_message_id() {
+        let id = nonempty::String::try_from(
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef:123",
+        )
+        .unwrap();
+        let result = parse_message_id(&id).unwrap();
+        assert_eq!(
+            result.0,
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        );
+        assert_eq!(result.1, 123);
+
+        let id = nonempty::String::try_from("invalid_format").unwrap();
+        assert!(parse_message_id(&id).is_err());
+
+        let id = nonempty::String::try_from("0123:123").unwrap();
+        assert!(parse_message_id(&id).is_err());
+
+        let id = nonempty::String::try_from(
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef:abc",
+        )
+        .unwrap();
+        assert!(parse_message_id(&id).is_err());
+    }
+
+    #[test]
+    fn test_extract_recent_block() {
+        let data = get_batched_data(false).1;
+        let UpdateVariant::Finality(update) = data.update else {
+            panic!("Invalid update type")
+        };
+        let optimistic = OptimisticUpdate::from(&update);
+
+        assert_eq!(
+            update.finalized_header.beacon,
+            extract_recent_block(&UpdateVariant::Finality(update.clone()))
+        );
+
+        assert_eq!(
+            update.attested_header.beacon,
+            extract_recent_block(&UpdateVariant::Optimistic(optimistic))
+        );
     }
 
     #[test]
