@@ -11,6 +11,7 @@ use self::{
     types::ProverConfig,
     utils::get_tx_index,
 };
+use async_trait::async_trait;
 use consensus_types::{
     common::ContentVariant,
     consensus::{to_beacon_header, BeaconBlockAlias},
@@ -21,8 +22,9 @@ use consensus_types::{
 };
 use eth::consensus::ConsensusRPC;
 use ethers::types::{Block, Transaction, TransactionReceipt, H256};
-use eyre::{Context, Result};
+use eyre::{eyre, Context, Result};
 use indexmap::IndexMap;
+use mockall::automock;
 use ssz_rs::{Merkleized, Node};
 use sync_committee_rs::{
     consensus_types::BeaconBlockHeader,
@@ -30,6 +32,16 @@ use sync_committee_rs::{
 };
 use types::BatchContentGroups;
 use types::EnrichedContent;
+
+#[async_trait]
+pub trait ProverAPI {
+    fn batch_messages(&self, contents: &[EnrichedContent]) -> BatchContentGroups;
+    async fn batch_generate_proofs(
+        &self,
+        batch_content_groups: BatchContentGroups,
+        update: UpdateVariant,
+    ) -> Result<BatchVerificationData>;
+}
 
 pub struct Prover<PG> {
     proof_generator: PG,
@@ -44,12 +56,10 @@ impl Prover<ProofGenerator<ConsensusRPC, StateProver>> {
     }
 }
 
-impl<PG: ProofGeneratorAPI> Prover<PG> {
-    pub fn new(proof_generator: PG) -> Self {
-        Prover { proof_generator }
-    }
-
-    pub fn batch_messages(
+#[automock]
+#[async_trait]
+impl<PG: ProofGeneratorAPI + Sync> ProverAPI for Prover<PG> {
+    fn batch_messages(
         &self,
         contents: &[EnrichedContent]
     ) -> BatchContentGroups {
@@ -68,7 +78,7 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
     }
 
     /// Generates proofs for a batch of contents.
-    pub async fn batch_generate_proofs(
+    async fn batch_generate_proofs(
         &self,
         batch_content_groups: BatchContentGroups,
         update: UpdateVariant,
@@ -134,6 +144,12 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
             target_blocks: block_proofs_batch,
         })
     }
+}
+
+impl<PG: ProofGeneratorAPI> Prover<PG> {
+    pub fn new(proof_generator: PG) -> Self {
+        Prover { proof_generator }
+    }
 
     pub fn get_block_of_batch(
         batch: &IndexMap<H256, Vec<EnrichedContent>>,
@@ -164,6 +180,10 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         target_block_slot: u64,
         recent_block: &BeaconBlockHeader,
     ) -> Result<AncestryProof> {
+        if target_block_slot >= recent_block.slot {
+            return Err(eyre!("Target block slot {} is greater than recent block slot {}", target_block_slot, recent_block.slot));
+        }
+
         let is_in_block_roots_range = target_block_slot < recent_block.slot
             && recent_block.slot <= target_block_slot + SLOTS_PER_HISTORICAL_ROOT as u64;
 
@@ -249,6 +269,7 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         Ok(transaction_proof)
     }
 }
+
 
 #[cfg(test)]
 mod tests {

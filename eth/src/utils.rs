@@ -1,14 +1,14 @@
 use std::sync::Arc;
-use crate::{consensus::{ConsensusRPC, EthBeaconAPI}, execution::{ExecutionRPC, EthExecutionAPI}, types::FullBlockDetails};
+use crate::{consensus::EthBeaconAPI, execution::EthExecutionAPI, types::FullBlockDetails};
 use eyre::{Result, eyre, Context};
 
 pub fn calc_slot_from_timestamp(genesis_time: u64, timestamp: u64) -> u64 {
     (timestamp - genesis_time) / 12
 }
 
-pub async fn get_full_block_details(
-    consensus: Arc<ConsensusRPC>,
-    execution: Arc<ExecutionRPC>,
+pub async fn get_full_block_details<CR: EthBeaconAPI, ER: EthExecutionAPI>(
+    consensus: Arc<CR>,
+    execution: Arc<ER>,
     block_number: u64,
     genesis_time: u64
 ) -> Result<FullBlockDetails> {

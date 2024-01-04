@@ -19,7 +19,7 @@ impl Default for EthConfig {
 
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct FullBlockDetails {
     pub exec_block: Block<Transaction>,
     pub beacon_block: BeaconBlockAlias,
