@@ -28,13 +28,13 @@ pub struct Forks {
     pub capella: Fork,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
 pub struct WorkerSetMessage {
     pub message_id: nonempty::String,
     pub new_operators_data: Vec<u8>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
 pub enum ContentVariant {
     Message(Message),
     WorkerSet(WorkerSetMessage),

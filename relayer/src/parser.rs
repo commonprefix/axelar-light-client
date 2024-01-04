@@ -1,5 +1,8 @@
 use crate::types::{ContractCallWithToken, EnrichedLog};
-use consensus_types::proofs::{ContentVariant, CrossChainId, Message};
+use consensus_types::{
+    common::ContentVariant,
+    proofs::{CrossChainId, Message}
+};
 use eth::types::FullBlockDetails;
 use ethers::{
     abi::RawLog,

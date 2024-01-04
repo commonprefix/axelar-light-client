@@ -118,24 +118,6 @@ pub struct TransactionProofsBatch {
     pub content: Vec<ContentVariant>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
-pub enum ContentVariantId {
-    CrossChainId(CrossChainId),
-    OperatorsHash(axelar_wasm_std::hash::Hash),
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
-pub enum ContentVariant {
-    Message(Message),
-    WorkerSet(WorkerSetMessage),
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
-pub struct WorkerSetMessage {
-    pub message_id: nonempty::String,
-    pub new_operators: Operators,
-}
-
 fn hex_array_deserializer<'de, D>(deserializer: D) -> Result<Vec<Vec<u8>>, D::Error>
 where
     D: Deserializer<'de>,

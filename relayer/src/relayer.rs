@@ -3,8 +3,10 @@ use crate::{
     parser::parse_enriched_log,
     types::{Config, EnrichedLog, VerificationMethod},
 };
-use async_trait::async_trait;
-use consensus_types::proofs::{BatchVerificationData, ContentVariant, UpdateVariant};
+use consensus_types::{
+    proofs::{BatchVerificationData, UpdateVariant},
+    common::ContentVariant
+};
 use eth::{
     consensus::EthBeaconAPI,
     execution::EthExecutionAPI,
@@ -14,19 +16,6 @@ use eyre::{eyre, Result};
 use prover::prover::{types::EnrichedContent, ProverAPI};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::time::interval;
-
-#[async_trait]
-pub trait RelayerAPI {
-    async fn start(&self);
-    async fn digest_messages(&self, messages: &[EnrichedLog]) -> Result<()>;
-    async fn process_logs(
-        &self,
-        fetched_logs: HashMap<u64, EnrichedLog>,
-    ) -> Vec<(u64, Option<EnrichedContent>)>;
-    async fn collect_messages(&self, max_messages: usize) -> HashMap<u64, EnrichedLog>;
-    async fn get_update(&self, verification_method: &VerificationMethod) -> Result<UpdateVariant>;
-    fn extract_all_contents(&self, data: &BatchVerificationData) -> Vec<ContentVariant>;
-}
 
 pub struct Relayer<P, C, CR, ER> {
     config: Config,
@@ -121,15 +110,11 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
         // println!("res {}", res);
 
         let processed_messages = self.extract_all_contents(&batch_verification_data.unwrap());
-        println!("processed, {:#?}", processed_messages);
-
-        println!("successful, {:#?}", successful_contents);
         for (i, content) in successful_contents.iter().enumerate() {
             let delivery_tag = delivery_tags[i];
             if processed_messages.contains(&content.content) {
                 println!("Message {:?} succeeded", delivery_tag);
-                // TODO: Change to ack
-                self.consumer.ack_delivery(delivery_tag).await?;
+                self.consumer.nack_delivery(delivery_tag).await?;
             } else {
                 println!("Message {:?} failed", delivery_tag);
                 self.consumer.nack_delivery(delivery_tag).await?;

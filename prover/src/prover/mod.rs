@@ -13,7 +13,6 @@ use self::{
 };
 use async_trait::async_trait;
 use consensus_types::{
-    common::ContentVariant,
     consensus::{to_beacon_header, BeaconBlockAlias},
     proofs::{
         AncestryProof, BatchVerificationData, BlockProofsBatch, ReceiptProof, TransactionProof,
@@ -162,7 +161,7 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         &'static str,
     > {
         let messages = batch.values().next().ok_or("Batch is empty")?;
-        let first_message = messages.first().ok_or("No messages in the batch")?;
+        let first_content = messages.first().ok_or("No messages in the batch")?;
 
         let exec_block = first_content.exec_block.clone();
         let beacon_block = first_content.beacon_block.clone();
@@ -276,7 +275,7 @@ mod tests {
     use super::state_prover::MockStateProver;
     use crate::prover::proof_generator::MockProofGenerator;
     use crate::prover::test_helpers::test_utils::*;
-    use crate::prover::Prover;
+    use crate::prover::{Prover, ProverAPI};
     use consensus_types::common::ContentVariant;
     use consensus_types::consensus::to_beacon_header;
     use consensus_types::proofs::{AncestryProof, BatchVerificationData};
