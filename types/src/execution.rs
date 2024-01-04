@@ -14,7 +14,7 @@ pub struct ReceiptLog {
     pub data: Vec<u8>,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct ContractCallBase {
     pub source_address: Option<Address>,
     pub destination_chain: Option<String>,
@@ -22,7 +22,7 @@ pub struct ContractCallBase {
     pub payload_hash: Option<[u8; 32]>,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct OperatorshipTransferredBase {
     pub new_operators_data: Option<Vec<u8>>,
 }

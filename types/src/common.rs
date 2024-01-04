@@ -1,5 +1,5 @@
 use axelar_wasm_std::nonempty;
-use connection_router::Message;
+use connection_router::state::Message;
 use ssz_rs::prelude::*;
 
 pub trait PrimaryKey {

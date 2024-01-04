@@ -20,11 +20,12 @@ pub mod tests {
     use cosmwasm_std::Timestamp;
     use ethabi::{decode, ParamType};
     use types::alloy_primitives::Address;
-    use types::common::ContentVariant;
+    use types::common::{ContentVariant, WorkerSetMessage};
+    use types::connection_router::Message;
     use types::consensus::Bootstrap;
     use types::execution::{GatewayEvent, ReceiptLog};
     use types::lightclient::LightClientState;
-    use types::proofs::{nonempty, AncestryProof, UpdateVariant};
+    use types::proofs::{nonempty, AncestryProof, CrossChainId, UpdateVariant};
     use types::ssz_rs::{Bitvector, Merkleized, Node};
     use types::sync_committee_rs::consensus_types::Transaction;
     use types::sync_committee_rs::constants::{Bytes32, Root};

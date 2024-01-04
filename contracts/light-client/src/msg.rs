@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use types::lightclient::Message;
+use types::connection_router::state::Message;
 use types::proofs::{nonempty, BatchVerificationData, Operators};
 use types::{
     common::{ChainConfig, Forks},

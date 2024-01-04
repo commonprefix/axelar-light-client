@@ -1,5 +1,5 @@
+use consensus_types::connection_router::state::{CrossChainId, Message};
 use consensus_types::consensus::BeaconBlockAlias;
-use consensus_types::lightclient::{CrossChainId, Message};
 use eth::consensus::{ConsensusRPC, EthBeaconAPI};
 use eth::execution::{EthExecutionAPI, ExecutionRPC};
 use eth::utils::calc_slot_from_timestamp;

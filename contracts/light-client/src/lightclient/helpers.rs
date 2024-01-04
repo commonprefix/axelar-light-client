@@ -10,10 +10,11 @@ use crate::ContractError;
 use hasher::{Hasher, HasherKeccak};
 use types::alloy_rlp::encode;
 use types::common::{ContentVariant, WorkerSetMessage};
+use types::connection_router::state::{Message, ID_SEPARATOR};
+use types::execution::{ContractCallBase, ReceiptLog};
 use types::execution::{
     GatewayEvent, OperatorshipTransferredBase, ReceiptLogs, RECEIPTS_ROOT_GINDEX,
 };
-use types::lightclient::ID_SEPARATOR;
 use types::proofs::{nonempty, AncestryProof, ReceiptProof, TransactionProof, UpdateVariant};
 use types::ssz_rs::{
     get_generalized_index, is_valid_merkle_branch, verify_merkle_proof, GeneralizedIndex,
@@ -21,10 +22,6 @@ use types::ssz_rs::{
 };
 use types::sync_committee_rs::consensus_types::BeaconBlockHeader;
 use types::sync_committee_rs::constants::{Bytes32, Root, SLOTS_PER_HISTORICAL_ROOT};
-use types::{
-    execution::{ContractCallBase, ReceiptLog},
-    lightclient::Message,
-};
 
 pub fn is_proof_valid<L: Merkleized>(
     state_root: &Node,
@@ -397,7 +394,7 @@ pub mod test_helpers {
     use std::fs::File;
 
     use types::common::WorkerSetMessage;
-    use types::lightclient::Message;
+    use types::connection_router::state::Message;
     use types::proofs::{BatchVerificationData, TransactionProofsBatch, UpdateVariant};
     use types::ssz_rs::Node;
     use types::{
