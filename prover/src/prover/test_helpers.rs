@@ -3,7 +3,8 @@ pub mod test_utils {
     use cita_trie::{MemoryDB, PatriciaTrie, Trie};
     use consensus_types::{
         consensus::{BeaconBlockAlias, FinalityUpdate, OptimisticUpdate},
-        proofs::{ContentVariant, CrossChainId, Message, UpdateVariant},
+        proofs::{CrossChainId, Message, UpdateVariant},
+        common::ContentVariant
     };
     use ethers::{
         types::{Block, Transaction, TransactionReceipt, H256},
