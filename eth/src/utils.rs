@@ -1,6 +1,6 @@
-use std::sync::Arc;
 use crate::{consensus::EthBeaconAPI, execution::EthExecutionAPI, types::FullBlockDetails};
-use eyre::{Result, eyre, Context};
+use eyre::{eyre, Context, Result};
+use std::sync::Arc;
 
 pub fn calc_slot_from_timestamp(genesis_time: u64, timestamp: u64) -> u64 {
     (timestamp - genesis_time) / 12
@@ -10,7 +10,7 @@ pub async fn get_full_block_details<CR: EthBeaconAPI, ER: EthExecutionAPI>(
     consensus: Arc<CR>,
     execution: Arc<ER>,
     block_number: u64,
-    genesis_time: u64
+    genesis_time: u64,
 ) -> Result<FullBlockDetails> {
     let exec_block = execution
         .get_block_with_txs(block_number)
@@ -18,7 +18,10 @@ pub async fn get_full_block_details<CR: EthBeaconAPI, ER: EthExecutionAPI>(
         .wrap_err(format!("failed to get exec block {}", block_number))?
         .ok_or_else(|| eyre!("could not find execution block {:?}", block_number))?;
 
-    println!("Got execution block with timestamp {}", exec_block.timestamp);
+    println!(
+        "Got execution block with timestamp {}",
+        exec_block.timestamp
+    );
     let block_slot = calc_slot_from_timestamp(genesis_time, exec_block.timestamp.as_u64());
 
     let beacon_block = consensus

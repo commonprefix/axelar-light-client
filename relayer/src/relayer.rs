@@ -4,14 +4,10 @@ use crate::{
     types::{Config, EnrichedLog, VerificationMethod},
 };
 use consensus_types::{
+    common::ContentVariant,
     proofs::{BatchVerificationData, UpdateVariant},
-    common::ContentVariant
 };
-use eth::{
-    consensus::EthBeaconAPI,
-    execution::EthExecutionAPI,
-    utils::get_full_block_details,
-};
+use eth::{consensus::EthBeaconAPI, execution::EthExecutionAPI, utils::get_full_block_details};
 use eyre::{eyre, Result};
 use prover::prover::{types::EnrichedContent, ProverAPI};
 use std::{collections::HashMap, sync::Arc, time::Duration};

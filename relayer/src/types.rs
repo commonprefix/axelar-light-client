@@ -8,15 +8,12 @@ use serde::{Deserialize, Serialize};
 pub use std::str::FromStr;
 
 // Step 1: Define the enum
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub enum VerificationMethod {
     Optimistic,
     #[default]
     Finality,
 }
-
-
 
 impl FromStr for VerificationMethod {
     type Err = ();

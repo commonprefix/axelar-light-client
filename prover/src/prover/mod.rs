@@ -1,10 +1,9 @@
 pub mod proof_generator;
 pub mod state_prover;
+mod test_helpers;
 pub mod types;
 pub mod utils;
-mod test_helpers;
 
-use std::sync::Arc;
 use self::{
     proof_generator::{ProofGenerator, ProofGeneratorAPI},
     state_prover::StateProver,
@@ -25,6 +24,7 @@ use eyre::{eyre, Context, Result};
 use indexmap::IndexMap;
 use mockall::automock;
 use ssz_rs::{Merkleized, Node};
+use std::sync::Arc;
 use sync_committee_rs::{
     consensus_types::BeaconBlockHeader,
     constants::{Root, SLOTS_PER_HISTORICAL_ROOT},
@@ -48,7 +48,10 @@ pub struct Prover<PG> {
 
 impl Prover<ProofGenerator<ConsensusRPC, StateProver>> {
     pub fn with_config(consensus_rpc: Arc<ConsensusRPC>, prover_config: ProverConfig) -> Self {
-        let state_prover = StateProver::new(prover_config.network, prover_config.state_prover_rpc.clone());
+        let state_prover = StateProver::new(
+            prover_config.network,
+            prover_config.state_prover_rpc.clone(),
+        );
         let proof_generator = ProofGenerator::new(consensus_rpc, state_prover.clone());
 
         Prover { proof_generator }
@@ -58,10 +61,7 @@ impl Prover<ProofGenerator<ConsensusRPC, StateProver>> {
 #[automock]
 #[async_trait]
 impl<PG: ProofGeneratorAPI + Sync> ProverAPI for Prover<PG> {
-    fn batch_messages(
-        &self,
-        contents: &[EnrichedContent]
-    ) -> BatchContentGroups {
+    fn batch_messages(&self, contents: &[EnrichedContent]) -> BatchContentGroups {
         let mut groups: BatchContentGroups = IndexMap::new();
 
         for content in contents {
@@ -114,7 +114,11 @@ impl<PG: ProofGeneratorAPI + Sync> ProverAPI for Prover<PG> {
                     .get_transaction_proof(&beacon_block, block_hash, tx_index)
                     .await;
                 if transaction_proof.is_err() {
-                    println!("Error generating tx proof {} {:?}", tx_hash, transaction_proof.err());
+                    println!(
+                        "Error generating tx proof {} {:?}",
+                        tx_hash,
+                        transaction_proof.err()
+                    );
                     continue;
                 }
 
@@ -122,7 +126,11 @@ impl<PG: ProofGeneratorAPI + Sync> ProverAPI for Prover<PG> {
                     .get_receipt_proof(&exec_block, block_hash, &receipts, tx_index)
                     .await;
                 if receipt_proof.is_err() {
-                    println!("Error generating receipt proof {} {:?}", tx_hash, receipt_proof.err());
+                    println!(
+                        "Error generating receipt proof {} {:?}",
+                        tx_hash,
+                        receipt_proof.err()
+                    );
                     continue;
                 }
 
@@ -180,7 +188,11 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         recent_block: &BeaconBlockHeader,
     ) -> Result<AncestryProof> {
         if target_block_slot >= recent_block.slot {
-            return Err(eyre!("Target block slot {} is greater than recent block slot {}", target_block_slot, recent_block.slot));
+            return Err(eyre!(
+                "Target block slot {} is greater than recent block slot {}",
+                target_block_slot,
+                recent_block.slot
+            ));
         }
 
         let is_in_block_roots_range = target_block_slot < recent_block.slot
@@ -268,7 +280,6 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         Ok(transaction_proof)
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -444,8 +455,7 @@ mod tests {
         let proof_generator = MockProofGenerator::<MockConsensusRPC, MockStateProver>::new();
         let prover = Prover::new(proof_generator);
 
-        let result = prover
-            .batch_messages(messages.as_ref());
+        let result = prover.batch_messages(messages.as_ref());
 
         assert_eq!(result.len(), 3);
         assert_eq!(result.get(&1).unwrap().len(), 1);

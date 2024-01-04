@@ -1,7 +1,4 @@
-use consensus_types::{
-    consensus::BeaconBlockAlias,
-    common::ContentVariant,
-};
+use consensus_types::{common::ContentVariant, consensus::BeaconBlockAlias};
 use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};

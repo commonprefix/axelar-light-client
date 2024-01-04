@@ -1,7 +1,7 @@
 use crate::types::{ContractCallWithToken, EnrichedLog};
 use consensus_types::{
     common::ContentVariant,
-    proofs::{CrossChainId, Message}
+    proofs::{CrossChainId, Message},
 };
 use eth::types::FullBlockDetails;
 use ethers::{
