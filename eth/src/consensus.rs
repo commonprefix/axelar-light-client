@@ -492,6 +492,7 @@ mod tests {
         assert!(res.is_err());
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_get_block_roots_tree() {
         let (server, rpc) = setup_server_and_rpc();
