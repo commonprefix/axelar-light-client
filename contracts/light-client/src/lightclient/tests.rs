@@ -1,14 +1,16 @@
 #[cfg(test)]
 pub mod tests {
-    use std::fs::File;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use crate::lightclient::helpers::test_helpers::{filter_message_variants, get_batched_data};
+    use crate::lightclient::helpers::test_helpers::{
+        filter_message_variants, get_batched_data, mock_contractcall_message_with_log,
+        mock_workerset_message_with_log,
+    };
     use crate::lightclient::helpers::{
         calc_sync_period, compare_content_with_log, extract_logs_from_receipt_proof,
-        hex_str_to_bytes, is_proof_valid, parse_log, parse_logs_from_receipt, parse_message_id,
-        verify_block_roots_proof, verify_historical_roots_proof, verify_transaction_proof,
-        verify_trie_proof, Comparison,
+        extract_recent_block, hex_str_to_bytes, is_proof_valid, parse_log, parse_logs_from_receipt,
+        parse_message_id, verify_block_roots_proof, verify_historical_roots_proof,
+        verify_transaction_proof, verify_trie_proof, Comparison,
     };
     use crate::{
         lightclient::error::ConsensusError,
@@ -20,12 +22,11 @@ pub mod tests {
     use cosmwasm_std::Timestamp;
     use ethabi::{decode, ParamType};
     use types::alloy_primitives::Address;
-    use types::common::{ContentVariant, WorkerSetMessage};
-    use types::connection_router::Message;
-    use types::consensus::Bootstrap;
-    use types::execution::{GatewayEvent, ReceiptLog};
+    use types::common::ContentVariant;
+    use types::consensus::{Bootstrap, OptimisticUpdate};
+    use types::execution::GatewayEvent;
     use types::lightclient::LightClientState;
-    use types::proofs::{nonempty, AncestryProof, CrossChainId, UpdateVariant};
+    use types::proofs::{nonempty, AncestryProof, UpdateVariant};
     use types::ssz_rs::{Bitvector, Merkleized, Node};
     use types::sync_committee_rs::consensus_types::Transaction;
     use types::sync_committee_rs::constants::{Bytes32, Root};
@@ -590,42 +591,6 @@ pub mod tests {
         assert!(modified_message.compare_with_event(event.clone()).is_err());
     }
 
-    fn mock_contractcall_message_with_log() -> (Message, ReceiptLog) {
-        let file = File::open("testdata/receipt_log_contractcall.json").unwrap();
-        let log: ReceiptLog = serde_json::from_reader(file).unwrap();
-        let message = Message {
-            cc_id: CrossChainId {
-                chain: String::from("ethereum").try_into().unwrap(),
-                id: String::from("foo:bar").try_into().unwrap(),
-            },
-            source_address: String::from("0xce16f69375520ab01377ce7b88f5ba8c48f8d666")
-                .try_into()
-                .unwrap(),
-            destination_chain: String::from("fantom").try_into().unwrap(),
-            destination_address: String::from("0xce16f69375520ab01377ce7b88f5ba8c48f8d666")
-                .try_into()
-                .unwrap(),
-            payload_hash: [
-                68, 249, 93, 245, 6, 157, 169, 86, 138, 243, 82, 53, 145, 70, 138, 171, 153, 223,
-                14, 249, 200, 50, 140, 182, 107, 223, 224, 230, 18, 217, 208, 55,
-            ],
-        };
-        (message, log)
-    }
-
-    fn mock_workerset_message_with_log() -> (WorkerSetMessage, ReceiptLog) {
-        let file = File::open("testdata/receipt_log_operatorship.json").unwrap();
-        let log: ReceiptLog = serde_json::from_reader(file).unwrap();
-        let message = WorkerSetMessage {
-            new_operators_data: decode(&[ParamType::Bytes], log.data.as_slice()).unwrap()[0]
-                .clone()
-                .into_bytes()
-                .unwrap(),
-            message_id: String::from("foo:bar").try_into().unwrap(),
-        };
-        (message, log)
-    }
-
     #[test]
     fn test_compare_workerset_message_with_event() {
         let (message, log) = mock_workerset_message_with_log();
@@ -766,6 +731,25 @@ pub mod tests {
         )
         .unwrap();
         assert!(parse_message_id(&id).is_err());
+    }
+
+    #[test]
+    fn test_extract_recent_block() {
+        let data = get_batched_data(false).1;
+        let UpdateVariant::Finality(update) = data.update else {
+            panic!("Invalid update type")
+        };
+        let optimistic = OptimisticUpdate::from(&update);
+
+        assert_eq!(
+            update.finalized_header.beacon,
+            extract_recent_block(&UpdateVariant::Finality(update.clone()))
+        );
+
+        assert_eq!(
+            update.attested_header.beacon,
+            extract_recent_block(&UpdateVariant::Optimistic(optimistic))
+        );
     }
 
     #[test]

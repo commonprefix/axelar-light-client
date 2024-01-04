@@ -396,11 +396,15 @@ pub fn calc_sync_period(slot: u64) -> u64 {
 
 #[cfg(test)]
 pub mod test_helpers {
+    use ethabi::{decode, ParamType};
     use std::fs::File;
 
     use types::common::WorkerSetMessage;
     use types::connection_router::state::Message;
-    use types::proofs::{BatchVerificationData, TransactionProofsBatch, UpdateVariant};
+    use types::execution::ReceiptLog;
+    use types::proofs::{
+        BatchVerificationData, CrossChainId, TransactionProofsBatch, UpdateVariant,
+    };
     use types::ssz_rs::Node;
     use types::{
         common::{ChainConfig, ContentVariant, Fork, Forks},
@@ -511,5 +515,41 @@ pub mod test_helpers {
                 ContentVariant::WorkerSet(m) => Some((*m).clone()),
             })
             .collect()
+    }
+
+    pub fn mock_contractcall_message_with_log() -> (Message, ReceiptLog) {
+        let file = File::open("testdata/receipt_log_contractcall.json").unwrap();
+        let log: ReceiptLog = serde_json::from_reader(file).unwrap();
+        let message = Message {
+            cc_id: CrossChainId {
+                chain: String::from("ethereum").try_into().unwrap(),
+                id: String::from("foo:bar").try_into().unwrap(),
+            },
+            source_address: String::from("0xce16f69375520ab01377ce7b88f5ba8c48f8d666")
+                .try_into()
+                .unwrap(),
+            destination_chain: String::from("fantom").try_into().unwrap(),
+            destination_address: String::from("0xce16f69375520ab01377ce7b88f5ba8c48f8d666")
+                .try_into()
+                .unwrap(),
+            payload_hash: [
+                68, 249, 93, 245, 6, 157, 169, 86, 138, 243, 82, 53, 145, 70, 138, 171, 153, 223,
+                14, 249, 200, 50, 140, 182, 107, 223, 224, 230, 18, 217, 208, 55,
+            ],
+        };
+        (message, log)
+    }
+
+    pub fn mock_workerset_message_with_log() -> (WorkerSetMessage, ReceiptLog) {
+        let file = File::open("testdata/receipt_log_operatorship.json").unwrap();
+        let log: ReceiptLog = serde_json::from_reader(file).unwrap();
+        let message = WorkerSetMessage {
+            new_operators_data: decode(&[ParamType::Bytes], log.data.as_slice()).unwrap()[0]
+                .clone()
+                .into_bytes()
+                .unwrap(),
+            message_id: String::from("foo:bar").try_into().unwrap(),
+        };
+        (message, log)
     }
 }
