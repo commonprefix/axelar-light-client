@@ -76,7 +76,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
                             "Message {:?} is too recent. Update slot: {}, content slot: {}. Requeuing", 
                             content.content, recent_block_slot, content.beacon_block.slot
                         );
-                        self.consumer.nack_delivery(delivery_tag).await?;
+                        self.consumer.ack_delivery(delivery_tag).await?;
                         continue;
                     }
                     delivery_tags.push(delivery_tag);
