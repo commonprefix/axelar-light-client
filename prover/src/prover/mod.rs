@@ -1,8 +1,8 @@
 pub mod proof_generator;
 pub mod state_prover;
-mod test_helpers;
 pub mod types;
 pub mod utils;
+mod test_helpers;
 
 use std::sync::Arc;
 use self::{
