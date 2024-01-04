@@ -1,7 +1,10 @@
-use ethers::{contract::EthEvent, types::{U256, Bytes, Address, H256, Log}};
-use prover::prover::types::ProverConfig;
 use eth::types::EthConfig;
-use serde::{Serialize, Deserialize};
+use ethers::{
+    contract::EthEvent,
+    types::{Address, Bytes, Log, H256, U256},
+};
+use prover::prover::types::ProverConfig;
+use serde::{Deserialize, Serialize};
 pub use std::str::FromStr;
 
 // Step 1: Define the enum
@@ -9,6 +12,12 @@ pub use std::str::FromStr;
 pub enum VerificationMethod {
     Optimistic,
     Finality,
+}
+
+impl Default for VerificationMethod {
+    fn default() -> Self {
+        VerificationMethod::Finality
+    }
 }
 
 impl FromStr for VerificationMethod {
@@ -23,7 +32,7 @@ impl FromStr for VerificationMethod {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Config {
     pub network: String,
     pub consensus_rpc: String,
@@ -59,7 +68,7 @@ impl From<Config> for EthConfig {
     fn from(config: Config) -> Self {
         EthConfig {
             pool_max_idle_per_host: config.rpc_pool_max_idle_per_host,
-            timeout_secs: config.rpc_timeout_secs
+            timeout_secs: config.rpc_timeout_secs,
         }
     }
 }
@@ -78,7 +87,7 @@ pub struct ContractCallWithToken {
     pub amount: U256,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Default)]
 pub struct EnrichedLog {
     pub event_name: String,
     pub contract_name: String,
@@ -87,4 +96,3 @@ pub struct EnrichedLog {
     pub source: String,
     pub tx_to: Address,
 }
-

@@ -1,15 +1,14 @@
 mod consumer;
+mod parser;
+mod relayer;
 mod types;
 mod utils;
 mod wasm;
-mod parser;
-mod relayer;
 
+use consumer::LapinConsumer;
 use eth::types::EthConfig;
 use eth::{consensus::ConsensusRPC, execution::ExecutionRPC};
-use lapin::{ConnectionProperties, Connection};
-use lapin::options::BasicConsumeOptions;
-use lapin::types::FieldTable;
+use lapin::{Connection, ConnectionProperties};
 use prover::prover::types::ProverConfig;
 use prover::Prover;
 use std::sync::Arc;
@@ -27,12 +26,18 @@ async fn main() {
 
     let consensus = Arc::new(ConsensusRPC::new(config.consensus_rpc.clone(), eth_config));
     let execution = Arc::new(ExecutionRPC::new(config.execution_rpc.clone()));
-    let prover = Prover::with_config(consensus.clone(), prover_config);
+    let prover = Arc::new(Prover::with_config(consensus.clone(), prover_config));
+    let consumer =
+        LapinConsumer::new(&config.sentinel_queue_addr, &config.sentinel_queue_name).await;
 
-    let connection = Connection::connect(config.sentinel_queue_addr.as_str(), ConnectionProperties::default()).await.unwrap();
-    let channel = connection.create_channel().await.unwrap();
-
-    let mut relayer = Relayer::new(config.clone(), channel, consensus.clone(), execution.clone(), prover).await;
+    let mut relayer = Relayer::new(
+        config.clone(),
+        consumer,
+        consensus.clone(),
+        execution.clone(),
+        prover,
+    )
+    .await;
     relayer.start().await;
 
     //let enriched_logs = vec![get_json().unwrap()];
@@ -45,6 +50,3 @@ async fn main() {
     // let res = relayer.digest_messages(&enriched_logs).await;
     // println!("Res {:?}", res);
 }
-
-
-

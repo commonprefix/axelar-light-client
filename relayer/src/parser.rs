@@ -1,15 +1,23 @@
-use consensus_types::proofs::{ContentVariant, Message, CrossChainId};
+use crate::types::{ContractCallWithToken, EnrichedLog};
+use consensus_types::proofs::{ContentVariant, CrossChainId, Message};
 use eth::types::FullBlockDetails;
-use eyre::{Result, eyre};
-use ethers::{contract::EthEvent, abi::RawLog, types::{TransactionReceipt, Log}};
+use ethers::{
+    abi::RawLog,
+    contract::EthEvent,
+    types::{Log, TransactionReceipt},
+};
+use eyre::{eyre, Result};
 use prover::prover::types::EnrichedContent;
-use crate::types::{EnrichedLog, ContractCallWithToken};
 
-pub fn parse_enriched_log(enriched_log: &EnrichedLog, block_details: &FullBlockDetails) -> Result<EnrichedContent> {
+pub fn parse_enriched_log(
+    enriched_log: &EnrichedLog,
+    block_details: &FullBlockDetails,
+) -> Result<EnrichedContent> {
     let log = &enriched_log.log;
     match enriched_log.event_name.as_str() {
         "ContractCallWithToken" => {
-            let event: ContractCallWithToken = EthEvent::decode_log(&RawLog::from(log.clone())).map_err(|e| eyre!("Error decoding log {:?}", e))?;
+            let event: ContractCallWithToken = EthEvent::decode_log(&RawLog::from(log.clone()))
+                .map_err(|e| eyre!("Error decoding log {:?}", e))?;
             let message = Message {
                 cc_id: generate_cc_id(&enriched_log.log, &block_details.receipts)?,
                 source_address: format!("0x{:x}", event.sender).parse().unwrap(),
@@ -19,13 +27,20 @@ pub fn parse_enriched_log(enriched_log: &EnrichedLog, block_details: &FullBlockD
             };
 
             Ok(ContentVariant::Message(message))
-        },
-        _ => Err(eyre!("Enriched log variant is not supported {:?}", enriched_log))
+        }
+        _ => Err(eyre!(
+            "Enriched log variant is not supported {:?}",
+            enriched_log
+        )),
     }
     .and_then(|content| enrich_content(&content, log, block_details))
 }
 
-fn enrich_content(content: &ContentVariant, log: &Log, block_details: &FullBlockDetails) -> Result<EnrichedContent> {
+fn enrich_content(
+    content: &ContentVariant,
+    log: &Log,
+    block_details: &FullBlockDetails,
+) -> Result<EnrichedContent> {
     let msg = EnrichedContent {
         content: content.clone(),
         exec_block: block_details.exec_block.clone(),
@@ -42,19 +57,15 @@ fn generate_cc_id(log: &Log, receipts: &[TransactionReceipt]) -> Result<CrossCha
 
     let cc_id = CrossChainId {
         chain: "ethereum".parse().unwrap(),
-        id: format!("0x{:x}:{}", log.transaction_hash.unwrap(), tx_log_index)
-            .parse()?
+        id: format!("0x{:x}:{}", log.transaction_hash.unwrap(), tx_log_index).parse()?,
     };
 
     Ok(cc_id)
 }
 
-fn calculate_tx_log_index(
-    log: &Log,
-    receipts: &[TransactionReceipt],
-) -> u64 {
+fn calculate_tx_log_index(log: &Log, receipts: &[TransactionReceipt]) -> u64 {
     if let Some(tx_log_index) = log.transaction_log_index {
-        return tx_log_index.as_u64()
+        return tx_log_index.as_u64();
     }
 
     let log_index = log.log_index.unwrap().as_u64();
@@ -70,10 +81,10 @@ fn calculate_tx_log_index(
 
 #[cfg(test)]
 mod tests {
-    use std::{str::FromStr, fs::File};
     use super::*;
     use consensus_types::consensus::BeaconBlockAlias;
-    use ethers::types::{Transaction, Block, H256, U64, U256};
+    use ethers::types::{Block, Transaction, H256, U256, U64};
+    use std::{fs::File, str::FromStr};
 
     fn create_test_log(tx_index: u64, log_index: u64) -> Log {
         Log {
@@ -136,13 +147,19 @@ mod tests {
         assert_eq!(enriched_content.exec_block, block_details.exec_block);
         assert_eq!(enriched_content.beacon_block, block_details.beacon_block);
         assert_eq!(enriched_content.receipts, block_details.receipts);
-        assert_eq!(enriched_content.tx_hash, enriched_log.log.transaction_hash.unwrap());
+        assert_eq!(
+            enriched_content.tx_hash,
+            enriched_log.log.transaction_hash.unwrap()
+        );
         match enriched_content.content {
             ContentVariant::Message(message) => {
                 assert_eq!(message.cc_id.chain.to_string(), "ethereum");
-                assert_eq!(message.cc_id.id.to_string(), format!("0x{:x}:{}", enriched_log.log.transaction_hash.unwrap(), 5));
-            },
-            _ => panic!("Unexpected content variant")
+                assert_eq!(
+                    message.cc_id.id.to_string(),
+                    format!("0x{:x}:{}", enriched_log.log.transaction_hash.unwrap(), 5)
+                );
+            }
+            _ => panic!("Unexpected content variant"),
         }
     }
 
@@ -156,7 +173,7 @@ mod tests {
             source_address: "0x00".parse().unwrap(),
             destination_address: "0x01".parse().unwrap(),
             payload_hash: Default::default(),
-            destination_chain: "polygon".parse().unwrap()
+            destination_chain: "polygon".parse().unwrap(),
         });
         let block_details = create_test_block_details();
         let log = create_test_log(0, 5);
@@ -176,7 +193,7 @@ mod tests {
         let log = create_test_log(0, 2);
         let tx_log_index = calculate_tx_log_index(&log, &receipts);
         assert_eq!(tx_log_index, 2);
-        
+
         let log = create_test_log(1, 15);
         let tx_log_index = calculate_tx_log_index(&log, &receipts);
         assert_eq!(tx_log_index, 5);
@@ -196,23 +213,38 @@ mod tests {
 
         let log = create_test_log(0, 2);
         let cc_id = generate_cc_id(&log, &receipts).unwrap();
-        assert_eq!(CrossChainId {
-            chain: "ethereum".parse().unwrap(),
-            id: format!("0x{:x}:{}", log.transaction_hash.unwrap(), 2).parse().unwrap(),
-        }, cc_id);
+        assert_eq!(
+            CrossChainId {
+                chain: "ethereum".parse().unwrap(),
+                id: format!("0x{:x}:{}", log.transaction_hash.unwrap(), 2)
+                    .parse()
+                    .unwrap(),
+            },
+            cc_id
+        );
 
         let log = create_test_log(1, 12);
         let cc_id = generate_cc_id(&log, &receipts).unwrap();
-        assert_eq!(CrossChainId {
-            chain: "ethereum".parse().unwrap(),
-            id: format!("0x{:x}:{}", log.transaction_hash.unwrap(), 2).parse().unwrap(),
-        }, cc_id);
+        assert_eq!(
+            CrossChainId {
+                chain: "ethereum".parse().unwrap(),
+                id: format!("0x{:x}:{}", log.transaction_hash.unwrap(), 2)
+                    .parse()
+                    .unwrap(),
+            },
+            cc_id
+        );
 
         let log = create_test_log(2, 35);
         let cc_id = generate_cc_id(&log, &receipts).unwrap();
-        assert_eq!(CrossChainId {
-            chain: "ethereum".parse().unwrap(),
-            id: format!("0x{:x}:{}", log.transaction_hash.unwrap(), 5).parse().unwrap(),
-        }, cc_id);
+        assert_eq!(
+            CrossChainId {
+                chain: "ethereum".parse().unwrap(),
+                id: format!("0x{:x}:{}", log.transaction_hash.unwrap(), 5)
+                    .parse()
+                    .unwrap(),
+            },
+            cc_id
+        );
     }
 }
