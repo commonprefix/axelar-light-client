@@ -8,6 +8,10 @@ use eyre::Result;
 use helpers::is_proof_valid;
 use milagro_bls::{AggregateSignature, PublicKey};
 use types::ssz_rs::prelude::*;
+use types::sync_committee_rs::constants::{
+    Version, ALTAIR_FORK_EPOCH, ALTAIR_FORK_VERSION, BELLATRIX_FORK_EPOCH, BELLATRIX_FORK_VERSION,
+    CAPELLA_FORK_EPOCH, CAPELLA_FORK_VERSION, GENESIS_FORK_VERSION,
+};
 use types::sync_committee_rs::{
     consensus_types::{BeaconBlockHeader, ForkData, SyncCommittee},
     constants::{BlsSignature, Bytes32, SYNC_COMMITTEE_SIZE},
@@ -264,14 +268,14 @@ impl LightClient {
     /**
      * Returns the fork version for a given slot.
      */
-    fn get_fork_version(&self, slot: u64) -> [u8; 4] {
+    fn get_fork_version(&self, slot: u64) -> Version {
         let epoch = slot / 32;
 
         match epoch {
-            e if e >= self.config.forks.capella.epoch => self.config.forks.capella.fork_version,
-            e if e >= self.config.forks.bellatrix.epoch => self.config.forks.bellatrix.fork_version,
-            e if e >= self.config.forks.altair.epoch => self.config.forks.altair.fork_version,
-            _ => self.config.forks.genesis.fork_version,
+            e if e >= CAPELLA_FORK_EPOCH => CAPELLA_FORK_VERSION,
+            e if e >= BELLATRIX_FORK_EPOCH => BELLATRIX_FORK_VERSION,
+            e if e >= ALTAIR_FORK_EPOCH => ALTAIR_FORK_VERSION,
+            _ => GENESIS_FORK_VERSION,
         }
     }
 

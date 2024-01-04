@@ -54,9 +54,6 @@ pub fn execute(
         LightClientUpdate { period, update } => {
             execute::light_client_update(deps, &env, period, update)
         }
-        // TODO: only admin should do that
-        UpdateForks { forks } => execute::update_forks(deps, forks)
-            .map_err(|e| ContractError::Std(StdError::GenericErr { msg: e.to_string() })),
         BatchVerificationData { payload } => {
             let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
             let config = CONFIG.load(deps.storage)?;
@@ -141,18 +138,14 @@ mod tests {
 
     use crate::{
         contract::{execute, instantiate, query},
-        lightclient::helpers::hex_str_to_bytes,
         lightclient::helpers::test_helpers::*,
         lightclient::LightClient,
         msg::ExecuteMsg,
     };
     use cosmwasm_std::{testing::mock_env, Addr, Timestamp};
     use cw_multi_test::{App, ContractWrapper, Executor};
+    use types::lightclient::LightClientState;
     use types::sync_committee_rs::constants::BlsSignature;
-    use types::{
-        common::{ChainConfig, Fork, Forks},
-        lightclient::LightClientState,
-    };
 
     use crate::msg::{InstantiateMsg, QueryMsg};
 
@@ -253,56 +246,5 @@ mod tests {
         );
 
         assert!(resp.is_err());
-    }
-
-    #[test]
-    fn test_forks_query() {
-        let (app, addr) = deploy();
-        let resp: ChainConfig = app
-            .wrap()
-            .query_wasm_smart(addr, &QueryMsg::Config {})
-            .unwrap();
-
-        assert_eq!(resp.forks, get_forks());
-    }
-
-    #[test]
-    fn test_forks_update() {
-        let (mut app, addr) = deploy();
-        let new_forks = Forks {
-            genesis: Fork {
-                epoch: 0,
-                fork_version: hex_str_to_bytes("0x03000000").unwrap().try_into().unwrap(),
-            },
-            altair: Fork {
-                epoch: 1,
-                fork_version: hex_str_to_bytes("0x02000000").unwrap().try_into().unwrap(),
-            },
-            bellatrix: Fork {
-                epoch: 2,
-                fork_version: hex_str_to_bytes("0x01000000").unwrap().try_into().unwrap(),
-            },
-            capella: Fork {
-                epoch: 3,
-                fork_version: hex_str_to_bytes("0x00000000").unwrap().try_into().unwrap(),
-            },
-        };
-
-        app.execute_contract(
-            Addr::unchecked("owner"),
-            addr.clone(),
-            &ExecuteMsg::UpdateForks {
-                forks: new_forks.clone(),
-            },
-            &[],
-        )
-        .unwrap();
-
-        let resp: ChainConfig = app
-            .wrap()
-            .query_wasm_smart(addr, &QueryMsg::Config {})
-            .unwrap();
-
-        assert_eq!(resp.forks, new_forks);
     }
 }
