@@ -79,14 +79,12 @@ fn process_transaction_proofs(
                 .collect::<Vec<(ContentVariant, Result<()>)>>()
         });
 
-    match result {
-        Ok(proof_results) => proof_results,
-        Err(err) => data
-            .content
+    result.unwrap_or_else(|err| {
+        data.content
             .iter()
             .map(|content_variant| (content_variant.to_owned(), Err(eyre!(err.to_string()))))
-            .collect(),
-    }
+            .collect()
+    })
 }
 
 fn process_block_proofs(
