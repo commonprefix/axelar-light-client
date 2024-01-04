@@ -23,7 +23,7 @@ fn verify_content(
     content: ContentVariant,
     transaction: &Transaction<MAX_BYTES_PER_TRANSACTION>,
     logs: &ReceiptLogs,
-    gateway_address: &String,
+    gateway_address: &str,
 ) -> Result<()> {
     let gateway_address = hex::decode(
         gateway_address
@@ -56,7 +56,7 @@ fn verify_content(
 fn process_transaction_proofs(
     data: &TransactionProofsBatch,
     target_block_root: &Node,
-    gateway_address: &String,
+    gateway_address: &str,
 ) -> Vec<(ContentVariant, Result<()>)> {
     let result = verify_transaction_proof(&data.transaction_proof, target_block_root)
         .and_then(|_| {
@@ -94,7 +94,7 @@ fn process_transaction_proofs(
 fn process_block_proofs(
     recent_block: &BeaconBlockHeader,
     data: &BlockProofsBatch,
-    gateway_address: &String,
+    gateway_address: &str,
 ) -> Vec<(ContentVariant, Result<()>)> {
     let transactions_proofs = &data.transactions_proofs;
 
