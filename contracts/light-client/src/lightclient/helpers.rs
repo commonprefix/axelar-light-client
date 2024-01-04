@@ -23,6 +23,10 @@ use types::ssz_rs::{
 use types::sync_committee_rs::consensus_types::BeaconBlockHeader;
 use types::sync_committee_rs::constants::{Bytes32, Root, SLOTS_PER_HISTORICAL_ROOT};
 
+pub trait Comparison<E> {
+    fn compare_with_event(&self, event: E) -> Result<()>;
+}
+
 pub fn is_proof_valid<L: Merkleized>(
     state_root: &Node,
     leaf_object: &mut L,
@@ -306,6 +310,43 @@ pub fn parse_message_id(id: &nonempty::String) -> Result<(String, usize)> {
     Ok((tx_hash.to_string(), components[1].parse::<usize>()?))
 }
 
+impl Comparison<ContractCallBase> for Message {
+    fn compare_with_event(&self, event: ContractCallBase) -> Result<()> {
+        if event.source_address.is_none()
+            || event.destination_address.is_none()
+            || event.destination_chain.is_none()
+            || event.payload_hash.is_none()
+        {
+            return Err(eyre!("Event could not be parsed"));
+        }
+
+        if !(self.source_address.to_string().to_lowercase()
+            == event.source_address.unwrap().to_string().to_lowercase()
+            && String::from(self.destination_chain.clone()).to_lowercase()
+                == event.destination_chain.unwrap().to_lowercase()
+            && self.destination_address.to_string().to_lowercase()
+                == event.destination_address.unwrap().to_lowercase()
+            && self.payload_hash == event.payload_hash.unwrap())
+        {
+            return Err(eyre!("Invalid message"));
+        }
+        Ok(())
+    }
+}
+
+impl Comparison<OperatorshipTransferredBase> for WorkerSetMessage {
+    fn compare_with_event(&self, event: OperatorshipTransferredBase) -> Result<()> {
+        if event.new_operators_data.is_none() {
+            return Err(eyre!("Event could not be parsed"));
+        }
+
+        if self.new_operators_data != event.new_operators_data.unwrap() {
+            return Err(eyre!("Invalid workerset message"));
+        }
+        Ok(())
+    }
+}
+
 pub fn compare_content_with_log(content: ContentVariant, log: &ReceiptLog) -> Result<()> {
     let gateway_event = parse_log(log)?;
 
@@ -314,51 +355,15 @@ pub fn compare_content_with_log(content: ContentVariant, log: &ReceiptLog) -> Re
             let ContentVariant::Message(message) = content else {
                 return Err(eyre!("Invalid content variant"));
             };
-            compare_contract_call_with_message(event, message)
+            message.compare_with_event(event)
         }
         GatewayEvent::OperatorshipTransferred(event) => {
             let ContentVariant::WorkerSet(message) = content else {
                 return Err(eyre!("Invalid content variant"));
             };
-            compare_operatorship_transferred_with_message(event, message)
+            message.compare_with_event(event)
         }
     }
-}
-
-pub fn compare_contract_call_with_message(event: ContractCallBase, message: Message) -> Result<()> {
-    if event.source_address.is_none()
-        || event.destination_address.is_none()
-        || event.destination_chain.is_none()
-        || event.payload_hash.is_none()
-    {
-        return Err(eyre!("Event could not be parsed"));
-    }
-
-    if !(message.source_address.to_string().to_lowercase()
-        == event.source_address.unwrap().to_string().to_lowercase()
-        && String::from(message.destination_chain.clone()).to_lowercase()
-            == event.destination_chain.unwrap().to_lowercase()
-        && *message.destination_address.to_string().to_lowercase()
-            == event.destination_address.unwrap().to_lowercase()
-        && message.payload_hash == event.payload_hash.unwrap())
-    {
-        return Err(eyre!("Invalid message"));
-    }
-    Ok(())
-}
-
-pub fn compare_operatorship_transferred_with_message(
-    event: OperatorshipTransferredBase,
-    message: WorkerSetMessage,
-) -> Result<()> {
-    if event.new_operators_data.is_none() {
-        return Err(eyre!("Event could not be parsed"));
-    }
-
-    if message.new_operators_data != event.new_operators_data.unwrap() {
-        return Err(eyre!("Invalid workerset message"));
-    }
-    Ok(())
 }
 
 pub fn extract_recent_block(update: &UpdateVariant) -> BeaconBlockHeader {

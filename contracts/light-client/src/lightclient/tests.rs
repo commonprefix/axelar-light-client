@@ -8,7 +8,7 @@ pub mod tests {
         calc_sync_period, compare_content_with_log, extract_logs_from_receipt_proof,
         hex_str_to_bytes, is_proof_valid, parse_log, parse_logs_from_receipt, parse_message_id,
         verify_block_roots_proof, verify_historical_roots_proof, verify_transaction_proof,
-        verify_trie_proof,
+        verify_trie_proof, Comparison,
     };
     use crate::{
         lightclient::error::ConsensusError,
@@ -521,15 +521,14 @@ pub mod tests {
     }
 
     #[test]
-    fn test_compare_message_with_log() {
+    fn test_compare_message_with_event() {
         let verification_data = get_batched_data(false).1;
         let transaction_proofs = verification_data.target_blocks[0].transactions_proofs[0].clone();
         let message = filter_message_variants(&transaction_proofs)[0].clone();
         let receipt_proof = transaction_proofs.receipt_proof;
         let transaction_proof = transaction_proofs.transaction_proof;
 
-        let log_index_str = message.cc_id.id.split(':').nth(1).unwrap();
-        let log_index: usize = log_index_str.parse().unwrap();
+        let (_, log_index) = parse_message_id(&message.cc_id.id).unwrap();
         let logs = extract_logs_from_receipt_proof(
             &receipt_proof,
             transaction_proof.transaction_index,
@@ -541,11 +540,11 @@ pub mod tests {
         )
         .unwrap();
         let log = logs.0[log_index].clone();
+        let GatewayEvent::ContactCall(event) = parse_log(&log).unwrap() else {
+            panic!("Invalid event type");
+        };
 
-        assert!(
-            compare_content_with_log(ContentVariant::Message(message.clone()).clone(), &log,)
-                .is_ok()
-        );
+        assert!(message.compare_with_event(event.clone()).is_ok());
 
         // test source_address check
         let mut modified_message = message.clone();
@@ -553,17 +552,9 @@ pub mod tests {
             modified_message.source_address.to_string().to_lowercase(),
             "0xce16f69375520ab01377ce7b88f5ba8c48f8d666"
         );
-        assert!(compare_content_with_log(
-            ContentVariant::Message(modified_message.clone()).clone(),
-            &log,
-        )
-        .is_ok());
+        assert!(modified_message.compare_with_event(event.clone()).is_ok());
         modified_message.source_address = Address::ZERO.to_string().try_into().unwrap();
-        assert!(compare_content_with_log(
-            ContentVariant::Message(modified_message.clone()).clone(),
-            &log,
-        )
-        .is_err());
+        assert!(modified_message.compare_with_event(event.clone()).is_err());
 
         // test destination_chain check
         let mut modified_message = message.clone();
@@ -574,17 +565,9 @@ pub mod tests {
                 .to_lowercase(),
             "polygon"
         );
-        assert!(compare_content_with_log(
-            ContentVariant::Message(modified_message.clone()).clone(),
-            &log,
-        )
-        .is_ok());
+        assert!(modified_message.compare_with_event(event.clone()).is_ok());
         modified_message.destination_chain = String::from("none").try_into().unwrap();
-        assert!(compare_content_with_log(
-            ContentVariant::Message(modified_message.clone()).clone(),
-            &log,
-        )
-        .is_err());
+        assert!(modified_message.compare_with_event(event.clone()).is_err());
 
         // test destination_address check
         let mut modified_message = message.clone();
@@ -592,17 +575,9 @@ pub mod tests {
             modified_message.destination_address.to_string(),
             "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
         );
-        assert!(compare_content_with_log(
-            ContentVariant::Message(modified_message.clone()).clone(),
-            &log,
-        )
-        .is_ok());
+        assert!(modified_message.compare_with_event(event.clone()).is_ok());
         modified_message.destination_address = Address::ZERO.to_string().try_into().unwrap();
-        assert!(compare_content_with_log(
-            ContentVariant::Message(modified_message.clone()).clone(),
-            &log,
-        )
-        .is_err());
+        assert!(modified_message.compare_with_event(event.clone()).is_err());
 
         // test payload_hash check
         let mut modified_message = message.clone();
@@ -610,30 +585,99 @@ pub mod tests {
             hex::encode(modified_message.payload_hash),
             "51217189ef268163d2f8d62d908f0337e978c554f6978b4d494ff24310c6abd7"
         );
+        assert!(modified_message.compare_with_event(event.clone()).is_ok());
+        modified_message.payload_hash = Default::default();
+        assert!(modified_message.compare_with_event(event.clone()).is_err());
+    }
+
+    fn mock_contractcall_message_with_log() -> (Message, ReceiptLog) {
+        let file = File::open("testdata/receipt_log_contractcall.json").unwrap();
+        let log: ReceiptLog = serde_json::from_reader(file).unwrap();
+        let message = Message {
+            cc_id: CrossChainId {
+                chain: String::from("ethereum").try_into().unwrap(),
+                id: String::from("foo:bar").try_into().unwrap(),
+            },
+            source_address: String::from("0xce16f69375520ab01377ce7b88f5ba8c48f8d666")
+                .try_into()
+                .unwrap(),
+            destination_chain: String::from("fantom").try_into().unwrap(),
+            destination_address: String::from("0xce16f69375520ab01377ce7b88f5ba8c48f8d666")
+                .try_into()
+                .unwrap(),
+            payload_hash: [
+                68, 249, 93, 245, 6, 157, 169, 86, 138, 243, 82, 53, 145, 70, 138, 171, 153, 223,
+                14, 249, 200, 50, 140, 182, 107, 223, 224, 230, 18, 217, 208, 55,
+            ],
+        };
+        (message, log)
+    }
+
+    fn mock_workerset_message_with_log() -> (WorkerSetMessage, ReceiptLog) {
+        let file = File::open("testdata/receipt_log_operatorship.json").unwrap();
+        let log: ReceiptLog = serde_json::from_reader(file).unwrap();
+        let message = WorkerSetMessage {
+            new_operators_data: decode(&[ParamType::Bytes], log.data.as_slice()).unwrap()[0]
+                .clone()
+                .into_bytes()
+                .unwrap(),
+            message_id: String::from("foo:bar").try_into().unwrap(),
+        };
+        (message, log)
+    }
+
+    #[test]
+    fn test_compare_workerset_message_with_event() {
+        let (message, log) = mock_workerset_message_with_log();
+
+        let GatewayEvent::OperatorshipTransferred(event) = parse_log(&log).unwrap() else {
+            panic!("Invalid event type")
+        };
+
+        assert!(message.compare_with_event(event.clone()).is_ok());
+        let mut modified_message = message.clone();
+        modified_message.new_operators_data = vec![];
+        assert!(modified_message.compare_with_event(event.clone()).is_err());
+    }
+
+    #[test]
+    fn test_compare_content_with_log() {
+        let (message, contractcall_log) = mock_contractcall_message_with_log();
+        let (workerset_message, operatorship_log) = mock_workerset_message_with_log();
+
+        // assert happy path
         assert!(compare_content_with_log(
-            ContentVariant::Message(modified_message.clone()).clone(),
-            &log,
+            ContentVariant::Message(message.clone()),
+            &contractcall_log
         )
         .is_ok());
-        modified_message.payload_hash = Default::default();
         assert!(compare_content_with_log(
-            ContentVariant::Message(modified_message.clone()).clone(),
-            &log,
+            ContentVariant::WorkerSet(workerset_message.clone()),
+            &operatorship_log
+        )
+        .is_ok());
+
+        // assert failure in either of the messages
+        let mut modified_message = message.clone();
+        let mut modified_workerset_message = workerset_message.clone();
+
+        modified_message.payload_hash = <[u8; 32]>::default();
+        modified_workerset_message.new_operators_data = vec![];
+        assert!(compare_content_with_log(
+            ContentVariant::Message(modified_message.clone()),
+            &contractcall_log
         )
         .is_err());
-
-        // failure on invalid log
-        let log = ReceiptLog::default();
-        assert!(
-            compare_content_with_log(ContentVariant::Message(message.clone()).clone(), &log,)
-                .is_err()
-        );
+        assert!(compare_content_with_log(
+            ContentVariant::WorkerSet(modified_workerset_message.clone()),
+            &operatorship_log
+        )
+        .is_err());
     }
 
     #[test]
     fn test_parse_log_contractcall() {
-        let file = File::open("testdata/receipt_log_contractcall.json").unwrap();
-        let log: ReceiptLog = serde_json::from_reader(file).unwrap();
+        let (message, log) = mock_contractcall_message_with_log();
 
         let parsing_result = parse_log(&log);
         assert!(parsing_result.is_ok());
@@ -642,11 +686,11 @@ pub mod tests {
         };
         assert_eq!(
             event.source_address.unwrap().to_string().to_lowercase(),
-            "0xce16f69375520ab01377ce7b88f5ba8c48f8d666"
+            message.source_address.to_string()
         );
         assert_eq!(
             event.destination_chain.unwrap().to_string().to_lowercase(),
-            "fantom"
+            message.destination_chain.to_string()
         );
         assert_eq!(
             event
@@ -654,24 +698,16 @@ pub mod tests {
                 .unwrap()
                 .to_string()
                 .to_lowercase(),
-            "0xce16f69375520ab01377ce7b88f5ba8c48f8d666"
+            message.destination_address.to_string()
         );
-        assert_eq!(
-            event.payload_hash.unwrap(),
-            [
-                68, 249, 93, 245, 6, 157, 169, 86, 138, 243, 82, 53, 145, 70, 138, 171, 153, 223,
-                14, 249, 200, 50, 140, 182, 107, 223, 224, 230, 18, 217, 208, 55
-            ]
-        );
+        assert_eq!(event.payload_hash.unwrap(), message.payload_hash);
     }
 
     #[test]
     fn test_parse_log_operatorship() {
-        let file = File::open("testdata/receipt_log_operatorship.json").unwrap();
-        let log: ReceiptLog = serde_json::from_reader(file).unwrap();
+        let (_, log) = mock_workerset_message_with_log();
 
         let parsing_result = parse_log(&log);
-        println!("{:?}", parsing_result);
         assert!(parsing_result.is_ok());
         let GatewayEvent::OperatorshipTransferred(event) = parsing_result.unwrap() else {
             panic!("Unexpected log")
@@ -687,8 +723,7 @@ pub mod tests {
 
     #[test]
     fn test_parse_log_failure() {
-        let file = File::open("testdata/receipt_log_operatorship.json").unwrap();
-        let log: ReceiptLog = serde_json::from_reader(file).unwrap();
+        let (_, log) = mock_contractcall_message_with_log();
 
         let mut broken_log = log.clone();
         broken_log.topics.remove(0);
