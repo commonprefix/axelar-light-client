@@ -10,8 +10,10 @@ pub fn load_config() -> Config {
         network: env::var("NETWORK").expect("Missing NETWORK from .env"),
         consensus_rpc: env::var("CONSENSUS_RPC").expect("Missing CONSENSUS_RPC from .env"),
         execution_rpc: env::var("EXECUTION_RPC").expect("Missing EXECUTION_RPC from .env"),
+        wasm_rpc: env::var("WASM_RPC").expect("Missing WASM_RPC from .env"),
         state_prover_rpc: env::var("STATE_PROVER_RPC").expect("Missing STATE_PROVER from .env"),
         gateway_addr: env::var("GATEWAY_ADDR").expect("Missing GATEWAY_ADDR from .env"),
+        verifier_addr: env::var("VERIFIER_ADDR").expect("Missing VERIFIER_ADDR from .env"),
         sentinel_queue_addr: env::var("SENTINEL_QUEUE_ADDR")
             .expect("Missing SENTINEL_QUEUE_ADDR from .env"),
         sentinel_queue_name: env::var("SENTINEL_QUEUE_NAME")
@@ -51,6 +53,12 @@ pub fn load_config() -> Config {
         process_interval: u64::from_str(
             env::var("PROCESS_INTERVAL")
                 .expect("Missing PROCESS_INTERVAL from .env")
+                .as_str(),
+        )
+        .unwrap(),
+        feed_interval: u64::from_str(
+            env::var("FEED_INTERVAL")
+                .expect("Missing FEED_INTERVAL from .env")
                 .as_str(),
         )
         .unwrap(),
