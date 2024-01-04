@@ -1,9 +1,9 @@
 extern crate relayer;
 
-use eth::{consensus::ConsensusRPC, execution::ExecutionRPC, types::EthConfig};
-use prover::{prover::types::ProverConfig, Prover};
-use relayer::{consumer::LapinConsumer, load_config, relayer::Relayer};
 use std::sync::Arc;
+use eth::{types::EthConfig, consensus::ConsensusRPC, execution::ExecutionRPC};
+use prover::{prover::types::ProverConfig, Prover};
+use relayer::{load_config, consumer::LapinConsumer, relayer::Relayer};
 
 #[tokio::main]
 async fn main() {
