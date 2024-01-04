@@ -1,4 +1,4 @@
-use consensus_types::{lightclient::LightClientState, consensus::Update};
+use consensus_types::{consensus::Update, lightclient::LightClientState};
 use cosmos_sdk_proto::cosmwasm::wasm::v1::{
     query_client::QueryClient, QuerySmartContractStateRequest,
 };

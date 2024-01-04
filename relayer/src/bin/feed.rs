@@ -1,10 +1,13 @@
 extern crate relayer;
 
-use std::{sync::Arc, time::Duration};
-use eth::{types::EthConfig, consensus::{ConsensusRPC, EthBeaconAPI}};
+use eth::{
+    consensus::{ConsensusRPC, EthBeaconAPI},
+    types::EthConfig,
+};
 use relayer::{load_config, verifier::Verifier};
-use tokio::time::interval;
+use std::{sync::Arc, time::Duration};
 use sync_committee_rs::constants::SLOTS_PER_EPOCH;
+use tokio::time::interval;
 
 const MAX_UPDATES_PER_LOOP: u8 = 100;
 
@@ -20,7 +23,6 @@ async fn main() {
     loop {
         interval.tick().await; // This should go first.
 
- 
         let period = verifier.get_period().await;
         if period.is_err() {
             println!("Error getting period from wasm: {:?}", period);
@@ -28,7 +30,9 @@ async fn main() {
         }
         let period = period.unwrap();
 
-        let updates = consensus.get_updates(period + 1, MAX_UPDATES_PER_LOOP).await;
+        let updates = consensus
+            .get_updates(period + 1, MAX_UPDATES_PER_LOOP)
+            .await;
         if updates.is_err() {
             println!("Error getting updates from consensus: {:?}", updates.err());
             continue;
@@ -39,7 +43,11 @@ async fn main() {
             continue;
         }
         let first_update_period = updates[0].attested_header.beacon.slot / SLOTS_PER_EPOCH / 256;
-        println!("Processing {} updates starting from slot {}", updates.len(), first_update_period);
+        println!(
+            "Processing {} updates starting from slot {}",
+            updates.len(),
+            first_update_period
+        );
 
         for update in updates {
             let result = verifier.update(update).await;
