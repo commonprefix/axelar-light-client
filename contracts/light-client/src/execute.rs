@@ -23,8 +23,13 @@ fn verify_content(
     content: ContentVariant,
     transaction: &Transaction<MAX_BYTES_PER_TRANSACTION>,
     logs: &ReceiptLogs,
+    gateway_address: &String,
 ) -> Result<()> {
-    let gateway_address = hex::decode("4f4495243837681061c4743b74b3eedf548d56a5")?; // TODO: don't hardcode
+    let gateway_address = hex::decode(
+        gateway_address
+            .strip_prefix("0x")
+            .ok_or_else(|| eyre!("Invalid gateway address in .env"))?,
+    )?;
     let hasher = HasherKeccak::new();
     let transaction_hash = hex::encode(hasher.digest(transaction.as_slice()));
     let (message_tx_hash, log_index) = match &content {
@@ -51,6 +56,7 @@ fn verify_content(
 fn process_transaction_proofs(
     data: &TransactionProofsBatch,
     target_block_root: &Node,
+    gateway_address: &String,
 ) -> Vec<(ContentVariant, Result<()>)> {
     let result = verify_transaction_proof(&data.transaction_proof, target_block_root)
         .and_then(|_| {
@@ -70,6 +76,7 @@ fn process_transaction_proofs(
                             content_variant.clone(),
                             &data.transaction_proof.transaction,
                             &logs,
+                            gateway_address,
                         ),
                     )
                 })
@@ -87,6 +94,7 @@ fn process_transaction_proofs(
 fn process_block_proofs(
     recent_block: &BeaconBlockHeader,
     data: &BlockProofsBatch,
+    gateway_address: &String,
 ) -> Vec<(ContentVariant, Result<()>)> {
     let transactions_proofs = &data.transactions_proofs;
 
@@ -101,7 +109,9 @@ fn process_block_proofs(
     match ancestry_proof_verification() {
         Ok(_) => transactions_proofs
             .iter()
-            .flat_map(|proof| process_transaction_proofs(proof, &target_block_root))
+            .flat_map(|proof| {
+                process_transaction_proofs(proof, &target_block_root, gateway_address)
+            })
             .collect(),
         Err(err) => transactions_proofs
             .iter()
@@ -125,11 +135,14 @@ pub fn process_batch_data(
         UpdateVariant::Optimistic(update) => lightclient.verify_optimistic_update(update)?,
     }
     let recent_block = data.update.recent_block();
+    let gateway_address = CONFIG.load(deps.storage)?.gateway_address;
 
     let results = data
         .target_blocks
         .iter()
-        .flat_map(|block_proofs_batch| process_block_proofs(&recent_block, block_proofs_batch))
+        .flat_map(|block_proofs_batch| {
+            process_block_proofs(&recent_block, block_proofs_batch, &gateway_address)
+        })
         .collect::<Vec<(ContentVariant, Result<()>)>>();
 
     for content_variant_result in results.iter() {
@@ -171,10 +184,11 @@ pub fn light_client_update(
 mod tests {
     use crate::execute::{process_block_proofs, process_transaction_proofs, verify_content};
     use crate::lightclient::helpers::test_helpers::{
-        filter_message_variants, filter_workeset_message_variants, get_batched_data,
+        filter_message_variants, filter_workeset_message_variants, get_batched_data, get_config,
     };
     use crate::lightclient::helpers::{extract_logs_from_receipt_proof, parse_message_id};
     use crate::lightclient::tests::tests::init_lightclient;
+    use crate::state::CONFIG;
     use cosmwasm_std::testing::mock_dependencies;
     use eyre::Result;
     use types::alloy_primitives::Address;
@@ -201,6 +215,7 @@ mod tests {
 
     #[test]
     fn test_verify_content_failures() {
+        let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
         let verification_data = get_batched_data(false).1;
         let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
@@ -214,6 +229,7 @@ mod tests {
                 ContentVariant::Message(message.clone()).clone(),
                 &proofs.transaction_proof.transaction,
                 &ReceiptLogs::default(),
+                &gateway_address
             )
             .unwrap_err()
             .to_string(),
@@ -226,6 +242,7 @@ mod tests {
                 ContentVariant::Message(message.clone()).clone(),
                 &proofs.transaction_proof.transaction,
                 &ReceiptLogs::default(),
+                &gateway_address,
             )
             .unwrap_err()
             .to_string(),
@@ -238,6 +255,7 @@ mod tests {
                 ContentVariant::Message(message.clone()).clone(),
                 &proofs.transaction_proof.transaction,
                 &ReceiptLogs::default(),
+                &gateway_address,
             )
             .unwrap_err()
             .to_string(),
@@ -254,6 +272,7 @@ mod tests {
                 ContentVariant::Message(message.clone()).clone(),
                 &proofs.transaction_proof.transaction,
                 &ReceiptLogs::default(),
+                &gateway_address,
             )
             .unwrap_err()
             .to_string(),
@@ -283,6 +302,7 @@ mod tests {
                 ContentVariant::Message(message.clone()).clone(),
                 &proofs.transaction_proof.transaction,
                 &logs,
+                &gateway_address,
             )
             .unwrap_err()
             .to_string(),
@@ -292,6 +312,7 @@ mod tests {
 
     #[test]
     fn test_verify_message() {
+        let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
         let verification_data = get_batched_data(false).1;
         let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
@@ -314,6 +335,7 @@ mod tests {
             ContentVariant::Message(message.clone()).clone(),
             &proofs.transaction_proof.transaction,
             &logs,
+            &gateway_address
         )
         .is_ok());
 
@@ -323,6 +345,7 @@ mod tests {
             ContentVariant::Message(message.clone()).clone(),
             &proofs.transaction_proof.transaction,
             &logs,
+            &gateway_address,
         )
         .is_err());
     }
@@ -330,6 +353,7 @@ mod tests {
     #[test]
     #[ignore]
     fn test_verify_workerset_message() {
+        let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
         let verification_data = get_batched_data(false).1;
         let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
@@ -343,6 +367,7 @@ mod tests {
                 ContentVariant::WorkerSet(message.clone()).clone(),
                 &proofs.transaction_proof.transaction,
                 &ReceiptLogs::default(),
+                &gateway_address,
             )
             .unwrap_err()
             .to_string(),
@@ -355,6 +380,7 @@ mod tests {
                 ContentVariant::WorkerSet(message.clone()).clone(),
                 &proofs.transaction_proof.transaction,
                 &ReceiptLogs::default(),
+                &gateway_address
             )
             .unwrap_err()
             .to_string(),
@@ -367,6 +393,7 @@ mod tests {
                 ContentVariant::WorkerSet(message.clone()).clone(),
                 &proofs.transaction_proof.transaction,
                 &ReceiptLogs::default(),
+                &gateway_address
             )
             .unwrap_err()
             .to_string(),
@@ -388,6 +415,7 @@ mod tests {
             ContentVariant::WorkerSet(message.clone()).clone(),
             &proofs.transaction_proof.transaction,
             &logs,
+            &gateway_address
         )
         .is_ok());
 
@@ -397,12 +425,14 @@ mod tests {
             ContentVariant::WorkerSet(message.clone()).clone(),
             &proofs.transaction_proof.transaction,
             &logs,
+            &gateway_address
         )
         .is_err());
     }
 
     #[test]
     fn test_process_transaction_proofs() {
+        let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
         let data = get_batched_data(false).1;
 
         let block_proofs = data
@@ -418,13 +448,15 @@ mod tests {
 
         let target_block_root = block_proofs.target_block.clone().hash_tree_root().unwrap();
 
-        let res = process_transaction_proofs(&transaction_proofs, &target_block_root);
+        let res =
+            process_transaction_proofs(&transaction_proofs, &target_block_root, &gateway_address);
         assert_valid_messages(&messages, &res);
 
         let mut corrupted_proofs = transaction_proofs.clone();
         let mut messages = filter_message_variants_as_mutref(&mut corrupted_proofs);
         messages[0].cc_id.id = "invalid".to_string().try_into().unwrap();
-        let res = process_transaction_proofs(&corrupted_proofs, &target_block_root);
+        let res =
+            process_transaction_proofs(&corrupted_proofs, &target_block_root, &gateway_address);
         assert_invalid_messages(&filter_message_variants(&corrupted_proofs), &res);
     }
 
@@ -476,18 +508,19 @@ mod tests {
 
     #[test]
     fn test_process_block_proofs() {
+        let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
         let mut data = get_batched_data(false).1;
         let recent_block = data.update.recent_block();
 
         for target_block in data.target_blocks.iter_mut() {
             let messages = extract_messages_from_block(target_block);
 
-            let res = process_block_proofs(&recent_block, target_block);
+            let res = process_block_proofs(&recent_block, target_block, &gateway_address);
             assert_valid_messages(&messages, &res);
 
             corrupt_messages(target_block);
             let messages = extract_messages_from_block(target_block);
-            let res = process_block_proofs(&recent_block, target_block);
+            let res = process_block_proofs(&recent_block, target_block, &gateway_address);
             assert_invalid_messages(&messages, &res);
         }
     }
@@ -497,6 +530,7 @@ mod tests {
         let (bootstrap, mut data) = get_batched_data(false);
         let lc = init_lightclient(Some(bootstrap));
         let mut deps = mock_dependencies();
+        CONFIG.save(&mut deps.storage, &get_config()).unwrap();
 
         let res = process_batch_data(deps.as_mut(), &lc, &data);
         let messages = data
