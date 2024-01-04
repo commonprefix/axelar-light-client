@@ -5,16 +5,14 @@ mod types;
 mod utils;
 mod wasm;
 
+use crate::relayer::Relayer;
+use crate::utils::load_config;
 use consumer::LapinConsumer;
 use eth::types::EthConfig;
 use eth::{consensus::ConsensusRPC, execution::ExecutionRPC};
-
 use prover::prover::types::ProverConfig;
 use prover::Prover;
 use std::sync::Arc;
-
-use crate::relayer::Relayer;
-use crate::utils::load_config;
 
 #[tokio::main]
 async fn main() {
