@@ -38,7 +38,7 @@ async fn main() {
             continue;
         }
         let updates = updates.unwrap();
-        if updates.len() == 0 {
+        if updates.is_empty() {
             println!("No updates to process");
             continue;
         }
