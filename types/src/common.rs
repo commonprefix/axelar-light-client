@@ -13,13 +13,19 @@ pub struct ChainConfig {
     pub genesis_root: Node,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct Config {
+    pub chain_config: ChainConfig,
+    pub gateway_address: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct WorkerSetMessage {
     pub message_id: nonempty::String,
     pub new_operators_data: Vec<u8>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub enum ContentVariant {
     Message(Message),
     WorkerSet(WorkerSetMessage),

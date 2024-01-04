@@ -7,6 +7,7 @@ use error::ConsensusError;
 use eyre::Result;
 use helpers::is_proof_valid;
 use milagro_bls::{AggregateSignature, PublicKey};
+use types::common::ChainConfig;
 use types::ssz_rs::prelude::*;
 use types::sync_committee_rs::constants::{
     Version, ALTAIR_FORK_EPOCH, ALTAIR_FORK_VERSION, BELLATRIX_FORK_EPOCH, BELLATRIX_FORK_VERSION,
@@ -17,22 +18,22 @@ use types::sync_committee_rs::{
     constants::{BlsSignature, Bytes32, SYNC_COMMITTEE_SIZE},
     util::SigningData,
 };
-use types::{common::ChainConfig, consensus::*, lightclient::LightClientState};
+use types::{consensus::*, lightclient::LightClientState};
 
 use self::helpers::calc_sync_period;
 
 pub struct LightClient {
     pub state: LightClientState,
-    pub config: ChainConfig,
+    pub chain_config: ChainConfig,
     env: Env,
 }
 
 impl LightClient {
-    pub fn new(config: &ChainConfig, state: Option<LightClientState>, env: &Env) -> Self {
+    pub fn new(chain_config: &ChainConfig, state: Option<LightClientState>, env: &Env) -> Self {
         let state = state.unwrap_or_default();
         Self {
             state,
-            config: config.clone(),
+            chain_config: chain_config.clone(),
             env: env.clone(),
         }
     }
@@ -152,7 +153,7 @@ impl LightClient {
             .get_participating_keys(&sync_committee, &update.sync_aggregate.sync_committee_bits);
 
         let is_valid_sig = self.verify_sync_committee_signature(
-            &self.config,
+            &self.chain_config,
             &pks,
             &update.attested_header.beacon,
             &update.sync_aggregate.sync_committee_signature,
@@ -230,7 +231,7 @@ impl LightClient {
     }
 
     fn expected_current_slot(&self) -> u64 {
-        let since_genesis = self.env.block.time.seconds() - self.config.genesis_time;
+        let since_genesis = self.env.block.time.seconds() - self.chain_config.genesis_time;
 
         since_genesis / 12
     }
