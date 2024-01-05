@@ -57,10 +57,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
             .get_update(&self.config.verification_method)
             .await
             .map_err(|e| eyre!("Error fetching update {}", e))?;
-        let recent_block_slot = match update.clone() {
-            UpdateVariant::Finality(update) => update.finalized_header.beacon.slot,
-            UpdateVariant::Optimistic(update) => update.attested_header.beacon.slot,
-        };
+        let recent_block_slot = update.recent_block().slot;
 
         let fetched_logs = self.collect_messages(self.config.max_batch_size).await;
 

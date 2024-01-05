@@ -82,10 +82,7 @@ impl<PG: ProofGeneratorAPI + Sync> ProverAPI for Prover<PG> {
         batch_content_groups: BatchContentGroups,
         update: UpdateVariant,
     ) -> Result<BatchVerificationData> {
-        let recent_block = match update.clone() {
-            UpdateVariant::Finality(update) => update.finalized_header.beacon,
-            UpdateVariant::Optimistic(update) => update.attested_header.beacon,
-        };
+        let recent_block = update.recent_block();
 
         let mut block_proofs_batch: Vec<BlockProofsBatch> = vec![];
         for (_, block_groups) in &batch_content_groups {
