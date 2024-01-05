@@ -27,6 +27,7 @@ impl FromStr for VerificationMethod {
     }
 }
 
+/// Main configuration structure of the relayer.
 #[derive(Debug, Clone, Default)]
 pub struct Config {
     pub network: String,

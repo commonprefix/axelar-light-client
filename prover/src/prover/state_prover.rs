@@ -6,14 +6,17 @@ use retri::{retry, BackoffSettings};
 
 use super::utils::parse_path;
 
+/// A wrapper around the state [`prover`](https://github.com/commonprefix/state-prover)
 #[automock]
 #[async_trait]
 pub trait StateProverAPI: Sync + Send + 'static {
+    /// Fetches a proof from a specific g_index or a path to the beacon state of a specific block.
     async fn get_state_proof(
         &self,
         state_id: &str,
         gindex_or_path: &GindexOrPath,
     ) -> Result<ProofResponse>;
+    /// Fetches a proof from a specific g_index or a path to the beacon root of a specific block.
     async fn get_block_proof(
         &self,
         block_id: &str,

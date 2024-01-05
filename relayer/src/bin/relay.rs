@@ -6,6 +6,7 @@ use prover::{prover::types::ProverConfig, Prover};
 use relayer::{load_config, consumer::LapinConsumer, relayer::Relayer};
 use env_logger;
 
+/// Main entry point for the relayer.
 #[tokio::main]
 async fn main() {
     env_logger::init();

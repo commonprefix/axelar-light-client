@@ -14,6 +14,8 @@ use prover::prover::{types::EnrichedContent, ProverAPI};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::time::interval;
 
+// This is the main module of the relayer. It fetches logs from the rabbitMQ
+// consumer, generates the proofs and forwards them to the verifier.
 pub struct Relayer<P, C, CR, ER> {
     config: Config,
     consensus: Arc<CR>,
@@ -39,6 +41,9 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
         }
     }
 
+    /// This is the main function of the relayer. It runs in a loop and relays
+    /// new events that come from the consumer to the verifier after generating
+    /// the neccessary proofs.
     pub async fn start(&mut self) {
         let mut interval = interval(Duration::from_secs(self.config.process_interval));
 
@@ -53,6 +58,10 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
         }
     }
 
+    /// This function makes a single round of relaying. It fetches a set of logs
+    /// from the consumer, parses them accordingly, generates the needed proofs
+    /// and relays them to the verifier. If the relay failed for any reason, the
+    /// message is being requeued to the RabbitMQ otherwise it's being acked.
     pub async fn relay(&mut self) -> Result<()> {
         let update = self
             .get_update(&self.config.verification_method)
@@ -118,6 +127,8 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
         Ok(())
     }
 
+    /// The function that generates contents compatible with the prover out of a
+    /// set of logs provided by the consumer.
     async fn process_logs(
         &mut self,
         fetched_logs: HashMap<u64, EnrichedLog>,
@@ -161,6 +172,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
         contents
     }
 
+    /// Fetches a set of messages from the consumer up to a limit.
     async fn collect_messages(&mut self, max_messages: usize) -> HashMap<u64, EnrichedLog> {
         let deliveries = self.consumer.consume(max_messages).await;
         if deliveries.is_err() {
@@ -181,6 +193,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
         enriched_logs
     }
 
+    /// Fetches either a finality or an optimistic light client update, provided a verification method.
     async fn get_update(&self, verification_method: &VerificationMethod) -> Result<UpdateVariant> {
         match verification_method {
             VerificationMethod::Finality => match self.consensus.get_finality_update().await {
@@ -194,6 +207,8 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
         }
     }
 
+    /// A helper function that extracts all messages out of the main structure of batched proofs.
+    /// Used to see which messages succeeded and which not, in order to ack or nack accordingly.
     pub fn extract_all_contents(&self, data: &BatchVerificationData) -> Vec<ContentVariant> {
         data.target_blocks
             .iter()

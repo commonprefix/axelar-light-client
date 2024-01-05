@@ -3,6 +3,7 @@ use std::{env, str::FromStr};
 
 use crate::types::{Config, VerificationMethod};
 
+/// Loads the full relayer configuration from the environment variables.
 pub fn load_config() -> Config {
     dotenv().ok();
 

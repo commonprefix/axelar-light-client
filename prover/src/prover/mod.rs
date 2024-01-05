@@ -35,7 +35,13 @@ use types::EnrichedContent;
 
 #[async_trait]
 pub trait ProverAPI {
+    /// Receives a batch of messages and returns a batched data structure containing 
+    /// the messages grouped by block number and tx hash.
     fn batch_messages(&self, contents: &[EnrichedContent]) -> BatchContentGroups;
+    /// Receives a batch of contents and returns a batched data structure with
+    /// the same groupping (per block and per transaction) enhanced with all the neccessary
+    /// proofs up to the provided light client update. If a proof could not be generated for a  
+    /// message then this messsage is ommitted from the returning structure.
     async fn batch_generate_proofs(
         &self,
         batch_content_groups: BatchContentGroups,
@@ -43,6 +49,16 @@ pub trait ProverAPI {
     ) -> Result<BatchVerificationData>;
 }
 
+/// This is the basic prover implemntation. It uses the proof generator to
+/// generate a set of proofs from a given update up to a set of batched events.
+/// 
+/// It employs 2 levels of batching:
+/// - batching per block (i.e. all messages in a batch belong to the same block
+/// share the same ancestry proof from the recent block to the target block) .
+/// 
+/// - batching per transaction (i.e. all messages in a batch that belong to the
+/// same transaction share the same transaction and receipt_root proof to the
+/// target block, as well as the same ancestry proof.
 pub struct Prover<PG> {
     proof_generator: PG,
 }
@@ -78,7 +94,6 @@ impl<PG: ProofGeneratorAPI + Sync> ProverAPI for Prover<PG> {
         groups
     }
 
-    /// Generates proofs for a batch of contents.
     async fn batch_generate_proofs(
         &self,
         batch_content_groups: BatchContentGroups,
@@ -157,6 +172,8 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         Prover { proof_generator }
     }
 
+    /// Returns the first block of a batch of messages. Used to get the block
+    /// that this group of messages is related to.
     pub fn get_block_of_batch(
         batch: &IndexMap<H256, Vec<EnrichedContent>>,
     ) -> Result<
@@ -177,10 +194,8 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         Ok((beacon_block, exec_block, receipts))
     }
 
-    /**
-     * Generates an ancestry proof from the recent block state to the target block
-     * using either the block_roots or the historical_roots beacon state property.
-     */
+    /// Fetches an ancestry proof from the recent block state to the target block
+    /// using either the block_roots or the historical_roots beacon state property.
     pub async fn get_ancestry_proof(
         &self,
         target_block_slot: u64,
@@ -219,6 +234,7 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         Ok(proof)
     }
 
+    /// Fetches a proof from a specific receipt to the beacon block root
     pub async fn get_receipt_proof(
         &self,
         exec_block: &Block<Transaction>,
@@ -256,6 +272,7 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         Ok(receipt_proof)
     }
 
+    /// Fetches a proof from a specific transaction to the beacon block root
     pub async fn get_transaction_proof(
         &self,
         beacon_block: &BeaconBlockAlias,

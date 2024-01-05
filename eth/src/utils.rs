@@ -2,10 +2,13 @@ use crate::{consensus::EthBeaconAPI, execution::EthExecutionAPI, types::FullBloc
 use eyre::{eyre, Context, Result};
 use std::sync::Arc;
 
+/// Calculate the slot from a timestamp.
 pub fn calc_slot_from_timestamp(genesis_time: u64, timestamp: u64) -> u64 {
     (timestamp - genesis_time) / 12
 }
 
+/// Get the full block details for a given block number.
+/// Returns the execution block, beacon block, and receipts for a given block number.
 pub async fn get_full_block_details<CR: EthBeaconAPI, ER: EthExecutionAPI>(
     consensus: Arc<CR>,
     execution: Arc<ER>,
