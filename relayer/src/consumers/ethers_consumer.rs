@@ -1,11 +1,15 @@
-use crate::types::{EnrichedLog, ContractCallWithToken, OperatorshipTransferred};
+use crate::types::{ContractCallWithToken, EnrichedLog, OperatorshipTransferred};
 use async_trait::async_trait;
 use consensus_types::connection_router::events;
 use eth::{
     consensus::ConsensusRPC,
     execution::{EthExecutionAPI, ExecutionRPC},
 };
-use ethers::{types::{Address, H160, Log, Filter}, contract::parse_log, abi::{RawLog, ParseLog}};
+use ethers::{
+    abi::{ParseLog, RawLog},
+    contract::parse_log,
+    types::{Address, Filter, Log, H160},
+};
 use eyre::Result;
 use std::sync::Arc;
 
@@ -24,20 +28,13 @@ impl EthersConsumer {
     ) -> Self {
         let address = address.parse::<Address>().unwrap();
 
-        Self {
-            execution,
-            address,
-        }
+        Self { execution, address }
     }
 
-    async fn get_logs(
-        &self,
-        from_block: u64,
-        to_block: u64,
-    ) -> Result<Vec<EnrichedLog>> {
+    async fn get_logs(&self, from_block: u64, to_block: u64) -> Result<Vec<EnrichedLog>> {
         let signatures = vec![
             "ContractCallWithToken(address,string,string,bytes32,bytes,string,uint256)",
-            "OperatorshipTransferred(bytes)"
+            "OperatorshipTransferred(bytes)",
         ];
 
         let filter = Filter::new()
@@ -68,7 +65,6 @@ impl EthersConsumer {
             });
         }
 
-
         Ok(enriched_logs)
     }
 }
@@ -80,10 +76,7 @@ impl Amqp for EthersConsumer {
         let start_block = latest_block - 9000;
 
         let mut contents: Vec<_> = self
-            .get_logs(
-                start_block.as_u64(),
-                latest_block.as_u64(),
-            )
+            .get_logs(start_block.as_u64(), latest_block.as_u64())
             .await?;
 
         // Sort logs by block number in descending order
@@ -99,7 +92,6 @@ impl Amqp for EthersConsumer {
         Ok(res)
     }
 
-
     async fn ack_delivery(&self, _delivery_id: u64) -> Result<()> {
         Ok(())
     }
@@ -107,5 +99,4 @@ impl Amqp for EthersConsumer {
     async fn nack_delivery(&self, _delivery_id: u64) -> Result<()> {
         Ok(())
     }
-
 }

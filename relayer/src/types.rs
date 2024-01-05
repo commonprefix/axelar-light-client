@@ -88,7 +88,7 @@ pub struct ContractCallWithToken {
 
 #[derive(Debug, Clone, EthEvent, PartialEq)]
 pub struct OperatorshipTransferred {
-    pub new_operators_data: Bytes
+    pub new_operators_data: Bytes,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Default)]

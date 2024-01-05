@@ -27,7 +27,9 @@ pub fn parse_enriched_log(
             let message = Message {
                 cc_id: CrossChainId {
                     chain: "ethereum".parse().unwrap(),
-                    id: generate_id(log, block_details.receipts.as_slice()).try_into().unwrap()
+                    id: generate_id(log, block_details.receipts.as_slice())
+                        .try_into()
+                        .unwrap(),
                 },
                 source_address: format!("0x{:x}", event.sender).parse().unwrap(),
                 destination_chain: event.destination_chain.parse().unwrap(),
@@ -36,13 +38,14 @@ pub fn parse_enriched_log(
             };
 
             Ok(ContentVariant::Message(message))
-        },
+        }
         "OperatorshipTransferred" => {
-            let event: OperatorshipTransferred = EthEvent::decode_log(&RawLog::from(log.clone()))
-                .map_err(|e| eyre!("Error decoding log {:?}", e))?;
+            let event: OperatorshipTransferred =
+                EthEvent::decode_log(&RawLog::from(log.clone()))
+                    .map_err(|e| eyre!("Error decoding log {:?}", e))?;
             let message = WorkerSetMessage {
                 message_id: generate_id(log, block_details.receipts.as_slice()).try_into()?,
-                new_operators_data: event.new_operators_data.to_vec()
+                new_operators_data: event.new_operators_data.to_vec(),
             };
 
             Ok(ContentVariant::WorkerSet(message))

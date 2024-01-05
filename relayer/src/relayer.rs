@@ -191,7 +191,11 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
             enriched_logs.insert(*delivery_tag, enriched_log.unwrap());
         }
 
-        debug!("Generated {} enriched_logs from {} deliveries", enriched_logs.len(), &deliveries.len());
+        debug!(
+            "Generated {} enriched_logs from {} deliveries",
+            enriched_logs.len(),
+            &deliveries.len()
+        );
         enriched_logs
     }
 
