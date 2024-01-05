@@ -54,7 +54,7 @@ async fn main() {
             if result.is_err() {
                 println!("Error updating wasm: {:?}", result.err());
                 // TODO: should probably not try to apply the rest of the updates
-                continue;
+                break;
             }
         }
     }
