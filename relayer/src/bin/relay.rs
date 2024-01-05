@@ -1,22 +1,12 @@
-mod consumer;
-mod parser;
-mod relayer;
-mod types;
-mod utils;
-mod wasm;
+extern crate relayer;
 
-use crate::relayer::Relayer;
-use crate::utils::load_config;
-use consumer::LapinConsumer;
-use eth::types::EthConfig;
-use eth::{consensus::ConsensusRPC, execution::ExecutionRPC};
-use prover::prover::types::ProverConfig;
-use prover::Prover;
+use eth::{consensus::ConsensusRPC, execution::ExecutionRPC, types::EthConfig};
+use prover::{prover::types::ProverConfig, Prover};
+use relayer::{consumer::LapinConsumer, load_config, relayer::Relayer};
 use std::sync::Arc;
 
 #[tokio::main]
 async fn main() {
-    // TODO: Move file limit to config
     rlimit::increase_nofile_limit(u64::MAX).unwrap();
 
     let config = load_config();

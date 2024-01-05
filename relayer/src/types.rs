@@ -32,8 +32,10 @@ pub struct Config {
     pub network: String,
     pub consensus_rpc: String,
     pub execution_rpc: String,
+    pub wasm_rpc: String,
     pub state_prover_rpc: String,
     pub gateway_addr: String,
+    pub verifier_addr: String,
     pub historical_roots_enabled: bool,
     pub historical_roots_block_roots_batch_size: u64,
     pub verification_method: VerificationMethod,
@@ -44,6 +46,7 @@ pub struct Config {
     pub genesis_timestamp: u64,
     pub max_batch_size: usize,
     pub process_interval: u64,
+    pub feed_interval: u64,
 }
 
 impl From<Config> for ProverConfig {

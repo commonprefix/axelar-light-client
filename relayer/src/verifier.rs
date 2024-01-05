@@ -1,4 +1,4 @@
-use consensus_types::lightclient::LightClientState;
+use consensus_types::{consensus::Update, lightclient::LightClientState};
 use cosmos_sdk_proto::cosmwasm::wasm::v1::{
     query_client::QueryClient, QuerySmartContractStateRequest,
 };
@@ -8,14 +8,14 @@ use serde::de::DeserializeOwned;
 
 #[derive(Debug)]
 #[allow(dead_code)]
-pub struct WasmClient {
+pub struct Verifier {
     _rpc: String,
     address: String,
     query_client: QueryClient<tonic::transport::Channel>,
 }
 
 #[allow(dead_code)]
-impl WasmClient {
+impl Verifier {
     pub fn new(rpc: String, address: String) -> Self {
         Self {
             query_client: block_on(QueryClient::connect(rpc.clone())).unwrap(),
@@ -36,8 +36,8 @@ impl WasmClient {
         Ok(state)
     }
 
-    pub async fn update() -> Result<()> {
-        todo!()
+    pub async fn update(&self, _update: Update) -> Result<()> {
+        Ok(())
     }
 
     async fn query<T: DeserializeOwned>(&mut self, query_data: Vec<u8>) -> Result<T> {
