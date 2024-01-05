@@ -39,6 +39,15 @@ impl Default for UpdateVariant {
     }
 }
 
+impl UpdateVariant {
+    pub fn recent_block(&self) -> BeaconBlockHeader {
+        match &self {
+            UpdateVariant::Finality(update) => update.finalized_header.beacon.clone(),
+            UpdateVariant::Optimistic(update) => update.attested_header.beacon.clone(),
+        }
+    }
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub enum AncestryProof {
     // This variant defines the proof data for a beacon chain header in the `state.block_roots`.

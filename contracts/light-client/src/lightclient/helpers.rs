@@ -15,7 +15,7 @@ use types::execution::{ContractCallBase, ReceiptLog};
 use types::execution::{
     GatewayEvent, OperatorshipTransferredBase, ReceiptLogs, RECEIPTS_ROOT_GINDEX,
 };
-use types::proofs::{nonempty, AncestryProof, ReceiptProof, TransactionProof, UpdateVariant};
+use types::proofs::{nonempty, AncestryProof, ReceiptProof, TransactionProof};
 use types::ssz_rs::{
     get_generalized_index, is_valid_merkle_branch, verify_merkle_proof, GeneralizedIndex,
     Merkleized, Node, SszVariableOrIndex, Vector,
@@ -363,13 +363,6 @@ pub fn compare_content_with_log(content: ContentVariant, log: &ReceiptLog) -> Re
             };
             message.compare_with_event(event)
         }
-    }
-}
-
-pub fn extract_recent_block(update: &UpdateVariant) -> BeaconBlockHeader {
-    match update {
-        UpdateVariant::Finality(update) => update.finalized_header.beacon.clone(),
-        UpdateVariant::Optimistic(update) => update.attested_header.beacon.clone(),
     }
 }
 
