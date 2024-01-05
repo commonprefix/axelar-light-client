@@ -53,8 +53,7 @@ async fn main() {
             let result = verifier.update(update).await;
             if result.is_err() {
                 println!("Error updating wasm: {:?}", result.err());
-                // TODO: should probably not try to apply the rest of the updates
-                continue;
+                break;
             }
         }
     }
