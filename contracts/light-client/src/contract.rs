@@ -204,7 +204,6 @@ mod tests {
             Addr::unchecked("owner"),
             addr.to_owned(),
             &ExecuteMsg::LightClientUpdate {
-                period: 862,
                 update: update.clone(),
             },
             &[],
@@ -217,7 +216,6 @@ mod tests {
             Addr::unchecked("owner"),
             addr.to_owned(),
             &ExecuteMsg::LightClientUpdate {
-                period: 863,
                 update: update.clone(),
             },
             &[],
@@ -237,7 +235,6 @@ mod tests {
             Addr::unchecked("owner"),
             addr.to_owned(),
             &ExecuteMsg::LightClientUpdate {
-                period: 862,
                 update: update.clone(),
             },
             &[],
