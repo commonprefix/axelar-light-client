@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use log::info;
 use eyre::{eyre, Result};
 use futures::StreamExt;
 use lapin::{
@@ -56,7 +57,7 @@ impl Amqp for LapinConsumer {
                 break;
             }
         }
-        println!("Got {} logs from sentinel", deliveries.len());
+        info!("Got {} logs from sentinel", deliveries.len());
 
         let result = deliveries
             .iter()

@@ -4,9 +4,11 @@ use std::sync::Arc;
 use eth::{types::EthConfig, consensus::ConsensusRPC, execution::ExecutionRPC};
 use prover::{prover::types::ProverConfig, Prover};
 use relayer::{load_config, consumer::LapinConsumer, relayer::Relayer};
+use env_logger;
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
     rlimit::increase_nofile_limit(u64::MAX).unwrap();
 
     let config = load_config();

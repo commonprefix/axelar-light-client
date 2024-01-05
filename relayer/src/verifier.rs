@@ -1,4 +1,5 @@
-use consensus_types::{consensus::Update, lightclient::LightClientState};
+use consensus_types::{lightclient::LightClientState, consensus::Update};
+use log::error;
 use cosmos_sdk_proto::cosmwasm::wasm::v1::{
     query_client::QueryClient, QuerySmartContractStateRequest,
 };
@@ -51,7 +52,7 @@ impl Verifier {
             .smart_contract_state(query_msg)
             .await
             .map_err(|e| {
-                eprintln!("Error querying smart contract state: {:?}", e);
+                error!("Error querying smart contract state: {:?}", e);
                 e
             })?;
 

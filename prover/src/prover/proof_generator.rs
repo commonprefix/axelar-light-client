@@ -10,6 +10,7 @@ use consensus_types::{consensus::BeaconStateType, proofs::AncestryProof};
 use eth::consensus::EthBeaconAPI;
 use ethers::{types::TransactionReceipt, utils::rlp::encode};
 use eyre::{anyhow, Result};
+use log::debug;
 use mockall::automock;
 use ssz_rs::{get_generalized_index, Node, SszVariableOrIndex, Vector};
 use sync_committee_rs::constants::{
@@ -91,6 +92,11 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<
             .state_prover
             .get_block_proof(block_id, GindexOrPath::Path(path))
             .await?;
+
+        debug!(
+            "Got transaction proof from state prover {} {}",
+            block_id, tx_index
+        );
         Ok(proof)
     }
 
@@ -108,6 +114,8 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<
             .state_prover
             .get_block_proof(block_id, GindexOrPath::Path(path))
             .await?;
+
+        debug!("Got receipts_root proof from state prover {}", block_id);
         Ok(proof)
     }
 
@@ -144,6 +152,10 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<
             block_root_proof: res.witnesses,
         };
 
+        debug!(
+            "Got ancestry proof with block roots from {} to {}",
+            target_block_slot, recent_block_state_id
+        );
         Ok(ancestry_proof)
     }
 
@@ -166,6 +178,10 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<
             .get_state_proof(recent_block_state_id, &GindexOrPath::Path(path))
             .await?;
 
+        debug!(
+            "Got historical summaries proof from {} to {}",
+            target_block_slot, recent_block_state_id
+        );
         Ok(res)
     }
 
@@ -184,6 +200,10 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<
         );
         let proof = ssz_rs::generate_proof(&mut block_roots, &[gindex])?;
 
+        debug!(
+            "Got block root to block summary root proof from {}",
+            target_block_slot
+        );
         Ok(proof)
     }
     /**
@@ -216,6 +236,10 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<
             block_summary_root_gindex: historical_summaries_proof.gindex,
         };
 
+        debug!(
+            "Got ancestry proof with historical summaries from {} to {}",
+            target_block_slot, recent_block_state_id
+        );
         Ok(res)
     }
 
@@ -235,6 +259,7 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<
             .get_proof(receipt_index.to_vec().as_slice())
             .map_err(|e| anyhow!("Failed to generate proof: {:?}", e));
 
+        debug!("Got receipt proof for {}", index);
         proof
     }
 }

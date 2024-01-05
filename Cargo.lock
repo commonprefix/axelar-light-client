@@ -1680,6 +1680,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "env_logger"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95b3f3e67048839cb0d0781f445682a35113da7121f7c949db0e2be96a4fbece"
+dependencies = [
+ "humantime",
+ "is-terminal",
+ "log",
+ "regex",
+ "termcolor",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2608,6 +2621,12 @@ dependencies = [
  "serde_urlencoded",
  "tokio",
 ]
+
+[[package]]
+name = "humantime"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "hyper"
@@ -3939,6 +3958,7 @@ dependencies = [
  "hex",
  "httptest",
  "indexmap 2.1.0",
+ "log",
  "mockall 0.11.4",
  "reqwest",
  "retri",
@@ -4115,12 +4135,14 @@ dependencies = [
  "async-trait",
  "cosmos-sdk-proto",
  "dotenv",
+ "env_logger",
  "eth",
  "ethers",
  "eyre",
  "futures",
  "indexmap 2.1.0",
  "lapin",
+ "log",
  "mockall 0.12.1",
  "prover",
  "rlimit",
@@ -5138,6 +5160,15 @@ dependencies = [
  "dirs-next",
  "rustversion",
  "winapi",
+]
+
+[[package]]
+name = "termcolor"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff1bc3d3f05aff0403e8ac0d92ced918ec05b666a43f83297ccef5bea8a3d449"
+dependencies = [
+ "winapi-util",
 ]
 
 [[package]]

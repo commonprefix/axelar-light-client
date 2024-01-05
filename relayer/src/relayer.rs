@@ -9,6 +9,7 @@ use consensus_types::{
 };
 use eth::{consensus::EthBeaconAPI, execution::EthExecutionAPI, utils::get_full_block_details};
 use eyre::{eyre, Result};
+use log::{debug, info, warn, error};
 use prover::prover::{types::EnrichedContent, ProverAPI};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::time::interval;
@@ -46,8 +47,8 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
 
             let res = self.relay().await;
             match res {
-                Ok(_) => println!("Relay succeeded"),
-                Err(e) => println!("Relay failed {:?}", e),
+                Ok(_) => info!("Relay succeeded"),
+                Err(e) => error!("Relay failed {:?}", e),
             }
         }
     }
@@ -67,9 +68,8 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
         for (delivery_tag, content) in contents {
             match content {
                 Some(content) => {
-                    println!("About content {:?}", content.content);
                     if content.beacon_block.slot >= recent_block_slot {
-                        println!(
+                        warn!(
                             "Message {:?} is too recent. Update slot: {}, content slot: {}. Requeuing", 
                             content.content, recent_block_slot, content.beacon_block.slot
                         );
@@ -80,7 +80,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
                     successful_contents.push(content);
                 }
                 None => {
-                    println!("Error processing log. Requeuing");
+                    error!("Error processing log. Requeuing");
                     self.consumer.nack_delivery(delivery_tag).await?;
                     continue;
                 }
@@ -106,15 +106,15 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
         for (i, content) in successful_contents.iter().enumerate() {
             let delivery_tag = delivery_tags[i];
             if processed_messages.contains(&content.content) {
-                println!("Message {:?} succeeded", delivery_tag);
+                info!("Message {:?} succeeded", delivery_tag);
                 self.consumer.ack_delivery(delivery_tag).await?;
             } else {
-                println!("Message {:?} failed", delivery_tag);
+                error!("Message {:?} failed", delivery_tag);
                 self.consumer.nack_delivery(delivery_tag).await?;
             }
         }
 
-        println!("Processed {} messages", processed_messages.len());
+        info!("Processed {} messages", processed_messages.len());
         Ok(())
     }
 
@@ -125,7 +125,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
         let mut contents: Vec<(u64, Option<EnrichedContent>)> = vec![];
 
         for (delivery_tag, enriched_log) in fetched_logs {
-            println!("Working on log {}", enriched_log.event_name);
+            debug!("Working on log {}", enriched_log.event_name);
             let block_details = get_full_block_details(
                 self.consensus.clone(),
                 self.execution.clone(),
@@ -135,7 +135,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
             .await;
 
             if block_details.is_err() {
-                println!(
+                error!(
                     "Error fetching block details {:?}. Requeuing",
                     block_details
                 );
@@ -145,7 +145,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
 
             let content = parse_enriched_log(&enriched_log, &block_details.unwrap());
             if content.is_err() {
-                println!(
+                error!(
                     "Error parsing enriched log {:?} {:?}. Requeuing",
                     enriched_log,
                     content.err()
@@ -164,7 +164,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
     async fn collect_messages(&mut self, max_messages: usize) -> HashMap<u64, EnrichedLog> {
         let deliveries = self.consumer.consume(max_messages).await;
         if deliveries.is_err() {
-            println!("Error consuming messages {:?}", deliveries);
+            error!("Error consuming messages {:?}", deliveries);
             return HashMap::new();
         }
 
@@ -172,7 +172,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
         for (delivery_tag, data_str) in deliveries.unwrap() {
             let enriched_log = serde_json::from_str(&data_str);
             if enriched_log.is_err() {
-                println!("Error parsing log {:?}", enriched_log);
+                error!("Error parsing log {:?}", enriched_log);
                 continue;
             }
             enriched_logs.insert(delivery_tag, enriched_log.unwrap());

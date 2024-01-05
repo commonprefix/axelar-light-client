@@ -19,6 +19,7 @@ use consensus_types::{
     },
 };
 use eth::consensus::ConsensusRPC;
+use log::{debug, error};
 use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use eyre::{eyre, Context, Result};
 use indexmap::IndexMap;
@@ -73,6 +74,7 @@ impl<PG: ProofGeneratorAPI + Sync> ProverAPI for Prover<PG> {
                 .push(content.clone());
         }
 
+        debug!("Batched messages into {} block groups", groups.len());
         groups
     }
 
@@ -94,7 +96,7 @@ impl<PG: ProofGeneratorAPI + Sync> ProverAPI for Prover<PG> {
                 .get_ancestry_proof(beacon_block.slot, &recent_block)
                 .await;
             if ancestry_proof.is_err() {
-                println!("Error generating ancestry proof {:?}", ancestry_proof.err());
+                error!("Error generating ancestry proof {:?}", ancestry_proof.err());
                 continue;
             }
 
@@ -111,7 +113,7 @@ impl<PG: ProofGeneratorAPI + Sync> ProverAPI for Prover<PG> {
                     .get_transaction_proof(&beacon_block, block_hash, tx_index)
                     .await;
                 if transaction_proof.is_err() {
-                    println!(
+                    error!(
                         "Error generating tx proof {} {:?}",
                         tx_hash,
                         transaction_proof.err()
@@ -123,7 +125,7 @@ impl<PG: ProofGeneratorAPI + Sync> ProverAPI for Prover<PG> {
                     .get_receipt_proof(&exec_block, block_hash, &receipts, tx_index)
                     .await;
                 if receipt_proof.is_err() {
-                    println!(
+                    error!(
                         "Error generating receipt proof {} {:?}",
                         tx_hash,
                         receipt_proof.err()
@@ -213,6 +215,7 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
             target_block_slot
         ))?;
 
+        debug!("Got full ancestry proof from {} to {}", recent_block.slot, target_block_slot);
         Ok(proof)
     }
 
@@ -246,6 +249,10 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
             receipts_root: Node::from_bytes(exec_block.receipts_root.as_bytes().try_into()?),
         };
 
+        debug!(
+            "Got receipt proof for block {} and tx: {}",
+            block_hash, tx_index
+        );
         Ok(receipt_proof)
     }
 
@@ -274,6 +281,10 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
             transaction,
         };
 
+        debug!(
+            "Got tx proof for block {} and tx: {}",
+            block_hash, tx_index
+        );
         Ok(transaction_proof)
     }
 }
