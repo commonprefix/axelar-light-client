@@ -13,7 +13,7 @@ use types::sync_committee_rs::constants::MAX_BYTES_PER_TRANSACTION;
 use types::{common::ContentVariant, consensus::Update};
 
 use crate::lightclient::helpers::{
-    compare_content_with_log, extract_logs_from_receipt_proof, parse_message_id,
+    calc_sync_period, compare_content_with_log, extract_logs_from_receipt_proof, parse_message_id,
     verify_ancestry_proof, verify_transaction_proof,
 };
 use crate::lightclient::LightClient;
@@ -149,7 +149,6 @@ pub fn process_batch_data(
 pub fn light_client_update(
     deps: DepsMut,
     env: &Env,
-    period: u64,
     update: Update,
 ) -> Result<Response, ContractError> {
     let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
@@ -161,7 +160,13 @@ pub fn light_client_update(
         return Err(ContractError::from(res.err().unwrap()));
     }
 
-    SYNC_COMMITTEE.save(deps.storage, &(update.next_sync_committee, period + 1))?;
+    SYNC_COMMITTEE.save(
+        deps.storage,
+        &(
+            update.next_sync_committee,
+            calc_sync_period(update.attested_header.beacon.slot) + 1,
+        ),
+    )?;
     LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
 
     Ok(Response::new())

@@ -51,9 +51,7 @@ pub fn execute(
     use ExecuteMsg::*;
 
     match msg {
-        LightClientUpdate { period, update } => {
-            execute::light_client_update(deps, &env, period, update)
-        }
+        LightClientUpdate { update } => execute::light_client_update(deps, &env, update),
         BatchVerificationData { payload } => {
             let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
             let config = CONFIG.load(deps.storage)?;
