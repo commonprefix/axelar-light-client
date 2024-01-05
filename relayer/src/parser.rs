@@ -234,39 +234,15 @@ mod tests {
         let receipts = create_test_receipts();
 
         let log = create_test_log(0, 2);
-        let cc_id = generate_cc_id(&log, &receipts).unwrap();
-        assert_eq!(
-            CrossChainId {
-                chain: "ethereum".parse().unwrap(),
-                id: format!("0x{:x}:{}", log.transaction_hash.unwrap(), 2)
-                    .parse()
-                    .unwrap(),
-            },
-            cc_id
-        );
+        let id = generate_id(&log, &receipts);
+        assert_eq!(id, format!("0x{:x}:{}", log.transaction_hash.unwrap(), 2));
 
         let log = create_test_log(1, 12);
-        let cc_id = generate_cc_id(&log, &receipts).unwrap();
-        assert_eq!(
-            CrossChainId {
-                chain: "ethereum".parse().unwrap(),
-                id: format!("0x{:x}:{}", log.transaction_hash.unwrap(), 2)
-                    .parse()
-                    .unwrap(),
-            },
-            cc_id
-        );
+        let id = generate_id(&log, &receipts);
+        assert_eq!(id, format!("0x{:x}:{}", log.transaction_hash.unwrap(), 2));
 
         let log = create_test_log(2, 35);
-        let cc_id = generate_cc_id(&log, &receipts).unwrap();
-        assert_eq!(
-            CrossChainId {
-                chain: "ethereum".parse().unwrap(),
-                id: format!("0x{:x}:{}", log.transaction_hash.unwrap(), 5)
-                    .parse()
-                    .unwrap(),
-            },
-            cc_id
-        );
+        let id = generate_id(&log, &receipts);
+        assert_eq!(id, format!("0x{:x}:{}", log.transaction_hash.unwrap(), 5))
     }
 }

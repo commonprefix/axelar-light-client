@@ -2,9 +2,10 @@ mod ethers_consumer;
 mod lapin_consumer;
 
 use async_trait::async_trait;
-pub use ethers_consumer::EthersConsumer;
 use eyre::Result;
-pub use lapin_consumer::LapinConsumer;
+
+pub use ethers_consumer::EthersConsumer;
+pub use lapin_consumer::{LapinConsumer, MockLapinConsumer};
 
 // The basic RabbitMQ consumer.
 #[async_trait]

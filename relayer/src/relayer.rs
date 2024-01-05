@@ -224,7 +224,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::consumer::MockLapinConsumer;
+    use crate::consumers::MockLapinConsumer;
     use crate::types::{Config, VerificationMethod};
     use consensus_types::consensus::{BeaconBlockAlias, FinalityUpdate};
     use consensus_types::proofs::{
