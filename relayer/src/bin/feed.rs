@@ -44,7 +44,7 @@ async fn main() {
         }
         let first_update_period = updates[0].attested_header.beacon.slot / SLOTS_PER_EPOCH / 256;
         println!(
-            "Processing {} updates starting from slot {}",
+            "Processing {} updates starting from period {}",
             updates.len(),
             first_update_period
         );
@@ -53,6 +53,7 @@ async fn main() {
             let result = verifier.update(update).await;
             if result.is_err() {
                 println!("Error updating wasm: {:?}", result.err());
+                // TODO: should probably not try to apply the rest of the updates
                 continue;
             }
         }
