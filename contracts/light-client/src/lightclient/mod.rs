@@ -38,6 +38,7 @@ impl LightClient {
         }
     }
 
+    /// Initializes the state of the Light Client using a LightClientBootstrap message.
     pub fn bootstrap(&mut self, bootstrap: &Bootstrap) -> Result<(), ConsensusError> {
         let committee_valid = self.is_current_committee_proof_valid(
             &bootstrap.header.beacon,

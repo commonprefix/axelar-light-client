@@ -14,6 +14,7 @@ pub struct ReceiptLog {
     pub data: Vec<u8>,
 }
 
+/// Structure of a ContractCall event, emitted from the Gateway
 #[derive(Default, Debug, Clone)]
 pub struct ContractCallBase {
     pub source_address: Option<Address>,
@@ -22,6 +23,7 @@ pub struct ContractCallBase {
     pub payload_hash: Option<[u8; 32]>,
 }
 
+/// Structure of an OperatorshipTransferred event, emitted from the Gateway
 #[derive(Default, Debug, Clone)]
 pub struct OperatorshipTransferredBase {
     pub new_operators_data: Option<Vec<u8>>,

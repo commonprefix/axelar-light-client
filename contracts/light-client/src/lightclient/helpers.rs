@@ -23,6 +23,7 @@ use types::ssz_rs::{
 use types::sync_committee_rs::consensus_types::BeaconBlockHeader;
 use types::sync_committee_rs::constants::{Bytes32, Root, SLOTS_PER_HISTORICAL_ROOT};
 
+/// Trait implemented from messages to compare with the appropriate event
 pub trait Comparison<E> {
     fn compare_with_event(&self, event: E) -> Result<()>;
 }
@@ -49,6 +50,7 @@ pub fn is_proof_valid<L: Merkleized>(
     }
 }
 
+/// Verifies an MPT proof. Used to verify that a receipt is included in the receipts MPT.
 pub fn verify_trie_proof(root: Root, key: u64, proof: Vec<Vec<u8>>) -> Option<Vec<u8>> {
     let memdb = Arc::new(MemoryDB::new(true));
     let hasher = Arc::new(HasherKeccak::new());
@@ -60,6 +62,7 @@ pub fn verify_trie_proof(root: Root, key: u64, proof: Vec<Vec<u8>>) -> Option<Ve
     None
 }
 
+/// Verifies that the target block is an ancestor of the recent block. It will use either a historical proof or a block roots proof, depending on how old the target block is.
 pub fn verify_ancestry_proof(
     proof: &AncestryProof,
     target_block: &BeaconBlockHeader,
@@ -146,6 +149,7 @@ pub fn verify_historical_roots_proof(
     Ok(())
 }
 
+/// Extracts the logs from a receipt after checking that this receipt is part of the target block.
 pub fn extract_logs_from_receipt_proof(
     proof: &ReceiptProof,
     transaction_index: u64,
@@ -174,11 +178,13 @@ pub fn extract_logs_from_receipt_proof(
     parse_logs_from_receipt(&receipt)
 }
 
+/// Parse logs from a given encoded receipt.
 pub fn parse_logs_from_receipt(receipt: &[u8]) -> Result<ReceiptLogs> {
     let logs: ReceiptLogs = types::alloy_rlp::Decodable::decode(&mut &receipt[..])?;
     Ok(logs)
 }
 
+/// Verify that the transaction is included in the block.
 pub fn verify_transaction_proof(proof: &TransactionProof, target_block_root: &Node) -> Result<()> {
     if !verify_merkle_proof(
         &proof.transaction.clone().hash_tree_root()?,
@@ -191,6 +197,7 @@ pub fn verify_transaction_proof(proof: &TransactionProof, target_block_root: &No
     Ok(())
 }
 
+/// Given a receipt log and an event, it parses the log into a ContractCall event struct.
 pub fn parse_contract_call_event(
     log: &ReceiptLog,
     e: &alloy_json_abi::Event,
@@ -248,6 +255,7 @@ pub fn parse_contract_call_event(
     Ok(GatewayEvent::ContactCall(base))
 }
 
+/// Given a receipt log and an event, it parses the log into an OperatorshipTransferred event struct.
 pub fn parse_operatorship_transferred_event(
     log: &ReceiptLog,
     e: &alloy_json_abi::Event,
@@ -269,6 +277,7 @@ pub fn parse_operatorship_transferred_event(
     ))
 }
 
+/// Parses a log into either a ContractCall or OperatorshipTransferred event struct.
 pub fn parse_log(log: &ReceiptLog) -> Result<GatewayEvent> {
     let abi = JsonAbi::parse([
         "event ContractCall(address indexed sender,string destinationChain,string destinationContractAddress,bytes32 indexed payloadHash,bytes payload)",
@@ -295,6 +304,7 @@ pub fn parse_log(log: &ReceiptLog) -> Result<GatewayEvent> {
     Err(eyre!("Couldn't match an event to decode the log"))
 }
 
+/// Parses a message id of the format "<transaction hash>:<relative log index>".
 pub fn parse_message_id(id: &nonempty::String) -> Result<(String, usize)> {
     let components = id.split(ID_SEPARATOR).collect::<Vec<_>>();
 

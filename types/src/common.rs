@@ -2,10 +2,12 @@ use axelar_wasm_std::nonempty;
 use connection_router::state::Message;
 use ssz_rs::prelude::*;
 
+/// Trait used to create the keys of the map which contains the verification results
 pub trait PrimaryKey {
     fn key(&self) -> String;
 }
 
+/// Chain configuration that is used from the Light Client module for the verification of signatures
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct ChainConfig {
     pub chain_id: u64,
@@ -19,12 +21,14 @@ pub struct Config {
     pub gateway_address: String,
 }
 
+/// Message describing an update of the operators set
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
 pub struct WorkerSetMessage {
     pub message_id: nonempty::String,
     pub new_operators_data: Vec<u8>,
 }
 
+/// Message variants that the Light Client can verify
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
 pub enum ContentVariant {
     Message(Message),

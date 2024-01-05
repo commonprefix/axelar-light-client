@@ -19,6 +19,7 @@ use crate::lightclient::helpers::{
 use crate::lightclient::LightClient;
 use crate::state::{CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE, VERIFIED_MESSAGES};
 
+/// Finds the necessary log from a list of logs and then verifies the provided content.
 fn verify_content(
     content: ContentVariant,
     transaction: &Transaction<MAX_BYTES_PER_TRANSACTION>,
@@ -53,6 +54,7 @@ fn verify_content(
     compare_content_with_log(content, log)
 }
 
+/// Verifies that the transaction and the receipt are included in the target block, and then verifies the messages for the given transaction.
 fn process_transaction_proofs(
     data: &TransactionProofsBatch,
     target_block_root: &Node,
@@ -91,6 +93,7 @@ fn process_transaction_proofs(
     })
 }
 
+/// Verifies that a target block is an ancestor of the given recent block, and then proceeds with the verification of the transactions inside the target block.
 fn process_block_proofs(
     recent_block: &BeaconBlockHeader,
     data: &BlockProofsBatch,
@@ -125,6 +128,7 @@ fn process_block_proofs(
     }
 }
 
+/// Processes a complete verification request
 pub fn process_batch_data(
     deps: DepsMut,
     lightclient: &LightClient,
