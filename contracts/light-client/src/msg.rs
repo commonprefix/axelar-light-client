@@ -14,7 +14,6 @@ pub struct InstantiateMsg {
 #[allow(clippy::large_enum_variant)] // TODO: Properly fix this
 pub enum ExecuteMsg {
     LightClientUpdate {
-        period: u64,
         update: Update,
     },
     BatchVerificationData {

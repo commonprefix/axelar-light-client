@@ -51,9 +51,7 @@ pub fn execute(
     use ExecuteMsg::*;
 
     match msg {
-        LightClientUpdate { period, update } => {
-            execute::light_client_update(deps, &env, period, update)
-        }
+        LightClientUpdate { update } => execute::light_client_update(deps, &env, update),
         BatchVerificationData { payload } => {
             let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
             let config = CONFIG.load(deps.storage)?;
@@ -206,7 +204,6 @@ mod tests {
             Addr::unchecked("owner"),
             addr.to_owned(),
             &ExecuteMsg::LightClientUpdate {
-                period: 862,
                 update: update.clone(),
             },
             &[],
@@ -219,7 +216,6 @@ mod tests {
             Addr::unchecked("owner"),
             addr.to_owned(),
             &ExecuteMsg::LightClientUpdate {
-                period: 863,
                 update: update.clone(),
             },
             &[],
@@ -239,7 +235,6 @@ mod tests {
             Addr::unchecked("owner"),
             addr.to_owned(),
             &ExecuteMsg::LightClientUpdate {
-                period: 862,
                 update: update.clone(),
             },
             &[],
