@@ -69,6 +69,8 @@ pub trait ProofGeneratorAPI {
     ) -> Result<Vec<Vec<u8>>>;
 }
 
+/// Main proving mechanism for generating proofs from both the execution and the
+/// consensus block to the beacon state or block root.
 #[derive(Clone)]
 pub struct ProofGenerator<CR: EthBeaconAPI, SP: StateProverAPI> {
     consensus_rpc: Arc<CR>,
