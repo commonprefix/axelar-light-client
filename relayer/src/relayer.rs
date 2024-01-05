@@ -143,6 +143,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
                     block_details
                 );
                 contents.push((delivery_tag, None));
+                continue;
             }
 
             let content = parse_enriched_log(&enriched_log, &block_details.unwrap());
