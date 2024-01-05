@@ -86,6 +86,11 @@ pub struct ContractCallWithToken {
     pub amount: U256,
 }
 
+#[derive(Debug, Clone, EthEvent, PartialEq)]
+pub struct OperatorshipTransferred {
+    pub new_operators_data: Bytes
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Default)]
 pub struct EnrichedLog {
     pub event_name: String,

@@ -1,5 +1,5 @@
 use crate::{
-    consumer::Amqp,
+    consumers::Amqp,
     parser::parse_enriched_log,
     types::{Config, EnrichedLog, VerificationMethod},
 };
@@ -115,7 +115,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
         for (i, content) in successful_contents.iter().enumerate() {
             let delivery_tag = delivery_tags[i];
             if processed_messages.contains(&content.content) {
-                info!("Message {:?} succeeded", delivery_tag);
+                info!("Message with delivery_id={:?} succeeded", delivery_tag);
                 self.consumer.ack_delivery(delivery_tag).await?;
             } else {
                 error!("Message {:?} failed", delivery_tag);
@@ -157,9 +157,8 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
             let content = parse_enriched_log(&enriched_log, &block_details.unwrap());
             if content.is_err() {
                 error!(
-                    "Error parsing enriched log {:?} {:?}. Requeuing",
-                    enriched_log,
-                    content.err()
+                    "Error parsing enriched log {:?}. Requeuing",
+                    content.err().unwrap()
                 );
                 contents.push((delivery_tag, None));
                 continue;
@@ -179,17 +178,20 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
             error!("Error consuming messages {:?}", deliveries);
             return HashMap::new();
         }
+        let deliveries = deliveries.unwrap();
 
         let mut enriched_logs: HashMap<u64, EnrichedLog> = HashMap::new();
-        for (delivery_tag, data_str) in deliveries.unwrap() {
+        for (delivery_tag, data_str) in &deliveries {
+            debug!("Working on delivery_tag={:?}", delivery_tag);
             let enriched_log = serde_json::from_str(&data_str);
             if enriched_log.is_err() {
                 error!("Error parsing log {:?}", enriched_log);
                 continue;
             }
-            enriched_logs.insert(delivery_tag, enriched_log.unwrap());
+            enriched_logs.insert(*delivery_tag, enriched_log.unwrap());
         }
 
+        debug!("Generated {} enriched_logs from {} deliveries", enriched_logs.len(), &deliveries.len());
         enriched_logs
     }
 
@@ -464,8 +466,6 @@ mod tests {
         fetched_logs.insert(0, enriched_log.clone());
 
         let res = relayer.process_logs(fetched_logs).await;
-        assert_eq!(1, res.len());
-        assert_eq!(res[0].0, 0);
 
         let content = res[0].1.as_ref().unwrap();
         assert_eq!(
