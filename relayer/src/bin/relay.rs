@@ -5,8 +5,10 @@ use prover::{prover::types::ProverConfig, Prover};
 use relayer::{consumer::LapinConsumer, load_config, relayer::Relayer};
 use std::sync::Arc;
 
+/// Main entry point for the relayer.
 #[tokio::main]
 async fn main() {
+    env_logger::init();
     rlimit::increase_nofile_limit(u64::MAX).unwrap();
 
     let config = load_config();
@@ -19,7 +21,14 @@ async fn main() {
     let consumer =
         LapinConsumer::new(&config.sentinel_queue_addr, &config.sentinel_queue_name).await;
 
-    let mut relayer = Relayer::new(config, consumer, consensus, execution, prover).await;
+    let mut relayer = Relayer::new(
+        config.clone(),
+        consumer,
+        consensus.clone(),
+        execution.clone(),
+        prover,
+    )
+    .await;
 
     relayer.start().await;
 }

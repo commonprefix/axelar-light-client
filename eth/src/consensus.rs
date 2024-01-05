@@ -12,22 +12,33 @@ use sync_committee_rs::{
 };
 use types::consensus::{BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update};
 
+/// The thin wrapper around the BeaconAPI overloaded with custom methods
 #[async_trait]
 pub trait EthBeaconAPI: Sync + Send + 'static {
+    /// Get the block root for a given slot.
     async fn get_block_root(&self, slot: u64) -> Result<Root, RPCError>;
+    /// Get the light client bootstrap for a given block root.
     async fn get_bootstrap(&self, block_root: &'_ [u8]) -> Result<Bootstrap, RPCError>;
+    /// Get the light client updates for a given period range.
     async fn get_updates(&self, period: u64, count: u8) -> Result<Vec<Update>, RPCError>;
+    /// Get the latest light client finality update.
     async fn get_finality_update(&self) -> Result<FinalityUpdate, RPCError>;
+    /// Get the latest light client optimistic update.
     async fn get_optimistic_update(&self) -> Result<OptimisticUpdate, RPCError>;
+    /// Get the beacon block header for a given slot.
     async fn get_beacon_block_header(&self, slot: u64) -> Result<BeaconBlockHeader, RPCError>;
+    /// Get the beacon block for a given slot.
     async fn get_beacon_block(&self, slot: u64) -> Result<BeaconBlockAlias, RPCError>;
+    /// Get the block roots tree for a given start slot. This will return a vector of length
+    /// `SLOTS_PER_HISTORICAL_ROOT` with the block roots for the given range. If any of the block
+    /// roots fail to resolve, the previous root will be used instead.
     async fn get_block_roots_tree(
         &self,
         start_slot: u64,
     ) -> Result<Vector<Root, SLOTS_PER_HISTORICAL_ROOT>, RPCError>;
 }
 
-#[derive(Clone)]
+/// A client for interacting with the Ethereum consensus layer.
 pub struct ConsensusRPC {
     rpc: String,
     client: ClientWithMiddleware,
@@ -35,6 +46,8 @@ pub struct ConsensusRPC {
 
 #[allow(dead_code)]
 impl ConsensusRPC {
+    /// Create a new consensus rpc client. The client is configured with a
+    /// retry policy that will retry transient errors up to 3 times.
     pub fn new(rpc: String, config: EthConfig) -> Self {
         let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
 

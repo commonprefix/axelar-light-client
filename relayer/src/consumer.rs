@@ -6,13 +6,19 @@ use lapin::{
     types::FieldTable,
     Channel, Connection, ConnectionProperties, Consumer,
 };
+use log::info;
 use mockall::automock;
 
+// The basic RabbitMQ consumer.
 #[async_trait]
 pub trait Amqp {
+    // It consumes a set of messages from the queue up to a given limit.
+    // Returns a vector of tuples containing the delivery tag and the message.
     async fn consume(&mut self, max_deliveries: usize) -> Result<Vec<(u64, String)>>;
-    async fn nack_delivery(&self, delivery_tag: u64) -> Result<()>;
+    // It acks a delivery.
     async fn ack_delivery(&self, delivery_tag: u64) -> Result<()>;
+    // It nacks a delivery with a nacking strategy forcing a requeue.
+    async fn nack_delivery(&self, delivery_tag: u64) -> Result<()>;
 }
 
 pub struct LapinConsumer {
@@ -56,7 +62,7 @@ impl Amqp for LapinConsumer {
                 break;
             }
         }
-        println!("Got {} logs from sentinel", deliveries.len());
+        info!("Got {} logs from sentinel", deliveries.len());
 
         let result = deliveries
             .iter()

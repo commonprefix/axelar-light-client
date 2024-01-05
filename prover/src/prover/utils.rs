@@ -12,6 +12,9 @@ use ssz_rs::SszVariableOrIndex;
 
 use super::types::BatchContentGroups;
 
+// Used by the state prover module. It accepts a path of `SSZVariableOrIndex`
+// and generates a string containing the path, compatible with what the
+// state_prover accepts.
 pub fn parse_path(path: &Vec<SszVariableOrIndex>) -> String {
     let mut path_str = String::new();
     for p in path {
@@ -23,6 +26,7 @@ pub fn parse_path(path: &Vec<SszVariableOrIndex>) -> String {
     path_str[1..].to_string() // remove first comma
 }
 
+/// Gets the transaction index of specific transaction in a block.
 pub fn get_tx_index(receipts: &[TransactionReceipt], tx_hash: &H256) -> Result<u64> {
     let tx_index = receipts
         .iter()
@@ -34,6 +38,7 @@ pub fn get_tx_index(receipts: &[TransactionReceipt], tx_hash: &H256) -> Result<u
     }
 }
 
+/// Fetches the tx_hash from a Message.cc_id.
 pub fn get_tx_hash_from_cc_id(cc_id: &CrossChainId) -> Result<H256> {
     let tx_hash = cc_id
         .id
@@ -44,6 +49,7 @@ pub fn get_tx_hash_from_cc_id(cc_id: &CrossChainId) -> Result<H256> {
     Ok(H256::from_str(tx_hash)?)
 }
 
+/// Generates a Merkle Patricia trie out of a set of leaves
 pub fn generate_trie<T>(
     leaves: Vec<T>,
     encode_fn: fn(&T) -> Vec<u8>,
@@ -60,6 +66,7 @@ pub fn generate_trie<T>(
     trie
 }
 
+/// RLP encodes a specific receipt.
 pub fn encode_receipt(receipt: &TransactionReceipt) -> Vec<u8> {
     let mut stream = RlpStream::new();
     stream.begin_list(4);
@@ -77,6 +84,7 @@ pub fn encode_receipt(receipt: &TransactionReceipt) -> Vec<u8> {
     }
 }
 
+/// A helper function for printing batched messages.
 #[cfg(not(tarpaulin_include))]
 pub fn debug_print_batch_message_groups(batch_message_groups: &BatchContentGroups) {
     for (block_number, message_groups) in batch_message_groups {

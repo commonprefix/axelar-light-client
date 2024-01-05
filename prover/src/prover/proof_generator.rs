@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use super::utils;
 use crate::prover::{
     state_prover::StateProverAPI,
     types::{GindexOrPath, ProofResponse},
@@ -10,43 +11,57 @@ use consensus_types::{consensus::BeaconStateType, proofs::AncestryProof};
 use eth::consensus::EthBeaconAPI;
 use ethers::{types::TransactionReceipt, utils::rlp::encode};
 use eyre::{anyhow, Result};
+use log::debug;
 use mockall::automock;
 use ssz_rs::{get_generalized_index, Node, SszVariableOrIndex, Vector};
 use sync_committee_rs::constants::{
     CAPELLA_FORK_EPOCH, SLOTS_PER_EPOCH, SLOTS_PER_HISTORICAL_ROOT,
 };
 
-use super::utils;
-
 const CAPELLA_FORK_SLOT: u64 = CAPELLA_FORK_EPOCH * SLOTS_PER_EPOCH;
 
 #[async_trait]
 pub trait ProofGeneratorAPI {
+    /// Generates a merkle proof from a specific transaction to the beacon block root.
     async fn generate_transaction_proof(
         &self,
         block_id: &str,
         tx_index: u64,
     ) -> Result<ProofResponse>;
+    /// Generates a merkle proof from the receipts_root to the beacon block root.
     async fn generate_receipts_root_proof(&self, block_id: &str) -> Result<ProofResponse>;
+    /// Generates an ancestry proof from the target block to the beacon
+    /// state root using the block roots state property. This proof is easy
+    /// to be generated but it can only prove blocks up to a period old (~27
+    /// hours)
     async fn prove_ancestry_with_block_roots(
         &self,
         target_block_slot: &u64,
         recent_block_state_id: &str,
     ) -> Result<AncestryProof>;
+    /// Generates an ancestry proof from the target block to the beacon state root
+    /// using the historical roots state property. This proof needs the
+    /// block_roots tree to be reconstructed (i.e. fetching all 8196 block roots
+    /// of a period and then generating the proofs).
     async fn prove_historical_summaries_proof(
         &self,
         target_block_slot: &u64,
         recent_block_state_id: &str,
     ) -> Result<ProofResponse>;
+    /// Generates a proof from the block root to the block summary root state property.
     async fn prove_block_root_to_block_summary_root(
         &self,
         target_block_slot: &u64,
     ) -> Result<Vec<Node>>;
+    /// Generates an ancestry proof from the recent block state to the target block
+    /// using the historical_roots beacon state property. The target block should be
+    /// in a slot less than recent_block_slot - SLOTS_PER_HISTORICAL_ROOT.
     async fn prove_ancestry_with_historical_summaries(
         &self,
         target_block_slot: &u64,
         recent_block_state_id: &str,
     ) -> Result<AncestryProof>;
+    /// Generates an Merkle Patricia tree proof from a receipt to the receipts_root.
     fn generate_receipt_proof(
         &self,
         receipts: &[TransactionReceipt],
@@ -54,15 +69,14 @@ pub trait ProofGeneratorAPI {
     ) -> Result<Vec<Vec<u8>>>;
 }
 
+/// Main proving mechanism for generating proofs from both the execution and the
+/// consensus block to the beacon state or block root.
 #[derive(Clone)]
 pub struct ProofGenerator<CR: EthBeaconAPI, SP: StateProverAPI> {
     consensus_rpc: Arc<CR>,
     state_prover: SP,
 }
 
-/**
- * Generates a merkle proof from the transaction to the beacon block root.
-*/
 impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGenerator<CR, SP> {
     pub fn new(consensus_rpc: Arc<CR>, state_prover: SP) -> Self {
         ProofGenerator {
@@ -75,6 +89,9 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGenerator<CR, SP> {
 #[automock]
 #[async_trait]
 impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<CR, SP> {
+    /// This implementation generates a merkle proof from a specific transaction
+    /// to the beacon block root by calling the state prover (a wrapper around
+    /// the proofs endpoint of lodestar).
     async fn generate_transaction_proof(
         &self,
         block_id: &str,
@@ -91,12 +108,16 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<
             .state_prover
             .get_block_proof(block_id, GindexOrPath::Path(path))
             .await?;
+
+        debug!(
+            "Got transaction proof from state prover {} {}",
+            block_id, tx_index
+        );
         Ok(proof)
     }
 
-    /**
-     * Generates a merkle proof from the receipts_root to the beacon block root.
-     */
+    /// This implementation generates a merkle proof from the receipts_root to
+    /// the beacon block root by calling the state prover's /block_proof endpoint.
     async fn generate_receipts_root_proof(&self, block_id: &str) -> Result<ProofResponse> {
         let path = vec![
             SszVariableOrIndex::Name("body"),
@@ -108,15 +129,13 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<
             .state_prover
             .get_block_proof(block_id, GindexOrPath::Path(path))
             .await?;
+
+        debug!("Got receipts_root proof from state prover {}", block_id);
         Ok(proof)
     }
 
-    /**
-     * Generates an ancestry proof from the recent block state to the target block
-     * using the block_roots beacon state property using the lodestar prover. The
-     * target block must in the range
-     * [recent_block_slot - SLOTS_PER_HISTORICAL_ROOT, recent_block_slot].
-     */
+    /// This implementation generates an ancestry proof from the target block to a recent block.
+    /// The target block cannot be older than SLOTS_PER_HISTORICAL_ROOT (8192 blocks, ~27 hours).
     async fn prove_ancestry_with_block_roots(
         &self,
         target_block_slot: &u64,
@@ -144,9 +163,16 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<
             block_root_proof: res.witnesses,
         };
 
+        debug!(
+            "Got ancestry proof with block roots from {} to {}",
+            target_block_slot, recent_block_state_id
+        );
         Ok(ancestry_proof)
     }
 
+    /// This implementation uses the state prover to fetch a proof from the
+    /// state root to the specific historical summary of the period we're
+    /// interested in.
     async fn prove_historical_summaries_proof(
         &self,
         target_block_slot: &u64,
@@ -166,6 +192,10 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<
             .get_state_proof(recent_block_state_id, &GindexOrPath::Path(path))
             .await?;
 
+        debug!(
+            "Got historical summaries proof from {} to {}",
+            target_block_slot, recent_block_state_id
+        );
         Ok(res)
     }
 
@@ -184,13 +214,12 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<
         );
         let proof = ssz_rs::generate_proof(&mut block_roots, &[gindex])?;
 
+        debug!(
+            "Got block root to block summary root proof from {}",
+            target_block_slot
+        );
         Ok(proof)
     }
-    /**
-     * Generates an ancestry proof from the recent block state to the target block
-     * using the historical_roots beacon state property. The target block should be
-     * in a slot less than recent_block_slot - SLOTS_PER_HISTORICAL_ROOT.
-     */
     async fn prove_ancestry_with_historical_summaries(
         &self,
         target_block_slot: &u64,
@@ -216,12 +245,13 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<
             block_summary_root_gindex: historical_summaries_proof.gindex,
         };
 
+        debug!(
+            "Got ancestry proof with historical summaries from {} to {}",
+            target_block_slot, recent_block_state_id
+        );
         Ok(res)
     }
 
-    /**
-     * Generates an MPT proof from a receipt to the receipts_root.
-     */
     fn generate_receipt_proof(
         &self,
         receipts: &[TransactionReceipt],
@@ -235,6 +265,7 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<
             .get_proof(receipt_index.to_vec().as_slice())
             .map_err(|e| anyhow!("Failed to generate proof: {:?}", e));
 
+        debug!("Got receipt proof for {}", index);
         proof
     }
 }

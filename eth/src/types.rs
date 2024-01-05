@@ -4,6 +4,7 @@ use sync_committee_rs::consensus_types::BeaconBlockHeader;
 use types::consensus::{BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update};
 pub type UpdateResponse = Vec<UpdateData>;
 
+/// The basic configuration of the Beacon ETH client
 pub struct EthConfig {
     pub pool_max_idle_per_host: usize,
     pub timeout_secs: u64,
@@ -18,6 +19,9 @@ impl Default for EthConfig {
     }
 }
 
+/// A type wrapping all block details in a single structure.
+/// This is used to avoid having to pass around multiple
+/// parameters.
 #[derive(Debug, Default)]
 pub struct FullBlockDetails {
     pub exec_block: Block<Transaction>,
