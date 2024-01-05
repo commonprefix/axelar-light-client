@@ -1,10 +1,9 @@
 extern crate relayer;
 
-use env_logger;
-use eth::{consensus::ConsensusRPC, execution::ExecutionRPC, types::EthConfig};
-use prover::{prover::types::ProverConfig, Prover};
-use relayer::{consumer::LapinConsumer, load_config, relayer::Relayer};
 use std::sync::Arc;
+use eth::{types::EthConfig, consensus::ConsensusRPC, execution::ExecutionRPC};
+use prover::{prover::types::ProverConfig, Prover};
+use relayer::{load_config, consumer::LapinConsumer, relayer::Relayer};
 
 /// Main entry point for the relayer.
 #[tokio::main]
@@ -22,7 +21,14 @@ async fn main() {
     let consumer =
         LapinConsumer::new(&config.sentinel_queue_addr, &config.sentinel_queue_name).await;
 
-    let mut relayer = Relayer::new(config, consumer, consensus, execution, prover).await;
+    let mut relayer = Relayer::new(
+        config.clone(),
+        consumer,
+        consensus.clone(),
+        execution.clone(),
+        prover,
+    )
+    .await;
 
     relayer.start().await;
 }
