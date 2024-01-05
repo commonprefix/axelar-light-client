@@ -183,7 +183,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
         let mut enriched_logs: HashMap<u64, EnrichedLog> = HashMap::new();
         for (delivery_tag, data_str) in &deliveries {
             debug!("Working on delivery_tag={:?}", delivery_tag);
-            let enriched_log = serde_json::from_str(&data_str);
+            let enriched_log = serde_json::from_str(data_str);
             if enriched_log.is_err() {
                 error!("Error parsing log {:?}", enriched_log);
                 continue;

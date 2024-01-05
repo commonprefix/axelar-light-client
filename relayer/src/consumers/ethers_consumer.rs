@@ -1,14 +1,9 @@
 use crate::types::{ContractCallWithToken, EnrichedLog, OperatorshipTransferred};
 use async_trait::async_trait;
-use consensus_types::connection_router::events;
-use eth::{
-    consensus::ConsensusRPC,
-    execution::{EthExecutionAPI, ExecutionRPC},
-};
+use eth::execution::{EthExecutionAPI, ExecutionRPC};
 use ethers::{
-    abi::{ParseLog, RawLog},
     contract::parse_log,
-    types::{Address, Filter, Log, H160},
+    types::{Address, Filter, H160},
 };
 use eyre::Result;
 use std::sync::Arc;
@@ -22,7 +17,6 @@ pub struct EthersConsumer {
 
 impl EthersConsumer {
     pub fn new(
-        consensus: Arc<ConsensusRPC>,
         execution: Arc<ExecutionRPC>,
         address: String,
     ) -> Self {
@@ -47,9 +41,9 @@ impl EthersConsumer {
 
         let mut enriched_logs = vec![];
         for log in &logs {
-            let event_name = if let Ok(_) = parse_log::<ContractCallWithToken>(log.clone()) {
+            let event_name = if parse_log::<ContractCallWithToken>(log.clone()).is_ok() {
                 "ContractCallWithToken"
-            } else if let Ok(_) = parse_log::<OperatorshipTransferred>(log.clone()) {
+            } else if parse_log::<OperatorshipTransferred>(log.clone()).is_ok() {
                 "OperatorshipTransferred"
             } else {
                 continue;
