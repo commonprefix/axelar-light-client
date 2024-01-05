@@ -13,6 +13,12 @@ pub struct ChainConfig {
     pub genesis_root: Node,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct Config {
+    pub chain_config: ChainConfig,
+    pub gateway_address: String,
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
 pub struct WorkerSetMessage {
     pub message_id: nonempty::String,

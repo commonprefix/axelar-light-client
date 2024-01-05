@@ -1,15 +1,13 @@
 use cosmwasm_schema::cw_serde;
+use types::common::Config;
 use types::connection_router::state::Message;
+use types::consensus::{Bootstrap, Update};
 use types::proofs::{nonempty, BatchVerificationData, Operators};
-use types::{
-    common::ChainConfig,
-    consensus::{Bootstrap, Update},
-};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct InstantiateMsg {
     pub bootstrap: Bootstrap,
-    pub config: ChainConfig,
+    pub config: Config,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]

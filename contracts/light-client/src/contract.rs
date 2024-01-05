@@ -23,7 +23,7 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let mut lc = LightClient::new(&msg.config, None, &env);
+    let mut lc = LightClient::new(&msg.config.chain_config, None, &env);
     lc.bootstrap(&msg.bootstrap).unwrap();
 
     LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
@@ -57,7 +57,7 @@ pub fn execute(
         BatchVerificationData { payload } => {
             let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
             let config = CONFIG.load(deps.storage)?;
-            let lc = LightClient::new(&config, Some(state), &env);
+            let lc = LightClient::new(&config.chain_config, Some(state), &env);
 
             let results = process_batch_data(deps, &lc, &payload);
             if let Err(err) = results {
@@ -192,7 +192,7 @@ mod tests {
             .query_wasm_smart(addr, &QueryMsg::LightClientState {})
             .unwrap();
 
-        let mut lc = LightClient::new(&get_config(), None, &env);
+        let mut lc = LightClient::new(&get_config().chain_config, None, &env);
         lc.bootstrap(&bootstrap).unwrap();
         assert_eq!(resp, lc.state)
     }

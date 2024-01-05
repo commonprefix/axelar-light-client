@@ -392,7 +392,7 @@ pub mod test_helpers {
     use ethabi::{decode, ParamType};
     use std::fs::File;
 
-    use types::common::WorkerSetMessage;
+    use types::common::{Config, WorkerSetMessage};
     use types::connection_router::state::Message;
     use types::execution::ReceiptLog;
     use types::proofs::{
@@ -450,17 +450,20 @@ pub mod test_helpers {
         serde_json::from_reader(verification_file).unwrap()
     }
 
-    pub fn get_config() -> ChainConfig {
+    pub fn get_config() -> Config {
         let genesis_root_bytes: [u8; 32] =
             hex_str_to_bytes("0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95")
                 .unwrap()
                 .try_into()
                 .unwrap();
 
-        ChainConfig {
-            chain_id: 1,
-            genesis_time: 1606824023,
-            genesis_root: Node::from_bytes(genesis_root_bytes),
+        Config {
+            chain_config: ChainConfig {
+                chain_id: 1,
+                genesis_time: 1606824023,
+                genesis_root: Node::from_bytes(genesis_root_bytes),
+            },
+            gateway_address: String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5"),
         }
     }
 
