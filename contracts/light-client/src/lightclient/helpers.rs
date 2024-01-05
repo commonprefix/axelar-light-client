@@ -400,7 +400,7 @@ pub mod test_helpers {
     };
     use types::ssz_rs::Node;
     use types::{
-        common::{ChainConfig, ContentVariant, Fork, Forks},
+        common::{ChainConfig, ContentVariant},
         consensus::{Bootstrap, Update},
     };
 
@@ -461,28 +461,6 @@ pub mod test_helpers {
             chain_id: 1,
             genesis_time: 1606824023,
             genesis_root: Node::from_bytes(genesis_root_bytes),
-            forks: get_forks(),
-        }
-    }
-
-    pub fn get_forks() -> Forks {
-        Forks {
-            genesis: Fork {
-                epoch: 0,
-                fork_version: hex_str_to_bytes("0x00000000").unwrap().try_into().unwrap(),
-            },
-            altair: Fork {
-                epoch: 74240,
-                fork_version: hex_str_to_bytes("0x01000000").unwrap().try_into().unwrap(),
-            },
-            bellatrix: Fork {
-                epoch: 144896,
-                fork_version: hex_str_to_bytes("0x02000000").unwrap().try_into().unwrap(),
-            },
-            capella: Fork {
-                epoch: 194048,
-                fork_version: hex_str_to_bytes("0x03000000").unwrap().try_into().unwrap(),
-            },
         }
     }
 

@@ -2,7 +2,7 @@ use cosmwasm_schema::cw_serde;
 use types::connection_router::state::Message;
 use types::proofs::{nonempty, BatchVerificationData, Operators};
 use types::{
-    common::{ChainConfig, Forks},
+    common::ChainConfig,
     consensus::{Bootstrap, Update},
 };
 
@@ -18,9 +18,6 @@ pub enum ExecuteMsg {
     LightClientUpdate {
         period: u64,
         update: Update,
-    },
-    UpdateForks {
-        forks: Forks,
     },
     BatchVerificationData {
         payload: BatchVerificationData,

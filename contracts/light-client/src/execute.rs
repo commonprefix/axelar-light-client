@@ -10,10 +10,7 @@ use types::proofs::{
 use types::ssz_rs::{Merkleized, Node};
 use types::sync_committee_rs::consensus_types::Transaction;
 use types::sync_committee_rs::constants::MAX_BYTES_PER_TRANSACTION;
-use types::{
-    common::{ChainConfig, ContentVariant, Forks},
-    consensus::Update,
-};
+use types::{common::ContentVariant, consensus::Update};
 
 use crate::lightclient::helpers::{
     compare_content_with_log, extract_logs_from_receipt_proof, parse_message_id,
@@ -167,14 +164,6 @@ pub fn light_client_update(
     SYNC_COMMITTEE.save(deps.storage, &(update.next_sync_committee, period + 1))?;
     LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
 
-    Ok(Response::new())
-}
-
-pub fn update_forks(deps: DepsMut, forks: Forks) -> Result<Response> {
-    CONFIG.update(deps.storage, |mut config| -> Result<ChainConfig> {
-        config.forks = forks;
-        Ok(config)
-    })?;
     Ok(Response::new())
 }
 
