@@ -33,6 +33,21 @@ pub enum UpdateVariant {
     Optimistic(OptimisticUpdate),
 }
 
+impl Default for UpdateVariant {
+    fn default() -> Self {
+        UpdateVariant::Finality(FinalityUpdate::default())
+    }
+}
+
+impl UpdateVariant {
+    pub fn recent_block(&self) -> BeaconBlockHeader {
+        match &self {
+            UpdateVariant::Finality(update) => update.finalized_header.beacon.clone(),
+            UpdateVariant::Optimistic(update) => update.attested_header.beacon.clone(),
+        }
+    }
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub enum AncestryProof {
     // This variant defines the proof data for a beacon chain header in the `state.block_roots`.
@@ -56,13 +71,16 @@ pub enum AncestryProof {
     },
 }
 
-impl Default for UpdateVariant {
+impl Default for AncestryProof {
     fn default() -> Self {
-        UpdateVariant::Finality(FinalityUpdate::default())
+        AncestryProof::BlockRoots {
+            block_roots_index: 0,
+            block_root_proof: vec![],
+        }
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone, Default)]
 pub struct TransactionProof {
     // Same index of transaction to transaction trie and from receipt to receipt trie
     pub transaction_index: u64,
@@ -74,7 +92,7 @@ pub struct TransactionProof {
     pub transaction: Transaction<MAX_BYTES_PER_TRANSACTION>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
 pub struct ReceiptProof {
     // Proof from receipts root to beacon block
     pub receipts_root_proof: Vec<Node>,

@@ -23,12 +23,13 @@ pub trait StateProverAPI: Sync + Send + 'static {
 
 #[derive(Clone)]
 pub struct StateProver {
+    network: String,
     rpc: String,
 }
 
 impl StateProver {
-    pub fn new(rpc: String) -> Self {
-        StateProver { rpc }
+    pub fn new(network: String, rpc: String) -> Self {
+        StateProver { network, rpc }
     }
 
     async fn get(&self, req: &str) -> Result<ProofResponse> {
@@ -57,14 +58,15 @@ impl StateProverAPI for StateProver {
     ) -> Result<ProofResponse> {
         let req = match gindex_or_path {
             GindexOrPath::Gindex(gindex) => format!(
-                "{}/state_proof?state_id={}&gindex={}",
-                self.rpc, state_id, gindex
+                "{}/state_proof?state_id={}&gindex={}&network={}",
+                self.rpc, state_id, gindex, self.network
             ),
             GindexOrPath::Path(path) => format!(
-                "{}/state_proof?state_id={}&path={}",
+                "{}/state_proof?state_id={}&path={}&network={}",
                 self.rpc,
                 state_id,
-                parse_path(path)
+                parse_path(path),
+                self.network
             ),
         };
 
@@ -80,14 +82,15 @@ impl StateProverAPI for StateProver {
     ) -> Result<ProofResponse> {
         let req = match gindex_or_path {
             GindexOrPath::Gindex(gindex) => format!(
-                "{}/block_proof/?block_id={}&gindex={}",
-                self.rpc, block_id, gindex
+                "{}/block_proof/?block_id={}&gindex={}&network={}",
+                self.rpc, block_id, gindex, self.network
             ),
             GindexOrPath::Path(path) => format!(
-                "{}/block_proof/?block_id={}&path={}",
+                "{}/block_proof/?block_id={}&path={}&network={}",
                 self.rpc,
                 block_id,
-                parse_path(&path)
+                parse_path(&path),
+                self.network
             ),
         };
 
@@ -106,7 +109,7 @@ mod tests {
     fn setup_server_and_prover() -> (Server, StateProver) {
         let server = Server::run();
         let url = server.url("");
-        let rpc = StateProver::new(url.to_string());
+        let rpc = StateProver::new("mainnet".to_string(), url.to_string());
         (server, rpc)
     }
 

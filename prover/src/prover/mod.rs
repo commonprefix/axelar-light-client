@@ -4,34 +4,43 @@ mod test_helpers;
 pub mod types;
 pub mod utils;
 
-use std::sync::Arc;
-
 use self::{
     proof_generator::{ProofGenerator, ProofGeneratorAPI},
     state_prover::StateProver,
     types::ProverConfig,
-    utils::{get_tx_hash_from_cc_id, get_tx_index},
+    utils::get_tx_index,
 };
+use async_trait::async_trait;
 use consensus_types::{
-    common::ContentVariant,
     consensus::{to_beacon_header, BeaconBlockAlias},
     proofs::{
         AncestryProof, BatchVerificationData, BlockProofsBatch, ReceiptProof, TransactionProof,
         TransactionProofsBatch, UpdateVariant,
     },
 };
-
 use eth::consensus::ConsensusRPC;
 use ethers::types::{Block, Transaction, TransactionReceipt, H256};
-use eyre::{anyhow, Context, Result};
+use eyre::{eyre, Context, Result};
 use indexmap::IndexMap;
+use mockall::automock;
 use ssz_rs::{Merkleized, Node};
+use std::sync::Arc;
 use sync_committee_rs::{
     consensus_types::BeaconBlockHeader,
     constants::{Root, SLOTS_PER_HISTORICAL_ROOT},
 };
-use types::BatchMessageGroups;
-use types::EnrichedMessage;
+use types::BatchContentGroups;
+use types::EnrichedContent;
+
+#[async_trait]
+pub trait ProverAPI {
+    fn batch_messages(&self, contents: &[EnrichedContent]) -> BatchContentGroups;
+    async fn batch_generate_proofs(
+        &self,
+        batch_content_groups: BatchContentGroups,
+        update: UpdateVariant,
+    ) -> Result<BatchVerificationData>;
+}
 
 pub struct Prover<PG> {
     proof_generator: PG,
@@ -39,95 +48,93 @@ pub struct Prover<PG> {
 
 impl Prover<ProofGenerator<ConsensusRPC, StateProver>> {
     pub fn with_config(consensus_rpc: Arc<ConsensusRPC>, prover_config: ProverConfig) -> Self {
-        let state_prover = StateProver::new(prover_config.state_prover_rpc.clone());
+        let state_prover = StateProver::new(
+            prover_config.network,
+            prover_config.state_prover_rpc.clone(),
+        );
         let proof_generator = ProofGenerator::new(consensus_rpc, state_prover.clone());
 
         Prover { proof_generator }
     }
 }
 
-impl<PG: ProofGeneratorAPI> Prover<PG> {
-    pub fn new(proof_generator: PG) -> Self {
-        Prover { proof_generator }
-    }
+#[automock]
+#[async_trait]
+impl<PG: ProofGeneratorAPI + Sync> ProverAPI for Prover<PG> {
+    fn batch_messages(&self, contents: &[EnrichedContent]) -> BatchContentGroups {
+        let mut groups: BatchContentGroups = IndexMap::new();
 
-    pub async fn batch_messages(
-        &self,
-        messages: &[EnrichedMessage],
-        update: &UpdateVariant,
-    ) -> Result<BatchMessageGroups> {
-        let recent_block_slot = match update {
-            UpdateVariant::Finality(update) => update.finalized_header.beacon.slot,
-            UpdateVariant::Optimistic(update) => update.attested_header.beacon.slot,
-        };
-
-        // Reality check
-        if !messages
-            .iter()
-            .all(|m| m.beacon_block.slot < recent_block_slot)
-        {
-            return Err(anyhow!("Messages provided are not preceeding the update"));
-        }
-
-        let mut groups: BatchMessageGroups = IndexMap::new();
-
-        for message in messages {
-            let tx_hash = get_tx_hash_from_cc_id(&message.message.cc_id)?;
-
+        for content in contents {
             groups
-                .entry(message.exec_block.number.unwrap().as_u64())
+                .entry(content.exec_block.number.unwrap().as_u64())
                 .or_default()
-                .entry(tx_hash)
+                .entry(content.tx_hash)
                 .or_default()
-                .push(message.clone());
+                .push(content.clone());
         }
 
-        Ok(groups)
+        groups
     }
 
-    /// Generates proofs for a batch of messages.
-    pub async fn batch_generate_proofs(
+    /// Generates proofs for a batch of contents.
+    async fn batch_generate_proofs(
         &self,
-        batch_message_groups: BatchMessageGroups,
+        batch_content_groups: BatchContentGroups,
         update: UpdateVariant,
     ) -> Result<BatchVerificationData> {
-        let recent_block = match update.clone() {
-            UpdateVariant::Finality(update) => update.finalized_header.beacon,
-            UpdateVariant::Optimistic(update) => update.attested_header.beacon,
-        };
+        let recent_block = update.recent_block();
 
         let mut block_proofs_batch: Vec<BlockProofsBatch> = vec![];
-        for (_, block_groups) in &batch_message_groups {
+        for (_, block_groups) in &batch_content_groups {
             let (mut beacon_block, exec_block, receipts) =
                 Self::get_block_of_batch(block_groups).unwrap();
             let block_hash = beacon_block.hash_tree_root()?;
 
             let ancestry_proof = self
                 .get_ancestry_proof(beacon_block.slot, &recent_block)
-                .await?;
+                .await;
+            if ancestry_proof.is_err() {
+                println!("Error generating ancestry proof {:?}", ancestry_proof.err());
+                continue;
+            }
+
             let mut block_proof = BlockProofsBatch {
-                ancestry_proof,
+                ancestry_proof: ancestry_proof.unwrap(),
                 target_block: to_beacon_header(&beacon_block)?,
                 transactions_proofs: vec![],
             };
 
-            for (tx_hash, messages) in block_groups {
+            for (tx_hash, contents) in block_groups {
                 let tx_index = get_tx_index(&receipts, tx_hash)?;
 
                 let transaction_proof = self
                     .get_transaction_proof(&beacon_block, block_hash, tx_index)
-                    .await?;
+                    .await;
+                if transaction_proof.is_err() {
+                    println!(
+                        "Error generating tx proof {} {:?}",
+                        tx_hash,
+                        transaction_proof.err()
+                    );
+                    continue;
+                }
+
                 let receipt_proof = self
                     .get_receipt_proof(&exec_block, block_hash, &receipts, tx_index)
-                    .await?;
+                    .await;
+                if receipt_proof.is_err() {
+                    println!(
+                        "Error generating receipt proof {} {:?}",
+                        tx_hash,
+                        receipt_proof.err()
+                    );
+                    continue;
+                }
 
                 let tx_level_verification = TransactionProofsBatch {
-                    transaction_proof,
-                    receipt_proof,
-                    content: messages
-                        .iter()
-                        .map(|m| ContentVariant::Message(m.message.clone()))
-                        .collect(),
+                    transaction_proof: transaction_proof.unwrap(),
+                    receipt_proof: receipt_proof.unwrap(),
+                    content: contents.iter().map(|m| m.content.clone()).collect(),
                 };
 
                 block_proof.transactions_proofs.push(tx_level_verification);
@@ -141,9 +148,15 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
             target_blocks: block_proofs_batch,
         })
     }
+}
+
+impl<PG: ProofGeneratorAPI> Prover<PG> {
+    pub fn new(proof_generator: PG) -> Self {
+        Prover { proof_generator }
+    }
 
     pub fn get_block_of_batch(
-        batch: &IndexMap<H256, Vec<EnrichedMessage>>,
+        batch: &IndexMap<H256, Vec<EnrichedContent>>,
     ) -> Result<
         (
             BeaconBlockAlias,
@@ -153,11 +166,11 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         &'static str,
     > {
         let messages = batch.values().next().ok_or("Batch is empty")?;
-        let first_message = messages.first().ok_or("No messages in the batch")?;
+        let first_content = messages.first().ok_or("No messages in the batch")?;
 
-        let exec_block = first_message.exec_block.clone();
-        let beacon_block = first_message.beacon_block.clone();
-        let receipts = first_message.receipts.clone();
+        let exec_block = first_content.exec_block.clone();
+        let beacon_block = first_content.beacon_block.clone();
+        let receipts = first_content.receipts.clone();
 
         Ok((beacon_block, exec_block, receipts))
     }
@@ -171,6 +184,14 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         target_block_slot: u64,
         recent_block: &BeaconBlockHeader,
     ) -> Result<AncestryProof> {
+        if target_block_slot >= recent_block.slot {
+            return Err(eyre!(
+                "Target block slot {} is greater than recent block slot {}",
+                target_block_slot,
+                recent_block.slot
+            ));
+        }
+
         let is_in_block_roots_range = target_block_slot < recent_block.slot
             && recent_block.slot <= target_block_slot + SLOTS_PER_HISTORICAL_ROOT as u64;
 
@@ -262,7 +283,7 @@ mod tests {
     use super::state_prover::MockStateProver;
     use crate::prover::proof_generator::MockProofGenerator;
     use crate::prover::test_helpers::test_utils::*;
-    use crate::prover::Prover;
+    use crate::prover::{Prover, ProverAPI};
     use consensus_types::common::ContentVariant;
     use consensus_types::consensus::to_beacon_header;
     use consensus_types::proofs::{AncestryProof, BatchVerificationData};
@@ -281,7 +302,7 @@ mod tests {
     #[tokio::test]
     async fn test_batch_generate_proofs() {
         let mock_update = get_mock_update(true, 1000, 505);
-        let batch_message_groups = get_mock_batch_message_groups();
+        let batch_content_groups = get_mock_batch_message_groups();
 
         let (_consensus_rpc, _execution_rpc, _state_prover) = setup();
 
@@ -307,7 +328,7 @@ mod tests {
         let prover = Prover::new(proof_generator);
 
         let res = prover
-            .batch_generate_proofs(batch_message_groups, mock_update.clone())
+            .batch_generate_proofs(batch_content_groups, mock_update.clone())
             .await;
         assert!(res.is_ok());
 
@@ -324,15 +345,15 @@ mod tests {
 
         for i in 0..target_blocks.len() {
             for j in 0..target_blocks[i].transactions_proofs.len() {
-                let messages_count = target_blocks[i].transactions_proofs[j]
+                let content_count = target_blocks[i].transactions_proofs[j]
                     .content
                     .iter()
                     .filter(|c| matches!(c, ContentVariant::Message(_)))
                     .count();
                 if i == 1 && j == 0 {
-                    assert_eq!(messages_count, 2);
+                    assert_eq!(content_count, 2);
                 } else {
-                    assert_eq!(messages_count, 1);
+                    assert_eq!(content_count, 1);
                 }
             }
         }
@@ -398,11 +419,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_batch_messages() {
+    async fn test_batch_contents() {
         let _consensus_rpc = MockConsensusRPC::new();
         let mut execution_rpc = MockExecutionRPC::new();
-
-        let update = get_mock_update(true, 1000, 505);
 
         execution_rpc.expect_get_blocks().returning(move |_| {
             Ok(vec![
@@ -433,10 +452,7 @@ mod tests {
         let proof_generator = MockProofGenerator::<MockConsensusRPC, MockStateProver>::new();
         let prover = Prover::new(proof_generator);
 
-        let result = prover
-            .batch_messages(messages.as_ref(), &update)
-            .await
-            .unwrap();
+        let result = prover.batch_messages(messages.as_ref());
 
         assert_eq!(result.len(), 3);
         assert_eq!(result.get(&1).unwrap().len(), 1);

@@ -8,9 +8,9 @@ pub mod tests {
     };
     use crate::lightclient::helpers::{
         calc_sync_period, compare_content_with_log, extract_logs_from_receipt_proof,
-        extract_recent_block, hex_str_to_bytes, is_proof_valid, parse_log, parse_logs_from_receipt,
-        parse_message_id, verify_block_roots_proof, verify_historical_roots_proof,
-        verify_transaction_proof, verify_trie_proof, Comparison,
+        hex_str_to_bytes, is_proof_valid, parse_log, parse_logs_from_receipt, parse_message_id,
+        verify_block_roots_proof, verify_historical_roots_proof, verify_transaction_proof,
+        verify_trie_proof, Comparison,
     };
     use crate::{
         lightclient::error::ConsensusError,
@@ -734,21 +734,18 @@ pub mod tests {
     }
 
     #[test]
-    fn test_extract_recent_block() {
+    fn test_recent_block() {
         let data = get_batched_data(false).1;
-        let UpdateVariant::Finality(update) = data.update else {
+        let UpdateVariant::Finality(update) = data.update.clone() else {
             panic!("Invalid update type")
         };
         let optimistic = OptimisticUpdate::from(&update);
 
-        assert_eq!(
-            update.finalized_header.beacon,
-            extract_recent_block(&UpdateVariant::Finality(update.clone()))
-        );
+        assert_eq!(update.finalized_header.beacon, data.update.recent_block());
 
         assert_eq!(
             update.attested_header.beacon,
-            extract_recent_block(&UpdateVariant::Optimistic(optimistic))
+            UpdateVariant::Optimistic(optimistic).recent_block()
         );
     }
 

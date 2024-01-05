@@ -2,6 +2,7 @@
 pub mod test_utils {
     use cita_trie::{MemoryDB, PatriciaTrie, Trie};
     use consensus_types::{
+        common::ContentVariant,
         consensus::{BeaconBlockAlias, FinalityUpdate, OptimisticUpdate},
         proofs::{CrossChainId, Message, UpdateVariant},
     };
@@ -15,7 +16,7 @@ pub mod test_utils {
     use std::{fs::File, sync::Arc};
     use sync_committee_rs::constants::Root;
 
-    use crate::prover::types::{BatchMessageGroups, EnrichedMessage};
+    use crate::prover::types::{BatchContentGroups, EnrichedContent};
 
     pub fn verify_trie_proof(root: Root, key: u64, proof_bytes: Vec<Vec<u8>>) -> Result<Vec<u8>> {
         let memdb = Arc::new(MemoryDB::new(true));
@@ -75,18 +76,20 @@ pub mod test_utils {
         }
     }
 
-    pub fn get_mock_message(slot: u64, block_number: u64, tx_hash: H256) -> EnrichedMessage {
-        EnrichedMessage {
-            message: Message {
-                cc_id: CrossChainId {
-                    chain: "ethereum".parse().unwrap(),
-                    id: format!("{:x}:test", tx_hash).parse().unwrap(),
-                },
-                source_address: "0x0000000".parse().unwrap(),
-                destination_chain: "polygon".parse().unwrap(),
-                destination_address: "0x0000000".parse().unwrap(),
-                payload_hash: Default::default(),
+    pub fn get_mock_message(slot: u64, block_number: u64, tx_hash: H256) -> EnrichedContent {
+        let message = Message {
+            cc_id: CrossChainId {
+                chain: "ethereum".parse().unwrap(),
+                id: format!("{:x}:test", tx_hash).parse().unwrap(),
             },
+            source_address: "0x0000000".parse().unwrap(),
+            destination_chain: "polygon".parse().unwrap(),
+            destination_address: "0x0000000".parse().unwrap(),
+            payload_hash: Default::default(),
+        };
+
+        EnrichedContent {
+            content: ContentVariant::Message(message),
             tx_hash,
             exec_block: get_mock_exec_block_with_txs(block_number),
             beacon_block: get_mock_beacon_block(slot),
@@ -111,14 +114,14 @@ pub mod test_utils {
         *
         * block 3 -> tx 4 -> message 5
     */
-    pub fn get_mock_batch_message_groups() -> BatchMessageGroups {
+    pub fn get_mock_batch_message_groups() -> BatchContentGroups {
         let mut messages = vec![];
         for i in 0..6 {
             let m = get_mock_message(i, i, H256::from_low_u64_be(i));
             messages.push(m);
         }
 
-        let mut groups: BatchMessageGroups = IndexMap::new();
+        let mut groups: BatchContentGroups = IndexMap::new();
         let mut blockgroup1 = IndexMap::new();
         let mut blockgroup2 = IndexMap::new();
         let mut blockgroup3 = IndexMap::new();

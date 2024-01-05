@@ -1,4 +1,4 @@
-use consensus_types::{consensus::BeaconBlockAlias, proofs::Message};
+use consensus_types::{common::ContentVariant, consensus::BeaconBlockAlias};
 use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -26,8 +26,8 @@ pub struct ProofResponse {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct EnrichedMessage {
-    pub message: Message,
+pub struct EnrichedContent {
+    pub content: ContentVariant,
     pub tx_hash: H256,
     pub exec_block: Block<Transaction>,
     pub beacon_block: BeaconBlockAlias,
@@ -41,6 +41,7 @@ pub enum GindexOrPath {
 }
 
 pub struct ProverConfig {
+    pub network: String,
     pub consensus_rpc: String,
     pub execution_rpc: String,
     pub state_prover_rpc: String,
@@ -49,4 +50,4 @@ pub struct ProverConfig {
 }
 
 // A map from block number to a map from tx hash to messages
-pub type BatchMessageGroups = IndexMap<u64, IndexMap<H256, Vec<EnrichedMessage>>>;
+pub type BatchContentGroups = IndexMap<u64, IndexMap<H256, Vec<EnrichedContent>>>;

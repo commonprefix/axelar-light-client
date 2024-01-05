@@ -16,8 +16,8 @@ use types::{
 };
 
 use crate::lightclient::helpers::{
-    compare_content_with_log, extract_logs_from_receipt_proof, extract_recent_block,
-    parse_message_id, verify_ancestry_proof, verify_transaction_proof,
+    compare_content_with_log, extract_logs_from_receipt_proof, parse_message_id,
+    verify_ancestry_proof, verify_transaction_proof,
 };
 use crate::lightclient::LightClient;
 use crate::state::{CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE, VERIFIED_MESSAGES};
@@ -127,7 +127,7 @@ pub fn process_batch_data(
         UpdateVariant::Finality(update) => lightclient.verify_finality_update(update)?,
         UpdateVariant::Optimistic(update) => lightclient.verify_optimistic_update(update)?,
     }
-    let recent_block = extract_recent_block(&data.update);
+    let recent_block = data.update.recent_block();
 
     let results = data
         .target_blocks
@@ -184,9 +184,7 @@ mod tests {
     use crate::lightclient::helpers::test_helpers::{
         filter_message_variants, filter_workeset_message_variants, get_batched_data,
     };
-    use crate::lightclient::helpers::{
-        extract_logs_from_receipt_proof, extract_recent_block, parse_message_id,
-    };
+    use crate::lightclient::helpers::{extract_logs_from_receipt_proof, parse_message_id};
     use crate::lightclient::tests::tests::init_lightclient;
     use cosmwasm_std::testing::mock_dependencies;
     use eyre::Result;
@@ -490,7 +488,7 @@ mod tests {
     #[test]
     fn test_process_block_proofs() {
         let mut data = get_batched_data(false).1;
-        let recent_block = extract_recent_block(&data.update);
+        let recent_block = data.update.recent_block();
 
         for target_block in data.target_blocks.iter_mut() {
             let messages = extract_messages_from_block(target_block);

@@ -1,247 +1,188 @@
-use consensus_types::connection_router::state::{CrossChainId, Message};
-use consensus_types::consensus::BeaconBlockAlias;
-use eth::consensus::{ConsensusRPC, EthBeaconAPI};
-use eth::execution::{EthExecutionAPI, ExecutionRPC};
-use eth::utils::calc_slot_from_timestamp;
-use ethers::abi::{Bytes, RawLog};
-use ethers::prelude::EthEvent;
-use ethers::providers::Middleware;
-use ethers::types::{Address, Log, H256, U256};
-use ethers::types::{Block, Filter, Transaction, TransactionReceipt};
-use eyre::Result;
-use eyre::{eyre, Context};
-use futures::future::join_all;
-use prover::prover::types::EnrichedMessage;
-use std::sync::Arc;
+use async_trait::async_trait;
+use eyre::{eyre, Result};
+use futures::StreamExt;
+use lapin::{
+    options::{BasicAckOptions, BasicConsumeOptions, BasicNackOptions},
+    types::FieldTable,
+    Channel, Connection, ConnectionProperties, Consumer,
+};
+use mockall::automock;
 
-pub struct Gateway {
-    consensus: Arc<ConsensusRPC>,
-    execution: Arc<ExecutionRPC>,
-    address: Address,
+#[async_trait]
+pub trait Amqp {
+    async fn consume(&mut self, max_deliveries: usize) -> Result<Vec<(u64, String)>>;
+    async fn nack_delivery(&self, delivery_tag: u64) -> Result<()>;
+    async fn ack_delivery(&self, delivery_tag: u64) -> Result<()>;
 }
 
-#[derive(Debug, Clone, EthEvent, PartialEq)]
-pub struct ContractCallWithToken {
-    #[ethevent(indexed)]
-    pub sender: Address,
-    pub destination_chain: String,
-    pub destination_contract_address: String,
-    #[ethevent(indexed)]
-    pub payload_hash: H256,
-    pub payload: Bytes,
-    pub symbol: String,
-    pub amount: U256,
+pub struct LapinConsumer {
+    channel: Channel,
+    consumer: Consumer,
 }
 
-impl Gateway {
-    pub fn new(
-        consensus: Arc<ConsensusRPC>,
-        execution: Arc<ExecutionRPC>,
-        address: String,
-    ) -> Self {
-        let address = address.parse::<Address>().unwrap();
-
-        Self {
-            consensus,
-            execution,
-            address,
-        }
-    }
-
-    pub async fn get_contract_call_with_token_messages(
-        &self,
-        from_block: u64,
-        to_block: u64,
-        limit: u64,
-    ) -> Result<Vec<EnrichedMessage>> {
-        let logs = self
-            .get_contract_call_with_token_logs(from_block, to_block, limit)
-            .await?;
-
-        let events = Self::decode_contract_call_with_token_logs(&logs)?;
-
-        let message_futures = logs.into_iter().zip(events).map(|(log, event)| {
-            println!("Working on log {}", log.log_index.unwrap());
-            async move {
-                match self.generate_internal_message(&log, &event).await {
-                    Ok(message) => Some(message),
-                    Err(error) => {
-                        eprintln!(
-                            "Error generating internal message for log {:#?}: {:#?}",
-                            log, error
-                        );
-                        None
-                    }
-                }
-            }
-        });
-
-        let messages = join_all(message_futures)
+impl LapinConsumer {
+    pub async fn new(queue_addr: &str, queue_name: &str) -> Self {
+        let connection = Connection::connect(queue_addr, ConnectionProperties::default())
             .await
-            .into_iter()
-            .flatten()
+            .unwrap();
+        let channel = connection.create_channel().await.unwrap();
+        let consumer = channel
+            .basic_consume(
+                queue_name,
+                "relayer",
+                BasicConsumeOptions::default(),
+                FieldTable::default(),
+            )
+            .await
+            .unwrap();
+
+        Self { channel, consumer }
+    }
+}
+
+#[automock]
+#[async_trait]
+impl Amqp for LapinConsumer {
+    async fn consume(&mut self, max_deliveries: usize) -> Result<Vec<(u64, String)>> {
+        let mut deliveries = Vec::with_capacity(max_deliveries);
+        let mut count = 0;
+
+        while let Some(delivery) = self.consumer.next().await {
+            let (_, delivery) = delivery.expect("Error in consumer");
+            deliveries.push(delivery);
+            count += 1;
+
+            if count >= max_deliveries {
+                break;
+            }
+        }
+        println!("Got {} logs from sentinel", deliveries.len());
+
+        let result = deliveries
+            .iter()
+            .map(|delivery| {
+                (
+                    delivery.delivery_tag,
+                    std::str::from_utf8(&delivery.data).unwrap().to_string(),
+                )
+            })
             .collect();
 
-        Ok(messages)
+        Ok(result)
     }
 
-    async fn generate_internal_message(
-        &self,
-        log: &Log,
-        event: &ContractCallWithToken,
-    ) -> Result<EnrichedMessage> {
-        if log.transaction_hash.is_none()
-            || log.log_index.is_none()
-            || log.transaction_index.is_none()
-            || log.block_hash.is_none()
-            || log.block_number.is_none()
-        {
-            return Err(eyre!("Missing fields in log: {:?}", log));
-        }
-
-        let tx_hash = log.transaction_hash.unwrap();
-        let log_index = log.log_index.unwrap();
-        let block_number = log.block_number.unwrap();
-        let tx_index = log.transaction_index.unwrap();
-
-        let block_data = self.get_full_block(block_number.as_u64()).await;
-        if block_data.is_err() {
-            return Err(eyre!(
-                "Failed to get block data for {:?} {:?}",
-                block_number,
-                block_data.err()
-            ));
-        }
-        let (exec_block, beacon_block, receipts) = block_data?;
-
-        let transaction_log_index = if log.transaction_log_index.is_none() {
-            self.calculate_tx_log_index(log_index.as_u64(), tx_index.as_u64(), &receipts)
-        } else {
-            log.transaction_log_index.unwrap().as_u64()
+    async fn nack_delivery(&self, delivery_tag: u64) -> Result<()> {
+        let requeue_nack = BasicNackOptions {
+            requeue: true,
+            ..Default::default()
         };
 
-        let cc_id = CrossChainId {
-            chain: "ethereum".parse().unwrap(),
-            id: format!("0x{:x}:{}", tx_hash, transaction_log_index)
-                .parse()
-                .unwrap(),
-        };
-
-        let msg = EnrichedMessage {
-            message: Message {
-                cc_id,
-                source_address: format!("0x{:x}", event.sender).parse().unwrap(),
-                destination_chain: event.destination_chain.parse().unwrap(),
-                destination_address: event.destination_contract_address.parse().unwrap(),
-                payload_hash: event.payload_hash.into(),
-            },
-            exec_block: exec_block.clone(),
-            beacon_block: beacon_block.clone(),
-            receipts: receipts.clone(),
-            tx_hash,
-        };
-
-        Ok(msg)
-    }
-
-    fn calculate_tx_log_index(
-        &self,
-        log_index: u64,
-        tx_index: u64,
-        receipts: &[TransactionReceipt],
-    ) -> u64 {
-        let mut logs_before_tx = 0;
-        for idx in 0..tx_index {
-            logs_before_tx += receipts.get(idx as usize).unwrap().logs.len();
-        }
-
-        log_index - logs_before_tx as u64
-    }
-
-    async fn get_full_block(
-        &self,
-        block_number: u64,
-    ) -> Result<(
-        Block<Transaction>,
-        BeaconBlockAlias,
-        Vec<TransactionReceipt>,
-    )> {
-        let exec_block = self
-            .execution
-            .get_block_with_txs(block_number)
+        self.channel
+            .basic_nack(delivery_tag, requeue_nack)
             .await
-            .wrap_err(format!("failed to get exec block {}", block_number))?
-            .ok_or_else(|| eyre!("could not find execution block {:?}", block_number))?;
+            .map_err(|e| eyre!("Error nacking delivery {} {}", delivery_tag, e))?;
 
-        let block_slot = calc_slot_from_timestamp(exec_block.timestamp.as_u64());
+        Ok(())
+    }
 
-        let beacon_block = self
-            .consensus
-            .get_beacon_block(block_slot)
+    async fn ack_delivery(&self, delivery_tag: u64) -> Result<()> {
+        self.channel
+            .basic_ack(delivery_tag, BasicAckOptions::default())
             .await
-            .wrap_err(eyre!("failed to get beacon block {}", block_number))?;
+            .map_err(|e| eyre!("Error nacking delivery {} {}", delivery_tag, e))?;
 
-        let receipts = self.execution.get_block_receipts(block_number).await?;
-
-        Ok((exec_block, beacon_block, receipts))
-    }
-
-    async fn get_contract_call_with_token_logs(
-        &self,
-        from_block: u64,
-        to_block: u64,
-        limit: u64,
-    ) -> Result<Vec<Log>> {
-        let signature = "ContractCallWithToken(address,string,string,bytes32,bytes,string,uint256)";
-
-        let filter = Filter::new()
-            .address(self.address)
-            .event(signature)
-            .from_block(from_block)
-            .to_block(to_block);
-
-        let logs = self.execution.provider.get_logs(&filter).await?;
-
-        let mut limited = vec![];
-        for i in 0..limit {
-            limited.push(logs[i as usize].clone());
-        }
-
-        Ok(limited)
-    }
-
-    fn decode_contract_call_with_token_logs(logs: &Vec<Log>) -> Result<Vec<ContractCallWithToken>> {
-        let events = logs
-            .clone()
-            .into_iter()
-            .map(|log| EthEvent::decode_log(&RawLog::from(log)).unwrap())
-            .collect::<Vec<ContractCallWithToken>>();
-
-        if events.len() != logs.len() {
-            // TODO: Error handling
-            panic!("Failed to decode logs");
-        }
-
-        Ok(events)
-    }
-
-    pub async fn get_messages_in_slot_range(
-        &self,
-        from_slot: u64,
-        to_slot: u64,
-        limit: u64,
-    ) -> Result<Vec<EnrichedMessage>> {
-        let beacon_block_from = self.consensus.get_beacon_block(from_slot).await?;
-        let beacon_block_to = self.consensus.get_beacon_block(to_slot).await?;
-
-        let messages = self
-            .get_contract_call_with_token_messages(
-                beacon_block_from.body.execution_payload.block_number,
-                beacon_block_to.body.execution_payload.block_number,
-                limit,
-            )
-            .await?;
-
-        Ok(messages)
+        Ok(())
     }
 }
+
+// pub struct Gateway {
+//     consensus: Arc<ConsensusRPC>,
+//     execution: Arc<ExecutionRPC>,
+//     address: Address,
+// }
+// impl Gateway {
+//     pub fn new(
+//         consensus: Arc<ConsensusRPC>,
+//         execution: Arc<ExecutionRPC>,
+//         address: String,
+//     ) -> Self {
+//         let address = address.parse::<Address>().unwrap();
+
+//         Self {
+//             consensus,
+//             execution,
+//             address,
+//         }
+//     }
+
+//     pub async fn get_contract_call_with_token_messages(
+//         &self,
+//         from_block: u64,
+//         to_block: u64,
+//         limit: u64,
+//     ) -> Result<Vec<EnrichedLog>> {
+//         let logs = self
+//             .get_contract_call_with_token_logs(from_block, to_block, limit)
+//             .await?;
+//         println!("Got logs {:?}", logs.len());
+
+//         let enriched_logs = logs.iter().map(|log|
+//             EnrichedLog {
+//                 log: log.clone(),
+//                 event_name: "ContractCallWithToken".to_string(),
+//                 contract_name: "gateway".to_string(),
+//                 chain: "ethereum".to_string(),
+//                 source: "source".to_string(),
+//                 tx_to: H160::default(),
+
+//         }).collect();
+
+//         Ok(enriched_logs)
+//     }
+
+//     async fn get_contract_call_with_token_logs(
+//         &self,
+//         from_block: u64,
+//         to_block: u64,
+//         limit: u64,
+//     ) -> Result<Vec<Log>> {
+//         let signature = "ContractCallWithToken(address,string,string,bytes32,bytes,string,uint256)";
+
+//         let filter = Filter::new()
+//             .address(self.address)
+//             .event(signature)
+//             .from_block(from_block)
+//             .to_block(to_block);
+
+//         let logs = self.execution.provider.get_logs(&filter).await?;
+//         println!("Got logs {:?}", logs.len());
+
+//         let mut limited = vec![];
+//         for i in 0..limit {
+//             limited.push(logs[i as usize].clone());
+//         }
+
+//         Ok(limited)
+//     }
+
+//     pub async fn get_logs_in_slot_range(
+//         &self,
+//         from_slot: u64,
+//         to_slot: u64,
+//         limit: u64,
+//     ) -> Result<Vec<EnrichedLog>> {
+//         let beacon_block_from = self.consensus.get_beacon_block(from_slot).await?;
+//         let beacon_block_to = self.consensus.get_beacon_block(to_slot).await?;
+//         println!("Got beacon blocks {}, {}", beacon_block_from.slot, beacon_block_to.slot);
+
+//         let messages = self
+//             .get_contract_call_with_token_messages(
+//                 beacon_block_from.body.execution_payload.block_number,
+//                 beacon_block_to.body.execution_payload.block_number,
+//                 limit,
+//             )
+//             .await?;
+
+//         Ok(messages)
+//     }
+// }

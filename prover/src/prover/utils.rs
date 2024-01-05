@@ -10,7 +10,7 @@ use eyre::{anyhow, Result};
 use hasher::HasherKeccak;
 use ssz_rs::SszVariableOrIndex;
 
-use super::types::BatchMessageGroups;
+use super::types::BatchContentGroups;
 
 pub fn parse_path(path: &Vec<SszVariableOrIndex>) -> String {
     let mut path_str = String::new();
@@ -78,7 +78,7 @@ pub fn encode_receipt(receipt: &TransactionReceipt) -> Vec<u8> {
 }
 
 #[cfg(not(tarpaulin_include))]
-pub fn debug_print_batch_message_groups(batch_message_groups: &BatchMessageGroups) {
+pub fn debug_print_batch_message_groups(batch_message_groups: &BatchContentGroups) {
     for (block_number, message_groups) in batch_message_groups {
         let block_count = message_groups.len();
         for (tx_hash, messages) in message_groups {
