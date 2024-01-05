@@ -16,10 +16,7 @@ pub struct EthersConsumer {
 }
 
 impl EthersConsumer {
-    pub fn new(
-        execution: Arc<ExecutionRPC>,
-        address: String,
-    ) -> Self {
+    pub fn new(execution: Arc<ExecutionRPC>, address: String) -> Self {
         let address = address.parse::<Address>().unwrap();
 
         Self { execution, address }
