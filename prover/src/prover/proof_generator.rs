@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use super::utils;
 use crate::prover::{
     state_prover::StateProverAPI,
     types::{GindexOrPath, ProofResponse},
@@ -16,7 +17,6 @@ use ssz_rs::{get_generalized_index, Node, SszVariableOrIndex, Vector};
 use sync_committee_rs::constants::{
     CAPELLA_FORK_EPOCH, SLOTS_PER_EPOCH, SLOTS_PER_HISTORICAL_ROOT,
 };
-use super::utils;
 
 const CAPELLA_FORK_SLOT: u64 = CAPELLA_FORK_EPOCH * SLOTS_PER_EPOCH;
 
@@ -39,7 +39,7 @@ pub trait ProofGeneratorAPI {
         target_block_slot: &u64,
         recent_block_state_id: &str,
     ) -> Result<AncestryProof>;
-    /// Generates an ancestry proof from the target block to the beacon state root 
+    /// Generates an ancestry proof from the target block to the beacon state root
     /// using the historical roots state property. This proof needs the
     /// block_roots tree to be reconstructed (i.e. fetching all 8196 block roots
     /// of a period and then generating the proofs).

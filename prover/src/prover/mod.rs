@@ -19,10 +19,10 @@ use consensus_types::{
     },
 };
 use eth::consensus::ConsensusRPC;
-use log::{debug, error};
 use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use eyre::{eyre, Context, Result};
 use indexmap::IndexMap;
+use log::{debug, error};
 use mockall::automock;
 use ssz_rs::{Merkleized, Node};
 use std::sync::Arc;
@@ -35,7 +35,7 @@ use types::EnrichedContent;
 
 #[async_trait]
 pub trait ProverAPI {
-    /// Receives a batch of messages and returns a batched data structure containing 
+    /// Receives a batch of messages and returns a batched data structure containing
     /// the messages grouped by block number and tx hash.
     fn batch_messages(&self, contents: &[EnrichedContent]) -> BatchContentGroups;
     /// Receives a batch of contents and returns a batched data structure with
@@ -51,11 +51,11 @@ pub trait ProverAPI {
 
 /// This is the basic prover implemntation. It uses the proof generator to
 /// generate a set of proofs from a given update up to a set of batched events.
-/// 
+///
 /// It employs 2 levels of batching:
 /// - batching per block (i.e. all messages in a batch belong to the same block
 /// share the same ancestry proof from the recent block to the target block) .
-/// 
+///
 /// - batching per transaction (i.e. all messages in a batch that belong to the
 /// same transaction share the same transaction and receipt_root proof to the
 /// target block, as well as the same ancestry proof.
@@ -230,7 +230,10 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
             target_block_slot
         ))?;
 
-        debug!("Got full ancestry proof from {} to {}", recent_block.slot, target_block_slot);
+        debug!(
+            "Got full ancestry proof from {} to {}",
+            recent_block.slot, target_block_slot
+        );
         Ok(proof)
     }
 
@@ -298,10 +301,7 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
             transaction,
         };
 
-        debug!(
-            "Got tx proof for block {} and tx: {}",
-            block_hash, tx_index
-        );
+        debug!("Got tx proof for block {} and tx: {}", block_hash, tx_index);
         Ok(transaction_proof)
     }
 }

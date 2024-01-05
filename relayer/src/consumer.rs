@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use log::info;
 use eyre::{eyre, Result};
 use futures::StreamExt;
 use lapin::{
@@ -7,6 +6,7 @@ use lapin::{
     types::FieldTable,
     Channel, Connection, ConnectionProperties, Consumer,
 };
+use log::info;
 use mockall::automock;
 
 // The basic RabbitMQ consumer.

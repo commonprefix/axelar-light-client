@@ -1,10 +1,10 @@
-use consensus_types::{lightclient::LightClientState, consensus::Update};
-use log::error;
+use consensus_types::{consensus::Update, lightclient::LightClientState};
 use cosmos_sdk_proto::cosmwasm::wasm::v1::{
     query_client::QueryClient, QuerySmartContractStateRequest,
 };
 use eyre::Result;
 use futures::executor::block_on;
+use log::error;
 use serde::de::DeserializeOwned;
 
 #[derive(Debug)]

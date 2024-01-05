@@ -1,12 +1,12 @@
 use std::str::FromStr;
 
+use crate::error::RPCError;
 use async_trait::async_trait;
 use ethers::prelude::Http;
 use ethers::providers::{HttpRateLimitRetryPolicy, Middleware, Provider, RetryClient};
 use ethers::types::{Block, Filter, Log, Transaction, TransactionReceipt, H256, U64};
 use eyre::Result;
 use mockall::automock;
-use crate::error::RPCError;
 
 /// A trait describing a limited set of methods for the execution layer.
 #[automock]

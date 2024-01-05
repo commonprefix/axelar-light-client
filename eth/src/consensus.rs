@@ -12,7 +12,7 @@ use sync_committee_rs::{
 };
 use types::consensus::{BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update};
 
-/// The thin wrapper around the BeaconAPI overloaded with custom methods 
+/// The thin wrapper around the BeaconAPI overloaded with custom methods
 #[async_trait]
 pub trait EthBeaconAPI: Sync + Send + 'static {
     /// Get the block root for a given slot.

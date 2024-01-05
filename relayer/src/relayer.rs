@@ -9,7 +9,7 @@ use consensus_types::{
 };
 use eth::{consensus::EthBeaconAPI, execution::EthExecutionAPI, utils::get_full_block_details};
 use eyre::{eyre, Result};
-use log::{debug, info, warn, error};
+use log::{debug, error, info, warn};
 use prover::prover::{types::EnrichedContent, ProverAPI};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::time::interval;
