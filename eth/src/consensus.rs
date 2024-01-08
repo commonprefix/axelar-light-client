@@ -26,6 +26,8 @@ pub trait EthBeaconAPI: Sync + Send + 'static {
     /// Get the latest light client optimistic update.
     async fn get_optimistic_update(&self) -> Result<OptimisticUpdate, RPCError>;
     /// Get the beacon block header for a given slot.
+    async fn get_latest_beacon_block_header(&self) -> Result<BeaconBlockHeader, RPCError>;
+    /// Get the beacon block header for a given slot.
     async fn get_beacon_block_header(&self, slot: u64) -> Result<BeaconBlockHeader, RPCError>;
     /// Get the beacon block for a given slot.
     async fn get_beacon_block(&self, slot: u64) -> Result<BeaconBlockAlias, RPCError>;
@@ -203,6 +205,32 @@ impl EthBeaconAPI for ConsensusRPC {
             .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
 
         Ok(data.data)
+    }
+
+    async fn get_latest_beacon_block_header(&self) -> Result<BeaconBlockHeader, RPCError> {
+        let req = format!("{}/eth/v1/beacon/headers/head", self.rpc);
+
+        let res = self
+            .client
+            .get(&req)
+            .send()
+            .await
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
+
+        if res.status() != reqwest::StatusCode::OK {
+            return Err(RPCError::RequestError(format!(
+                "Unexpected status code: {}",
+                res.status()
+            )));
+        }
+
+        let data = res
+            .json::<BeaconBlockHeaderResponse>()
+            .await
+            .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
+
+        Ok(data.data.header.message)
+
     }
 
     async fn get_beacon_block_header(&self, slot: u64) -> Result<BeaconBlockHeader, RPCError> {
