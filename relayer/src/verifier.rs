@@ -53,7 +53,7 @@ impl Verifier {
         let cmd = "axelard";
 
         let message = UpdateExecuteMsg {
-            LightClientUpdate: UpdateMsg { update },
+            light_client_update: UpdateMsg { update },
         };
 
         let args = [
