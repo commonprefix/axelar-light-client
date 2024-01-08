@@ -1,3 +1,4 @@
+use consensus_types::{lightclient::LightClientState, consensus::Update};
 use eth::types::EthConfig;
 use ethers::{
     contract::EthEvent,
@@ -99,4 +100,19 @@ pub struct EnrichedLog {
     pub log: Log,
     pub source: String,
     pub tx_to: Address,
+}
+
+
+#[derive(Debug, serde::Deserialize)]
+pub struct LightClientStateResult {
+    pub data: LightClientState,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct UpdateExecuteMsg {
+    pub LightClientUpdate: UpdateMsg
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct UpdateMsg {
+    pub update: Update
 }
