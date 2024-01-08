@@ -230,7 +230,6 @@ impl EthBeaconAPI for ConsensusRPC {
             .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
 
         Ok(data.data.header.message)
-
     }
 
     async fn get_beacon_block_header(&self, slot: u64) -> Result<BeaconBlockHeader, RPCError> {

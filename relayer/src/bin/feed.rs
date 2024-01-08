@@ -4,7 +4,10 @@ use eth::{
     consensus::{ConsensusRPC, EthBeaconAPI},
     types::EthConfig,
 };
-use relayer::{utils::{load_config, calc_sync_period}, verifier::Verifier};
+use relayer::{
+    utils::{calc_sync_period, load_config},
+    verifier::Verifier,
+};
 use std::{sync::Arc, time::Duration};
 use tokio::time::interval;
 
@@ -19,13 +22,15 @@ async fn main() {
     let consensus = Arc::new(ConsensusRPC::new(config.consensus_rpc.clone(), eth_config));
     let mut verifier = Verifier::new(config.wasm_rpc, config.verifier_addr);
 
-
     loop {
         interval.tick().await;
 
         let latest_header = consensus.get_latest_beacon_block_header().await;
         if latest_header.is_err() {
-            println!("Error getting latest header from consensus: {:?}", latest_header.err());
+            println!(
+                "Error getting latest header from consensus: {:?}",
+                latest_header.err()
+            );
             continue;
         }
         let latest_header = latest_header.unwrap();
