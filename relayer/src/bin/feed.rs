@@ -4,12 +4,13 @@ use eth::{
     consensus::{ConsensusRPC, EthBeaconAPI},
     types::EthConfig,
 };
+use log::{debug, error, info};
 use relayer::{
     utils::{calc_sync_period, load_config},
     verifier::Verifier,
 };
 use std::{sync::Arc, time::Duration};
-use tokio::time::interval;
+use tokio::time::sleep;
 
 const MAX_UPDATES_PER_LOOP: u8 = 100;
 
@@ -17,17 +18,22 @@ const MAX_UPDATES_PER_LOOP: u8 = 100;
 async fn main() {
     let config = load_config();
     let eth_config = EthConfig::from(config.clone());
-    let mut interval = interval(Duration::from_secs(config.process_interval));
+    let sleep_duration = Duration::from_secs(config.feed_interval);
 
     let consensus = Arc::new(ConsensusRPC::new(config.consensus_rpc.clone(), eth_config));
     let mut verifier = Verifier::new(config.wasm_rpc, config.verifier_addr);
 
+    let mut first_run = true;
     loop {
-        interval.tick().await;
+        if !first_run {
+            debug!("Sleeping for {}", sleep_duration.as_secs());
+            sleep(sleep_duration).await;
+        }
+        first_run = false;
 
         let latest_header = consensus.get_latest_beacon_block_header().await;
         if latest_header.is_err() {
-            println!(
+            error!(
                 "Error getting latest header from consensus: {:?}",
                 latest_header.err()
             );
@@ -38,17 +44,17 @@ async fn main() {
         let latest_period = calc_sync_period(latest_header.slot);
         let verifier_period = verifier.get_period().await;
         if verifier_period.is_err() {
-            println!("Error getting period from wasm: {:?}", verifier_period);
+            error!("Error getting period from wasm: {:?}", verifier_period);
             continue;
         }
         let verifier_period = verifier_period.unwrap();
 
-        println!(
+        info!(
             "Latest period: {}, Verifier period: {}",
             latest_period, verifier_period
         );
         if latest_period == verifier_period {
-            println!("No updates to process");
+            debug!("No updates to process");
             continue;
         }
 
@@ -56,14 +62,10 @@ async fn main() {
             .get_updates(verifier_period + 1, MAX_UPDATES_PER_LOOP)
             .await;
         if updates.is_err() {
-            println!("Error getting updates from consensus: {:?}", updates.err());
+            error!("Error getting updates from consensus: {:?}", updates.err());
             continue;
         }
         let updates = updates.unwrap();
-        if updates.is_empty() {
-            println!("No updates to process");
-            continue;
-        }
         println!(
             "Processing {} updates starting from period {}",
             updates.len(),
@@ -74,11 +76,11 @@ async fn main() {
             let update_period = calc_sync_period(update.attested_header.beacon.slot);
             let result = verifier.update(update).await;
             if result.is_err() {
-                println!("Error updating wasm: {:?}", result.err());
+                error!("Error updating wasm: {:?}", result.err());
                 break;
             }
 
-            println!("Update {} successfully", update_period);
+            info!("Update {} successfully", update_period);
         }
     }
 }
