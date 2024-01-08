@@ -12,7 +12,7 @@ use eyre::{eyre, Result};
 use log::{debug, error, info, warn};
 use prover::prover::{types::EnrichedContent, ProverAPI};
 use std::{collections::HashMap, sync::Arc, time::Duration};
-use tokio::time::interval;
+use tokio::time::sleep;
 
 // This is the main module of the relayer. It fetches logs from the rabbitMQ
 // consumer, generates the proofs and forwards them to the verifier.
@@ -45,16 +45,16 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
     /// new events that come from the consumer to the verifier after generating
     /// the neccessary proofs.
     pub async fn start(&mut self) {
-        let mut interval = interval(Duration::from_secs(self.config.process_interval));
+        let mut interval = Duration::from_secs(self.config.process_interval);
 
         loop {
-            interval.tick().await;
-
             let res = self.relay().await;
             match res {
                 Ok(_) => info!("Relay succeeded"),
                 Err(e) => error!("Relay failed {:?}", e),
             }
+
+            sleep(interval).await;
         }
     }
 
