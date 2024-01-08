@@ -406,7 +406,8 @@ pub mod test_helpers {
     use types::connection_router::state::Message;
     use types::execution::ReceiptLog;
     use types::proofs::{
-        BatchVerificationData, CrossChainId, TransactionProofsBatch, UpdateVariant,
+        BatchVerificationData, BlockProofsBatch, CrossChainId, TransactionProofsBatch,
+        UpdateVariant,
     };
     use types::ssz_rs::Node;
     use types::{
@@ -484,6 +485,19 @@ pub mod test_helpers {
             .filter_map(|c| match c {
                 ContentVariant::Message(m) => Some((*m).clone()),
                 ContentVariant::WorkerSet(..) => None,
+            })
+            .collect()
+    }
+
+    pub fn filter_workerset_variants(
+        proofs_batch: &TransactionProofsBatch,
+    ) -> Vec<WorkerSetMessage> {
+        proofs_batch
+            .content
+            .iter()
+            .filter_map(|c| match c {
+                ContentVariant::WorkerSet(m) => Some((*m).clone()),
+                ContentVariant::Message(..) => None,
             })
             .collect()
     }

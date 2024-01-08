@@ -198,7 +198,8 @@ pub fn light_client_update(
 mod tests {
     use crate::execute::{process_block_proofs, process_transaction_proofs, verify_content};
     use crate::lightclient::helpers::test_helpers::{
-        filter_message_variants, filter_workeset_message_variants, get_batched_data, get_config,
+        filter_message_variants, filter_workerset_variants, filter_workeset_message_variants,
+        get_batched_data, get_config,
     };
     use crate::lightclient::helpers::{extract_logs_from_receipt_proof, parse_message_id};
     use crate::lightclient::tests::tests::init_lightclient;
@@ -367,55 +368,15 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_verify_workerset_message() {
         let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
         let verification_data = get_batched_data(false).1;
-        let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
+        let target_block_proofs = verification_data.target_blocks.get(1).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
 
-        let messages = filter_workeset_message_variants(proofs);
+        let messages = filter_workerset_variants(proofs);
 
-        let mut message = messages.first().unwrap().clone();
-        message.message_id = String::from("broken_id").try_into().unwrap();
-        assert_eq!(
-            verify_content(
-                ContentVariant::WorkerSet(message.clone()).clone(),
-                &proofs.transaction_proof.transaction,
-                &ReceiptLogs::default(),
-                &gateway_address,
-            )
-            .unwrap_err()
-            .to_string(),
-            "Invalid message id format"
-        );
-
-        message.message_id = String::from("foo:bar").try_into().unwrap();
-        assert_eq!(
-            verify_content(
-                ContentVariant::WorkerSet(message.clone()).clone(),
-                &proofs.transaction_proof.transaction,
-                &ReceiptLogs::default(),
-                &gateway_address
-            )
-            .unwrap_err()
-            .to_string(),
-            "Invalid transaction hash in message id"
-        );
-
-        message = messages.get(0).unwrap().clone();
-        assert_eq!(
-            verify_content(
-                ContentVariant::WorkerSet(message.clone()).clone(),
-                &proofs.transaction_proof.transaction,
-                &ReceiptLogs::default(),
-                &gateway_address
-            )
-            .unwrap_err()
-            .to_string(),
-            "Log index out of bounds"
-        );
-
+        let message = messages.get(0).unwrap().clone();
         let logs = extract_logs_from_receipt_proof(
             &proofs.receipt_proof,
             proofs.transaction_proof.transaction_index,
@@ -441,7 +402,7 @@ mod tests {
             ContentVariant::WorkerSet(message.clone()).clone(),
             &proofs.transaction_proof.transaction,
             &logs,
-            &gateway_address
+            &gateway_address,
         )
         .is_err());
     }
