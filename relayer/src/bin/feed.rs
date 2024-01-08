@@ -16,6 +16,8 @@ const MAX_UPDATES_PER_LOOP: u8 = 100;
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
+
     let config = load_config();
     let eth_config = EthConfig::from(config.clone());
     let sleep_duration = Duration::from_secs(config.feed_interval);
