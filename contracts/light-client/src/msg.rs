@@ -2,7 +2,7 @@ use types::common::{Config, WorkerSetMessage};
 use types::connection_router::state::Message;
 use types::consensus::{Bootstrap, Update};
 use types::cosmwasm_schema::*;
-use types::proofs::{nonempty, BatchVerificationData, Operators};
+use types::proofs::BatchVerificationData;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct InstantiateMsg {

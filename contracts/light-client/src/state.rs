@@ -4,7 +4,6 @@ use types::axelar_wasm_std::hash::Hash;
 use types::common::{Config, WorkerSetMessage};
 use types::connection_router::state::Message;
 use types::lightclient::LightClientState;
-use types::proofs::Operators;
 use types::sync_committee_rs::{consensus_types::SyncCommittee, constants::SYNC_COMMITTEE_SIZE};
 
 pub const CONFIG: Item<Config> = Item::new("config");

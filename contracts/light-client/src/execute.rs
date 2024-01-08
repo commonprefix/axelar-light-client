@@ -208,7 +208,7 @@ mod tests {
     use eyre::Result;
     use types::alloy_primitives::Address;
     use types::common::{ContentVariant, WorkerSetMessage};
-    use types::consensus::FinalityUpdate;
+    use types::consensus::{FinalityUpdate, OptimisticUpdate};
     use types::execution::{ReceiptLog, ReceiptLogs};
     use types::proofs::{BlockProofsBatch, Message, TransactionProofsBatch, UpdateVariant};
     use types::ssz_rs::Merkleized;
@@ -233,7 +233,7 @@ mod tests {
     #[test]
     fn test_verify_content_failures() {
         let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
-        let verification_data = get_batched_data(false).1;
+        let verification_data = get_batched_data(false, "finality").1;
         let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
 
@@ -330,7 +330,7 @@ mod tests {
     #[test]
     fn test_verify_message() {
         let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
-        let verification_data = get_batched_data(false).1;
+        let verification_data = get_batched_data(false, "finality").1;
         let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
 
@@ -370,7 +370,7 @@ mod tests {
     #[test]
     fn test_verify_workerset_message() {
         let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
-        let verification_data = get_batched_data(false).1;
+        let verification_data = get_batched_data(false, "finality").1;
         let target_block_proofs = verification_data.target_blocks.get(1).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
 
@@ -410,7 +410,7 @@ mod tests {
     #[test]
     fn test_process_transaction_proofs() {
         let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
-        let data = get_batched_data(false).1;
+        let data = get_batched_data(false, "finality").1;
 
         let block_proofs = data
             .target_blocks
@@ -430,8 +430,7 @@ mod tests {
         assert_valid_contents(&content, &res);
 
         let mut corrupted_proofs = transaction_proofs.clone();
-        let (mut workerset_messages, mut messages) =
-            filter_variants_as_mutref(&mut corrupted_proofs);
+        let (_, mut messages) = filter_variants_as_mutref(&mut corrupted_proofs);
         messages[0].cc_id.id = "invalid".to_string().try_into().unwrap();
         let res =
             process_transaction_proofs(&corrupted_proofs, &target_block_root, &gateway_address);
@@ -486,7 +485,7 @@ mod tests {
     #[test]
     fn test_process_block_proofs() {
         let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
-        let mut data = get_batched_data(false).1;
+        let mut data = get_batched_data(false, "finality").1;
         let recent_block = data.update.recent_block();
 
         for target_block in data.target_blocks.iter_mut() {
@@ -505,36 +504,55 @@ mod tests {
 
     #[test]
     fn test_process_batch_data() {
-        let (bootstrap, mut data) = get_batched_data(false);
-        let lc = init_lightclient(Some(bootstrap));
-        let mut deps = mock_dependencies();
-        CONFIG.save(&mut deps.storage, &get_config()).unwrap();
+        for historical in [true, false] {
+            if historical {
+                // TODO: fix testcase
+                continue;
+            }
 
-        let res = process_batch_data(deps.as_mut(), &lc, &data);
-        let contents = data
-            .target_blocks
-            .iter()
-            .flat_map(|target_block| extract_content_from_block(target_block))
-            .collect::<Vec<ContentVariant>>();
+            for finalization in ["finality", "optimistic"] {
+                let (bootstrap, mut data) = get_batched_data(historical, finalization);
+                let lc = init_lightclient(Some(bootstrap));
+                let mut deps = mock_dependencies();
+                CONFIG.save(&mut deps.storage, &get_config()).unwrap();
 
-        println!("{:?}", res);
-        assert!(res.is_ok());
-        assert_valid_contents(&contents, &res.unwrap());
+                let res = process_batch_data(deps.as_mut(), &lc, &data);
+                let contents = data
+                    .target_blocks
+                    .iter()
+                    .flat_map(|target_block| extract_content_from_block(target_block))
+                    .collect::<Vec<ContentVariant>>();
 
-        let mut corrupt_data = data.clone();
-        corrupt_data.update = UpdateVariant::Finality(FinalityUpdate::default());
-        assert!(process_batch_data(deps.as_mut(), &lc, &corrupt_data).is_err());
+                println!("{:?}", res);
+                assert!(res.is_ok());
+                assert_valid_contents(&contents, &res.unwrap());
 
-        for target_block in data.target_blocks.iter_mut() {
-            corrupt_contents(target_block);
+                // Corrupt the update
+                let mut corrupt_data = data.clone();
+                match finalization {
+                    "finality" => {
+                        corrupt_data.update = UpdateVariant::Finality(FinalityUpdate::default())
+                    }
+                    "optimistic" => {
+                        corrupt_data.update = UpdateVariant::Optimistic(OptimisticUpdate::default())
+                    }
+                    _ => panic!("Unknown finalization"),
+                };
+                assert!(process_batch_data(deps.as_mut(), &lc, &corrupt_data).is_err());
+
+                // Corrupt the contents
+                for target_block in data.target_blocks.iter_mut() {
+                    corrupt_contents(target_block);
+                }
+                let contents = data
+                    .target_blocks
+                    .iter()
+                    .flat_map(|target_block| extract_content_from_block(target_block))
+                    .collect::<Vec<ContentVariant>>();
+                let res = process_batch_data(deps.as_mut(), &lc, &data);
+                assert!(res.is_ok());
+                assert_invalid_contents(&contents, &res.unwrap());
+            }
         }
-        let contents = data
-            .target_blocks
-            .iter()
-            .flat_map(|target_block| extract_content_from_block(target_block))
-            .collect::<Vec<ContentVariant>>();
-        let res = process_batch_data(deps.as_mut(), &lc, &data);
-        assert!(res.is_ok());
-        assert_invalid_contents(&contents, &res.unwrap());
     }
 }
