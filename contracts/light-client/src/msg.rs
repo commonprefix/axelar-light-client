@@ -1,7 +1,7 @@
-use cosmwasm_schema::cw_serde;
-use types::common::Config;
+use types::common::{Config, WorkerSetMessage};
 use types::connection_router::state::Message;
 use types::consensus::{Bootstrap, Update};
+use types::cosmwasm_schema::*;
 use types::proofs::{nonempty, BatchVerificationData, Operators};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -13,19 +13,9 @@ pub struct InstantiateMsg {
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 #[allow(clippy::large_enum_variant)] // TODO: Properly fix this
 pub enum ExecuteMsg {
-    LightClientUpdate {
-        update: Update,
-    },
-    BatchVerificationData {
-        payload: BatchVerificationData,
-    },
-    VerifyMessages {
-        messages: Vec<Message>,
-    },
-    VerifyWorkerSet {
-        message_id: nonempty::String,
-        new_operators: Operators,
-    },
+    LightClientUpdate { update: Update },
+    BatchVerificationData { payload: BatchVerificationData },
+    VerifyMessages { messages: Vec<Message> },
 }
 
 #[cw_serde]
@@ -35,5 +25,5 @@ pub enum QueryMsg {
     Config {},
     Version {},
     IsVerified { messages: Vec<Message> },
-    IsWorkerSetVerified { new_operators: Operators },
+    IsWorkerSetVerified { message: WorkerSetMessage },
 }

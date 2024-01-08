@@ -87,7 +87,6 @@ pub fn execute(
         VerifyMessages {
             messages: _messages,
         } => Ok(Response::new()),
-        VerifyWorkerSet { .. } => Ok(Response::new()),
     }
 }
 
@@ -112,8 +111,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 })
                 .collect::<Vec<(Message, bool)>>(),
         ),
-        IsWorkerSetVerified { new_operators } => {
-            let result = VERIFIED_WORKER_SETS.load(deps.storage, new_operators.hash());
+        IsWorkerSetVerified { message } => {
+            let result = VERIFIED_WORKER_SETS.load(deps.storage, message.key());
             to_json_binary(&result.is_ok())
         }
     }

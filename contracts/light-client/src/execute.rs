@@ -2,6 +2,7 @@ use crate::ContractError;
 use cosmwasm_std::{DepsMut, Env, Response};
 use eyre::{eyre, Result};
 use hasher::{Hasher, HasherKeccak};
+use types::common::PrimaryKey;
 use types::consensus::BeaconBlockHeader;
 use types::execution::ReceiptLogs;
 use types::proofs::{
@@ -17,7 +18,9 @@ use crate::lightclient::helpers::{
     verify_ancestry_proof, verify_transaction_proof,
 };
 use crate::lightclient::LightClient;
-use crate::state::{CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE, VERIFIED_MESSAGES};
+use crate::state::{
+    CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE, VERIFIED_MESSAGES, VERIFIED_WORKER_SETS,
+};
 
 /// Finds the necessary log from a list of logs and then verifies the provided content.
 fn verify_content(
@@ -155,7 +158,9 @@ pub fn process_batch_data(
                 ContentVariant::Message(message) => {
                     VERIFIED_MESSAGES.save(deps.storage, message.hash(), message)?
                 }
-                ContentVariant::WorkerSet(..) => todo!(),
+                ContentVariant::WorkerSet(message) => {
+                    VERIFIED_WORKER_SETS.save(deps.storage, message.key(), message)?
+                }
             }
         }
     }
@@ -201,7 +206,7 @@ mod tests {
     use cosmwasm_std::testing::mock_dependencies;
     use eyre::Result;
     use types::alloy_primitives::Address;
-    use types::common::ContentVariant;
+    use types::common::{ContentVariant, WorkerSetMessage};
     use types::consensus::FinalityUpdate;
     use types::execution::{ReceiptLog, ReceiptLogs};
     use types::proofs::{BlockProofsBatch, Message, TransactionProofsBatch, UpdateVariant};
