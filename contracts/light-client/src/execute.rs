@@ -214,17 +214,19 @@ mod tests {
 
     use super::process_batch_data;
 
-    fn filter_message_variants_as_mutref(
+    fn filter_variants_as_mutref(
         proofs_batch: &mut TransactionProofsBatch,
-    ) -> Vec<&mut Message> {
-        proofs_batch
-            .content
-            .iter_mut()
-            .filter_map(|c| match c {
-                ContentVariant::Message(m) => Some(m),
-                _ => None,
-            })
-            .collect()
+    ) -> (Vec<&mut WorkerSetMessage>, Vec<&mut Message>) {
+        let mut workerset_messages: Vec<&mut WorkerSetMessage> = vec![];
+        let mut messages: Vec<&mut Message> = vec![];
+
+        for content in proofs_batch.content.iter_mut() {
+            match content {
+                ContentVariant::WorkerSet(m) => workerset_messages.push(m),
+                ContentVariant::Message(m) => messages.push(m),
+            }
+        }
+        (workerset_messages, messages)
     }
 
     #[test]
@@ -458,65 +460,65 @@ mod tests {
             .get(0)
             .expect("No transaction proofs available")
             .clone();
-        let messages = filter_message_variants(&transaction_proofs);
+        let content = transaction_proofs.content.clone();
 
         let target_block_root = block_proofs.target_block.clone().hash_tree_root().unwrap();
 
         let res =
             process_transaction_proofs(&transaction_proofs, &target_block_root, &gateway_address);
-        assert_valid_messages(&messages, &res);
+        assert_valid_contents(&content, &res);
 
         let mut corrupted_proofs = transaction_proofs.clone();
-        let mut messages = filter_message_variants_as_mutref(&mut corrupted_proofs);
+        let (mut workerset_messages, mut messages) =
+            filter_variants_as_mutref(&mut corrupted_proofs);
         messages[0].cc_id.id = "invalid".to_string().try_into().unwrap();
         let res =
             process_transaction_proofs(&corrupted_proofs, &target_block_root, &gateway_address);
-        assert_invalid_messages(&filter_message_variants(&corrupted_proofs), &res);
+        assert_invalid_contents(&corrupted_proofs.content, &res);
     }
 
-    fn extract_messages_from_block(target_block: &BlockProofsBatch) -> Vec<Message> {
+    fn extract_content_from_block(target_block: &BlockProofsBatch) -> Vec<ContentVariant> {
         target_block
             .transactions_proofs
             .iter()
-            .flat_map(|transaction_proofs| filter_message_variants(transaction_proofs).into_iter())
+            .flat_map(|transaction_proofs| transaction_proofs.content.clone())
             .collect()
     }
 
-    fn assert_valid_messages(messages: &[Message], res: &Vec<(ContentVariant, Result<()>)>) {
+    fn assert_valid_contents(contents: &[ContentVariant], res: &Vec<(ContentVariant, Result<()>)>) {
         assert!(res.len() > 0);
-        assert_eq!(res.len(), messages.len());
-        for (index, message) in messages.iter().enumerate() {
+        assert_eq!(res.len(), contents.len());
+        for (index, content_variant) in contents.iter().enumerate() {
             assert!(res[index].1.is_ok());
-            if let ContentVariant::Message(m) = &res[index].0 {
-                assert_eq!(m, message);
-            } else {
-                assert!(false, "Not a message variant");
-            }
+            assert_eq!(res[index].0, *content_variant);
         }
     }
 
-    fn corrupt_messages(target_block: &mut BlockProofsBatch) {
+    fn corrupt_contents(target_block: &mut BlockProofsBatch) {
         for tx in target_block.transactions_proofs.iter_mut() {
-            let mut messages = filter_message_variants_as_mutref(tx);
+            let (mut workerset_messaages, mut messages) = filter_variants_as_mutref(tx);
             for message in messages.iter_mut() {
                 message.cc_id.id = "invalid".to_string().try_into().unwrap();
             }
+
+            for message in workerset_messaages.iter_mut() {
+                message.message_id = "invalid".to_string().try_into().unwrap();
+            }
         }
     }
 
-    fn assert_invalid_messages(messages: &[Message], res: &Vec<(ContentVariant, Result<()>)>) {
+    fn assert_invalid_contents(
+        contents: &[ContentVariant],
+        res: &Vec<(ContentVariant, Result<()>)>,
+    ) {
         assert!(res.len() > 0);
-        assert_eq!(res.len(), messages.len());
-        for (index, message) in messages.iter().enumerate() {
+        assert_eq!(res.len(), contents.len());
+        for (index, content_variant) in contents.iter().enumerate() {
             assert_eq!(
                 res[index].1.as_ref().unwrap_err().to_string(),
                 "Invalid message id format"
             );
-            if let ContentVariant::Message(m) = &res[index].0 {
-                assert_eq!(m, message);
-            } else {
-                assert!(false, "Not a message variant");
-            }
+            assert_eq!(res[index].0, *content_variant);
         }
     }
 
@@ -527,15 +529,16 @@ mod tests {
         let recent_block = data.update.recent_block();
 
         for target_block in data.target_blocks.iter_mut() {
-            let messages = extract_messages_from_block(target_block);
+            let content = extract_content_from_block(target_block);
 
             let res = process_block_proofs(&recent_block, target_block, &gateway_address);
-            assert_valid_messages(&messages, &res);
+            println!("{:?}", res);
+            assert_valid_contents(&content, &res);
 
-            corrupt_messages(target_block);
-            let messages = extract_messages_from_block(target_block);
+            corrupt_contents(target_block);
+            let contents = extract_content_from_block(target_block);
             let res = process_block_proofs(&recent_block, target_block, &gateway_address);
-            assert_invalid_messages(&messages, &res);
+            assert_invalid_contents(&contents, &res);
         }
     }
 
@@ -547,29 +550,30 @@ mod tests {
         CONFIG.save(&mut deps.storage, &get_config()).unwrap();
 
         let res = process_batch_data(deps.as_mut(), &lc, &data);
-        let messages = data
+        let contents = data
             .target_blocks
             .iter()
-            .flat_map(|target_block| extract_messages_from_block(target_block))
-            .collect::<Vec<Message>>();
+            .flat_map(|target_block| extract_content_from_block(target_block))
+            .collect::<Vec<ContentVariant>>();
 
+        println!("{:?}", res);
         assert!(res.is_ok());
-        assert_valid_messages(&messages, &res.unwrap());
+        assert_valid_contents(&contents, &res.unwrap());
 
         let mut corrupt_data = data.clone();
         corrupt_data.update = UpdateVariant::Finality(FinalityUpdate::default());
         assert!(process_batch_data(deps.as_mut(), &lc, &corrupt_data).is_err());
 
         for target_block in data.target_blocks.iter_mut() {
-            corrupt_messages(target_block);
+            corrupt_contents(target_block);
         }
-        let messages = data
+        let contents = data
             .target_blocks
             .iter()
-            .flat_map(|target_block| extract_messages_from_block(target_block))
-            .collect::<Vec<Message>>();
+            .flat_map(|target_block| extract_content_from_block(target_block))
+            .collect::<Vec<ContentVariant>>();
         let res = process_batch_data(deps.as_mut(), &lc, &data);
         assert!(res.is_ok());
-        assert_invalid_messages(&messages, &res.unwrap());
+        assert_invalid_contents(&contents, &res.unwrap());
     }
 }
