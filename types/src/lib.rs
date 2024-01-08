@@ -8,5 +8,6 @@ pub use alloy_primitives;
 pub use alloy_rlp;
 pub use axelar_wasm_std;
 pub use connection_router;
+pub use cosmwasm_schema;
 pub use ssz_rs;
 pub use sync_committee_rs;
