@@ -7,6 +7,7 @@ pub type UpdateResponse = Vec<UpdateData>;
 /// The basic configuration of the Beacon ETH client
 pub struct EthConfig {
     pub pool_max_idle_per_host: usize,
+    pub rpc_max_retries: u64,
     pub timeout_secs: u64,
 }
 
@@ -15,6 +16,7 @@ impl Default for EthConfig {
         EthConfig {
             pool_max_idle_per_host: 10,
             timeout_secs: 10,
+            rpc_max_retries: 5,
         }
     }
 }

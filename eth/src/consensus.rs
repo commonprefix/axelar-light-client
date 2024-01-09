@@ -51,7 +51,8 @@ impl ConsensusRPC {
     /// Create a new consensus rpc client. The client is configured with a
     /// retry policy that will retry transient errors up to 3 times.
     pub fn new(rpc: String, config: EthConfig) -> Self {
-        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
+        let retry_policy =
+            ExponentialBackoff::builder().build_with_max_retries(config.rpc_max_retries as u32);
 
         let client = reqwest::Client::builder()
             .pool_max_idle_per_host(config.pool_max_idle_per_host)

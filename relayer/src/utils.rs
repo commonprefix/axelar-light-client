@@ -39,6 +39,12 @@ pub fn load_config() -> Config {
                 .as_str(),
         )
         .unwrap(),
+        rpc_max_retries: u64::from_str(
+            env::var("RPC_MAX_RETRIES")
+                .expect("Missing RPC_MAX_RETRIES from .env")
+                .as_str(),
+        )
+        .unwrap(),
         genesis_timestamp: u64::from_str(
             env::var("GENESIS_TIMESTAMP")
                 .expect("Missing GENESIS_TIMESTAMP from .env")
