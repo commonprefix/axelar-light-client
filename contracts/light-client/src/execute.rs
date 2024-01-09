@@ -505,11 +505,6 @@ mod tests {
     #[test]
     fn test_process_batch_data() {
         for historical in [true, false] {
-            if historical {
-                // TODO: fix testcase
-                continue;
-            }
-
             for finalization in ["finality", "optimistic"] {
                 let (bootstrap, mut data) = get_batched_data(historical, finalization);
                 let lc = init_lightclient(Some(bootstrap));
