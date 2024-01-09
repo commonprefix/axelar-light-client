@@ -126,7 +126,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_trie_proof() {
-        let verification_data = get_batched_data(false).1;
+        let verification_data = get_batched_data(false, "finality").1;
         let proofs = verification_data.target_blocks[0].transactions_proofs[0].clone();
         let receipt_proof = proofs.receipt_proof.clone();
         let transaction_proof = proofs.transaction_proof;
@@ -174,7 +174,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_block_roots_proof() {
-        let data = get_batched_data(false).1;
+        let data = get_batched_data(false, "finality").1;
         let (block_roots_index, block_root_proof) = match &data.target_blocks[0].ancestry_proof {
             AncestryProof::BlockRoots {
                 block_roots_index,
@@ -247,7 +247,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_historical_roots_proof() {
-        let verification_data = get_batched_data(true).1;
+        let verification_data = get_batched_data(true, "finality").1;
         let (
             block_root_proof,
             block_summary_root,
@@ -363,7 +363,7 @@ pub mod tests {
 
     #[test]
     fn test_parse_logs_from_receipt() {
-        let verification_data = get_batched_data(false).1;
+        let verification_data = get_batched_data(false, "finality").1;
         let proofs = verification_data.target_blocks[0].transactions_proofs[0].clone();
         let mut receipt = verify_trie_proof(
             proofs.receipt_proof.receipts_root,
@@ -391,21 +391,21 @@ pub mod tests {
             .try_into()
             .unwrap(),
             vec![
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 136, 230, 160, 194, 221, 210, 111, 238, 182,
-                79, 3, 154, 44, 65, 41, 111, 203, 63, 86, 64,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 224, 85, 74, 71, 106, 9, 39, 3, 171, 219, 62,
+                243, 92, 128, 224, 215, 109, 50, 147, 159,
             ]
             .try_into()
             .unwrap(),
             vec![
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 79, 211, 156, 158, 21, 30, 80, 88, 7, 121, 189,
-                4, 177, 247, 236, 195, 16, 7, 159, 211,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 206, 22, 246, 147, 117, 82, 10, 176, 19, 119,
+                206, 123, 136, 245, 186, 140, 72, 248, 214, 102,
             ]
             .try_into()
             .unwrap(),
         ];
         let expected_data: Vec<u8> = vec![
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2,
-            198, 78, 221, 99,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            34, 62, 88,
         ];
 
         assert_eq!(first_log.address, expected_address);
@@ -440,7 +440,7 @@ pub mod tests {
 
     #[test]
     fn test_extract_logs_from_receipt_proof() {
-        let verification_data = get_batched_data(false).1;
+        let verification_data = get_batched_data(false, "finality").1;
         let proofs = verification_data.target_blocks[0].transactions_proofs[0].clone();
         let target_block_root = verification_data.target_blocks[0]
             .target_block
@@ -493,7 +493,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_transaction_proof() {
-        let verification_data = get_batched_data(false).1;
+        let verification_data = get_batched_data(false, "finality").1;
         let transaction_proof = verification_data.target_blocks[0].transactions_proofs[0]
             .transaction_proof
             .clone();
@@ -523,7 +523,7 @@ pub mod tests {
 
     #[test]
     fn test_compare_message_with_event() {
-        let verification_data = get_batched_data(false).1;
+        let verification_data = get_batched_data(false, "finality").1;
         let transaction_proofs = verification_data.target_blocks[0].transactions_proofs[0].clone();
         let message = filter_message_variants(&transaction_proofs)[0].clone();
         let receipt_proof = transaction_proofs.receipt_proof;
@@ -564,7 +564,7 @@ pub mod tests {
                 .destination_chain
                 .to_string()
                 .to_lowercase(),
-            "polygon"
+            "arbitrum"
         );
         assert!(modified_message.compare_with_event(event.clone()).is_ok());
         modified_message.destination_chain = String::from("none").try_into().unwrap();
@@ -584,7 +584,7 @@ pub mod tests {
         let mut modified_message = message.clone();
         assert_eq!(
             hex::encode(modified_message.payload_hash),
-            "51217189ef268163d2f8d62d908f0337e978c554f6978b4d494ff24310c6abd7"
+            "a86071271a789ad2ad032f622e77cc6859dc9a00001c8ca8a7c8daa43f3726b9"
         );
         assert!(modified_message.compare_with_event(event.clone()).is_ok());
         modified_message.payload_hash = Default::default();
@@ -735,7 +735,7 @@ pub mod tests {
 
     #[test]
     fn test_recent_block() {
-        let data = get_batched_data(false).1;
+        let data = get_batched_data(false, "finality").1;
         let UpdateVariant::Finality(update) = data.update.clone() else {
             panic!("Invalid update type")
         };

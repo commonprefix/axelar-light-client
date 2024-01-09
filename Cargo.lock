@@ -5533,6 +5533,7 @@ dependencies = [
  "alloy-rlp",
  "axelar-wasm-std",
  "connection-router",
+ "cosmwasm-schema",
  "eyre",
  "hex",
  "serde",

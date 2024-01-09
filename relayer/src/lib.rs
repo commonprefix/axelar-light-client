@@ -1,4 +1,4 @@
-pub mod consumer;
+pub mod consumers;
 pub mod parser;
 pub mod relayer;
 pub mod types;

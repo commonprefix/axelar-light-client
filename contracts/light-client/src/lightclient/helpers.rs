@@ -406,7 +406,8 @@ pub mod test_helpers {
     use types::connection_router::state::Message;
     use types::execution::ReceiptLog;
     use types::proofs::{
-        BatchVerificationData, CrossChainId, TransactionProofsBatch, UpdateVariant,
+        BatchVerificationData, BlockProofsBatch, CrossChainId, TransactionProofsBatch,
+        UpdateVariant,
     };
     use types::ssz_rs::Node;
     use types::{
@@ -432,11 +433,17 @@ pub mod test_helpers {
         update
     }
 
-    pub fn get_batched_data(historical: bool) -> (Bootstrap, BatchVerificationData) {
+    pub fn get_batched_data(
+        historical: bool,
+        finalization: &str,
+    ) -> (Bootstrap, BatchVerificationData) {
         let file_name = if historical {
-            "testdata/verification/finality_historical_roots.json"
+            format!(
+                "testdata/verification/{}_historical_roots.json",
+                finalization
+            )
         } else {
-            "testdata/verification/finality_block_roots.json"
+            format!("testdata/verification/{}_block_roots.json", finalization)
         };
         let verification_file = File::open(file_name).unwrap();
         let verification_data: BatchVerificationData =
@@ -484,6 +491,19 @@ pub mod test_helpers {
             .filter_map(|c| match c {
                 ContentVariant::Message(m) => Some((*m).clone()),
                 ContentVariant::WorkerSet(..) => None,
+            })
+            .collect()
+    }
+
+    pub fn filter_workerset_variants(
+        proofs_batch: &TransactionProofsBatch,
+    ) -> Vec<WorkerSetMessage> {
+        proofs_batch
+            .content
+            .iter()
+            .filter_map(|c| match c {
+                ContentVariant::WorkerSet(m) => Some((*m).clone()),
+                ContentVariant::Message(..) => None,
             })
             .collect()
     }

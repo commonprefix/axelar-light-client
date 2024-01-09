@@ -2,6 +2,7 @@ use crate::ContractError;
 use cosmwasm_std::{DepsMut, Env, Response};
 use eyre::{eyre, Result};
 use hasher::{Hasher, HasherKeccak};
+use types::common::PrimaryKey;
 use types::consensus::BeaconBlockHeader;
 use types::execution::ReceiptLogs;
 use types::proofs::{
@@ -17,7 +18,9 @@ use crate::lightclient::helpers::{
     verify_ancestry_proof, verify_transaction_proof,
 };
 use crate::lightclient::LightClient;
-use crate::state::{CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE, VERIFIED_MESSAGES};
+use crate::state::{
+    CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE, VERIFIED_MESSAGES, VERIFIED_WORKER_SETS,
+};
 
 /// Finds the necessary log from a list of logs and then verifies the provided content.
 fn verify_content(
@@ -155,7 +158,9 @@ pub fn process_batch_data(
                 ContentVariant::Message(message) => {
                     VERIFIED_MESSAGES.save(deps.storage, message.hash(), message)?
                 }
-                ContentVariant::WorkerSet(..) => todo!(),
+                ContentVariant::WorkerSet(message) => {
+                    VERIFIED_WORKER_SETS.save(deps.storage, message.key(), message)?
+                }
             }
         }
     }
@@ -193,7 +198,8 @@ pub fn light_client_update(
 mod tests {
     use crate::execute::{process_block_proofs, process_transaction_proofs, verify_content};
     use crate::lightclient::helpers::test_helpers::{
-        filter_message_variants, filter_workeset_message_variants, get_batched_data, get_config,
+        filter_message_variants, filter_workerset_variants, filter_workeset_message_variants,
+        get_batched_data, get_config,
     };
     use crate::lightclient::helpers::{extract_logs_from_receipt_proof, parse_message_id};
     use crate::lightclient::tests::tests::init_lightclient;
@@ -201,31 +207,33 @@ mod tests {
     use cosmwasm_std::testing::mock_dependencies;
     use eyre::Result;
     use types::alloy_primitives::Address;
-    use types::common::ContentVariant;
-    use types::consensus::FinalityUpdate;
+    use types::common::{ContentVariant, WorkerSetMessage};
+    use types::consensus::{FinalityUpdate, OptimisticUpdate};
     use types::execution::{ReceiptLog, ReceiptLogs};
     use types::proofs::{BlockProofsBatch, Message, TransactionProofsBatch, UpdateVariant};
     use types::ssz_rs::Merkleized;
 
     use super::process_batch_data;
 
-    fn filter_message_variants_as_mutref(
+    fn filter_variants_as_mutref(
         proofs_batch: &mut TransactionProofsBatch,
-    ) -> Vec<&mut Message> {
-        proofs_batch
-            .content
-            .iter_mut()
-            .filter_map(|c| match c {
-                ContentVariant::Message(m) => Some(m),
-                _ => None,
-            })
-            .collect()
+    ) -> (Vec<&mut WorkerSetMessage>, Vec<&mut Message>) {
+        let mut workerset_messages: Vec<&mut WorkerSetMessage> = vec![];
+        let mut messages: Vec<&mut Message> = vec![];
+
+        for content in proofs_batch.content.iter_mut() {
+            match content {
+                ContentVariant::WorkerSet(m) => workerset_messages.push(m),
+                ContentVariant::Message(m) => messages.push(m),
+            }
+        }
+        (workerset_messages, messages)
     }
 
     #[test]
     fn test_verify_content_failures() {
         let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
-        let verification_data = get_batched_data(false).1;
+        let verification_data = get_batched_data(false, "finality").1;
         let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
 
@@ -322,7 +330,7 @@ mod tests {
     #[test]
     fn test_verify_message() {
         let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
-        let verification_data = get_batched_data(false).1;
+        let verification_data = get_batched_data(false, "finality").1;
         let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
 
@@ -360,55 +368,15 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_verify_workerset_message() {
         let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
-        let verification_data = get_batched_data(false).1;
-        let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
+        let verification_data = get_batched_data(false, "finality").1;
+        let target_block_proofs = verification_data.target_blocks.get(1).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
 
-        let messages = filter_workeset_message_variants(proofs);
+        let messages = filter_workerset_variants(proofs);
 
-        let mut message = messages.first().unwrap().clone();
-        message.message_id = String::from("broken_id").try_into().unwrap();
-        assert_eq!(
-            verify_content(
-                ContentVariant::WorkerSet(message.clone()).clone(),
-                &proofs.transaction_proof.transaction,
-                &ReceiptLogs::default(),
-                &gateway_address,
-            )
-            .unwrap_err()
-            .to_string(),
-            "Invalid message id format"
-        );
-
-        message.message_id = String::from("foo:bar").try_into().unwrap();
-        assert_eq!(
-            verify_content(
-                ContentVariant::WorkerSet(message.clone()).clone(),
-                &proofs.transaction_proof.transaction,
-                &ReceiptLogs::default(),
-                &gateway_address
-            )
-            .unwrap_err()
-            .to_string(),
-            "Invalid transaction hash in message id"
-        );
-
-        message = messages.get(0).unwrap().clone();
-        assert_eq!(
-            verify_content(
-                ContentVariant::WorkerSet(message.clone()).clone(),
-                &proofs.transaction_proof.transaction,
-                &ReceiptLogs::default(),
-                &gateway_address
-            )
-            .unwrap_err()
-            .to_string(),
-            "Log index out of bounds"
-        );
-
+        let message = messages.get(0).unwrap().clone();
         let logs = extract_logs_from_receipt_proof(
             &proofs.receipt_proof,
             proofs.transaction_proof.transaction_index,
@@ -434,7 +402,7 @@ mod tests {
             ContentVariant::WorkerSet(message.clone()).clone(),
             &proofs.transaction_proof.transaction,
             &logs,
-            &gateway_address
+            &gateway_address,
         )
         .is_err());
     }
@@ -442,7 +410,7 @@ mod tests {
     #[test]
     fn test_process_transaction_proofs() {
         let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
-        let data = get_batched_data(false).1;
+        let data = get_batched_data(false, "finality").1;
 
         let block_proofs = data
             .target_blocks
@@ -453,118 +421,133 @@ mod tests {
             .get(0)
             .expect("No transaction proofs available")
             .clone();
-        let messages = filter_message_variants(&transaction_proofs);
+        let content = transaction_proofs.content.clone();
 
         let target_block_root = block_proofs.target_block.clone().hash_tree_root().unwrap();
 
         let res =
             process_transaction_proofs(&transaction_proofs, &target_block_root, &gateway_address);
-        assert_valid_messages(&messages, &res);
+        assert_valid_contents(&content, &res);
 
         let mut corrupted_proofs = transaction_proofs.clone();
-        let mut messages = filter_message_variants_as_mutref(&mut corrupted_proofs);
+        let (_, mut messages) = filter_variants_as_mutref(&mut corrupted_proofs);
         messages[0].cc_id.id = "invalid".to_string().try_into().unwrap();
         let res =
             process_transaction_proofs(&corrupted_proofs, &target_block_root, &gateway_address);
-        assert_invalid_messages(&filter_message_variants(&corrupted_proofs), &res);
+        assert_invalid_contents(&corrupted_proofs.content, &res);
     }
 
-    fn extract_messages_from_block(target_block: &BlockProofsBatch) -> Vec<Message> {
+    fn extract_content_from_block(target_block: &BlockProofsBatch) -> Vec<ContentVariant> {
         target_block
             .transactions_proofs
             .iter()
-            .flat_map(|transaction_proofs| filter_message_variants(transaction_proofs).into_iter())
+            .flat_map(|transaction_proofs| transaction_proofs.content.clone())
             .collect()
     }
 
-    fn assert_valid_messages(messages: &[Message], res: &Vec<(ContentVariant, Result<()>)>) {
+    fn assert_valid_contents(contents: &[ContentVariant], res: &Vec<(ContentVariant, Result<()>)>) {
         assert!(res.len() > 0);
-        assert_eq!(res.len(), messages.len());
-        for (index, message) in messages.iter().enumerate() {
+        assert_eq!(res.len(), contents.len());
+        for (index, content_variant) in contents.iter().enumerate() {
             assert!(res[index].1.is_ok());
-            if let ContentVariant::Message(m) = &res[index].0 {
-                assert_eq!(m, message);
-            } else {
-                assert!(false, "Not a message variant");
-            }
+            assert_eq!(res[index].0, *content_variant);
         }
     }
 
-    fn corrupt_messages(target_block: &mut BlockProofsBatch) {
+    fn corrupt_contents(target_block: &mut BlockProofsBatch) {
         for tx in target_block.transactions_proofs.iter_mut() {
-            let mut messages = filter_message_variants_as_mutref(tx);
+            let (mut workerset_messaages, mut messages) = filter_variants_as_mutref(tx);
             for message in messages.iter_mut() {
                 message.cc_id.id = "invalid".to_string().try_into().unwrap();
             }
+
+            for message in workerset_messaages.iter_mut() {
+                message.message_id = "invalid".to_string().try_into().unwrap();
+            }
         }
     }
 
-    fn assert_invalid_messages(messages: &[Message], res: &Vec<(ContentVariant, Result<()>)>) {
+    fn assert_invalid_contents(
+        contents: &[ContentVariant],
+        res: &Vec<(ContentVariant, Result<()>)>,
+    ) {
         assert!(res.len() > 0);
-        assert_eq!(res.len(), messages.len());
-        for (index, message) in messages.iter().enumerate() {
+        assert_eq!(res.len(), contents.len());
+        for (index, content_variant) in contents.iter().enumerate() {
             assert_eq!(
                 res[index].1.as_ref().unwrap_err().to_string(),
                 "Invalid message id format"
             );
-            if let ContentVariant::Message(m) = &res[index].0 {
-                assert_eq!(m, message);
-            } else {
-                assert!(false, "Not a message variant");
-            }
+            assert_eq!(res[index].0, *content_variant);
         }
     }
 
     #[test]
     fn test_process_block_proofs() {
         let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
-        let mut data = get_batched_data(false).1;
+        let mut data = get_batched_data(false, "finality").1;
         let recent_block = data.update.recent_block();
 
         for target_block in data.target_blocks.iter_mut() {
-            let messages = extract_messages_from_block(target_block);
+            let content = extract_content_from_block(target_block);
 
             let res = process_block_proofs(&recent_block, target_block, &gateway_address);
-            assert_valid_messages(&messages, &res);
+            println!("{:?}", res);
+            assert_valid_contents(&content, &res);
 
-            corrupt_messages(target_block);
-            let messages = extract_messages_from_block(target_block);
+            corrupt_contents(target_block);
+            let contents = extract_content_from_block(target_block);
             let res = process_block_proofs(&recent_block, target_block, &gateway_address);
-            assert_invalid_messages(&messages, &res);
+            assert_invalid_contents(&contents, &res);
         }
     }
 
     #[test]
     fn test_process_batch_data() {
-        let (bootstrap, mut data) = get_batched_data(false);
-        let lc = init_lightclient(Some(bootstrap));
-        let mut deps = mock_dependencies();
-        CONFIG.save(&mut deps.storage, &get_config()).unwrap();
+        for historical in [true, false] {
+            for finalization in ["finality", "optimistic"] {
+                let (bootstrap, mut data) = get_batched_data(historical, finalization);
+                let lc = init_lightclient(Some(bootstrap));
+                let mut deps = mock_dependencies();
+                CONFIG.save(&mut deps.storage, &get_config()).unwrap();
 
-        let res = process_batch_data(deps.as_mut(), &lc, &data);
-        let messages = data
-            .target_blocks
-            .iter()
-            .flat_map(|target_block| extract_messages_from_block(target_block))
-            .collect::<Vec<Message>>();
+                let res = process_batch_data(deps.as_mut(), &lc, &data);
+                let contents = data
+                    .target_blocks
+                    .iter()
+                    .flat_map(|target_block| extract_content_from_block(target_block))
+                    .collect::<Vec<ContentVariant>>();
 
-        assert!(res.is_ok());
-        assert_valid_messages(&messages, &res.unwrap());
+                println!("{:?}", res);
+                assert!(res.is_ok());
+                assert_valid_contents(&contents, &res.unwrap());
 
-        let mut corrupt_data = data.clone();
-        corrupt_data.update = UpdateVariant::Finality(FinalityUpdate::default());
-        assert!(process_batch_data(deps.as_mut(), &lc, &corrupt_data).is_err());
+                // Corrupt the update
+                let mut corrupt_data = data.clone();
+                match finalization {
+                    "finality" => {
+                        corrupt_data.update = UpdateVariant::Finality(FinalityUpdate::default())
+                    }
+                    "optimistic" => {
+                        corrupt_data.update = UpdateVariant::Optimistic(OptimisticUpdate::default())
+                    }
+                    _ => panic!("Unknown finalization"),
+                };
+                assert!(process_batch_data(deps.as_mut(), &lc, &corrupt_data).is_err());
 
-        for target_block in data.target_blocks.iter_mut() {
-            corrupt_messages(target_block);
+                // Corrupt the contents
+                for target_block in data.target_blocks.iter_mut() {
+                    corrupt_contents(target_block);
+                }
+                let contents = data
+                    .target_blocks
+                    .iter()
+                    .flat_map(|target_block| extract_content_from_block(target_block))
+                    .collect::<Vec<ContentVariant>>();
+                let res = process_batch_data(deps.as_mut(), &lc, &data);
+                assert!(res.is_ok());
+                assert_invalid_contents(&contents, &res.unwrap());
+            }
         }
-        let messages = data
-            .target_blocks
-            .iter()
-            .flat_map(|target_block| extract_messages_from_block(target_block))
-            .collect::<Vec<Message>>();
-        let res = process_batch_data(deps.as_mut(), &lc, &data);
-        assert!(res.is_ok());
-        assert_invalid_messages(&messages, &res.unwrap());
     }
 }

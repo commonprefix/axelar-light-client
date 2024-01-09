@@ -1,5 +1,7 @@
+use crate::cosmwasm_schema::schemars;
 use axelar_wasm_std::nonempty;
 use connection_router::state::Message;
+use cosmwasm_schema::schemars::JsonSchema;
 use ssz_rs::prelude::*;
 
 /// Trait used to create the keys of the map which contains the verification results
@@ -22,7 +24,7 @@ pub struct Config {
 }
 
 /// Message describing an update of the operators set
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone, JsonSchema)]
 pub struct WorkerSetMessage {
     pub message_id: nonempty::String,
     pub new_operators_data: Vec<u8>,
