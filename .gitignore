@@ -16,4 +16,5 @@
 .idea
 
 artifacts/
-**/*.env
+**/*.env*
+!**/*.env.template
