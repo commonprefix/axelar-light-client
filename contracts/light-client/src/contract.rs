@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdError, StdResult,
+    to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
 };
 
 use crate::error::ContractError;
@@ -12,7 +12,6 @@ use eyre::Result;
 
 use crate::execute::{self, process_batch_data};
 use crate::types::VerificationResult;
-use cw2::{self, set_contract_version};
 use types::common::{ContentVariant, PrimaryKey};
 use types::connection_router::Message;
 
@@ -34,9 +33,6 @@ pub fn instantiate(
         deps.storage,
         &(msg.bootstrap.current_sync_committee, period),
     )?;
-
-    // TODO: Use commit hash or something else
-    cw2::set_contract_version(deps.storage, "lightclient", "1")?;
 
     Ok(Response::new())
 }
@@ -101,7 +97,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let sync_committee = &SYNC_COMMITTEE.load(deps.storage)?;
             to_json_binary(&sync_committee)
         }
-        Version {} => to_json_binary(&VERSION.load(deps.storage)?),
         IsVerified { messages } => to_json_binary(
             &messages
                 .into_iter()
@@ -116,17 +111,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_json_binary(&result.is_ok())
         }
     }
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
-    let contract_info = cw2::get_contract_version(deps.storage).unwrap();
-    set_contract_version(
-        deps.storage,
-        contract_info.contract,
-        (contract_info.version.parse::<u64>().unwrap() + 1).to_string(),
-    )?;
-    Ok(Response::default())
 }
 
 #[cfg(test)]

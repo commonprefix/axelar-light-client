@@ -23,7 +23,6 @@ pub enum QueryMsg {
     SyncCommittee {},
     LightClientState {},
     Config {},
-    Version {},
     IsVerified { messages: Vec<Message> },
     IsWorkerSetVerified { message: WorkerSetMessage },
 }
