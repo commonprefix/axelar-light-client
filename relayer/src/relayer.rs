@@ -45,7 +45,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
     /// new events that come from the consumer to the verifier after generating
     /// the neccessary proofs.
     pub async fn start(&mut self) {
-        let mut interval = Duration::from_secs(self.config.process_interval);
+        let interval = Duration::from_secs(self.config.process_interval);
 
         loop {
             let res = self.relay().await;
