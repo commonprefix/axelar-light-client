@@ -44,3 +44,9 @@ docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
   cosmwasm/rust-optimizer:0.12.11
 ```
+
+## Acknowledgements
+This project uses open source code from the following projects. We are deeply grateful to all the work they've put into developing this software, their commitment to open source software, and for licensing the work using a permissive license which allowed us to incorporate their work:
+- [Helios](https://github.com/a16z/helios/) for a major part of the light client verification/processing.
+- [Polytope's sync_committee_primitives](https://github.com/polytope-labs/sync-committee-rs) for the goerli and mainnet constants as well as some primitive beacon types.
+- [ethers.rs](https://github.com/gakonst/ethers-rs) and [alloy.rs](https://github.com/alloy-rs/core) for communicating with Ethereum and for encoding/decoding execution messages.
