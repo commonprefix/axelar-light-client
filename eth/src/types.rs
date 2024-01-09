@@ -1,7 +1,7 @@
 use ethers::types::{Block, Transaction, TransactionReceipt};
-use ssz_rs::Node;
-use sync_committee_rs::consensus_types::BeaconBlockHeader;
 use types::consensus::{BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update};
+use types::ssz_rs::Node;
+use types::sync_committee_rs::consensus_types::BeaconBlockHeader;
 pub type UpdateResponse = Vec<UpdateData>;
 
 /// The basic configuration of the Beacon ETH client

@@ -7,16 +7,18 @@ use crate::prover::{
 };
 use async_trait::async_trait;
 use cita_trie::Trie;
+use consensus_types::ssz_rs::{
+    generate_proof, get_generalized_index, Node, SszVariableOrIndex, Vector,
+};
+use consensus_types::sync_committee_rs::constants::{
+    CAPELLA_FORK_EPOCH, SLOTS_PER_EPOCH, SLOTS_PER_HISTORICAL_ROOT,
+};
 use consensus_types::{consensus::BeaconStateType, proofs::AncestryProof};
 use eth::consensus::EthBeaconAPI;
 use ethers::{types::TransactionReceipt, utils::rlp::encode};
 use eyre::{anyhow, Result};
 use log::debug;
 use mockall::automock;
-use ssz_rs::{get_generalized_index, Node, SszVariableOrIndex, Vector};
-use sync_committee_rs::constants::{
-    CAPELLA_FORK_EPOCH, SLOTS_PER_EPOCH, SLOTS_PER_HISTORICAL_ROOT,
-};
 
 const CAPELLA_FORK_SLOT: u64 = CAPELLA_FORK_EPOCH * SLOTS_PER_EPOCH;
 
@@ -212,7 +214,7 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<
             &Vector::<Node, SLOTS_PER_HISTORICAL_ROOT>::default(),
             &[SszVariableOrIndex::Index(block_root_index)],
         );
-        let proof = ssz_rs::generate_proof(&mut block_roots, &[gindex])?;
+        let proof = generate_proof(&mut block_roots, &[gindex])?;
 
         debug!(
             "Got block root to block summary root proof from {}",
@@ -283,15 +285,16 @@ mod tests {
     use crate::prover::utils::parse_path;
     use consensus_types::consensus::BeaconBlockAlias;
     use consensus_types::proofs::AncestryProof;
-    use eth::consensus::EthBeaconAPI;
-    use eth::consensus::MockConsensusRPC;
-    use ssz_rs::{
-        get_generalized_index, GeneralizedIndex, Merkleized, Node, SszVariableOrIndex, Vector,
+    use consensus_types::ssz_rs::{
+        get_generalized_index, verify_merkle_proof, GeneralizedIndex, Merkleized, Node,
+        SszVariableOrIndex, Vector,
     };
-    use sync_committee_rs::constants::Root;
-    use sync_committee_rs::{
+    use consensus_types::sync_committee_rs::constants::Root;
+    use consensus_types::sync_committee_rs::{
         consensus_types::BeaconBlockHeader, constants::SLOTS_PER_HISTORICAL_ROOT,
     };
+    use eth::consensus::EthBeaconAPI;
+    use eth::consensus::MockConsensusRPC;
     use tokio::test as tokio_test;
 
     async fn setup_block_and_provers(
@@ -394,7 +397,7 @@ mod tests {
             .await
             .unwrap();
 
-        let is_proof_valid = ssz_rs::verify_merkle_proof(
+        let is_proof_valid = verify_merkle_proof(
             &node,
             proof.witnesses.as_slice(),
             &GeneralizedIndex(proof.gindex as usize),
@@ -425,7 +428,7 @@ mod tests {
         let mut invalid_block_root = block_root;
         invalid_block_root.0[31] = 0;
 
-        let is_proof_valid = ssz_rs::verify_merkle_proof(
+        let is_proof_valid = verify_merkle_proof(
             &node,
             &proof.witnesses,
             &GeneralizedIndex(proof.gindex as usize),
@@ -451,7 +454,7 @@ mod tests {
             .await
             .unwrap();
 
-        let is_proof_valid = ssz_rs::verify_merkle_proof(
+        let is_proof_valid = verify_merkle_proof(
             &node,
             &proof.witnesses,
             &GeneralizedIndex(proof.gindex as usize),
@@ -479,7 +482,7 @@ mod tests {
         let mut invalid_block_root = block_root;
         invalid_block_root.0[31] = 0;
 
-        let is_proof_valid = ssz_rs::verify_merkle_proof(
+        let is_proof_valid = verify_merkle_proof(
             &node,
             &proof.witnesses,
             &GeneralizedIndex(proof.gindex as usize),
@@ -506,7 +509,7 @@ mod tests {
         let mut invalid_proof = proof.witnesses.clone();
         invalid_proof[0] = Node::default();
 
-        let is_proof_valid = ssz_rs::verify_merkle_proof(
+        let is_proof_valid = verify_merkle_proof(
             &node,
             &invalid_proof,
             &GeneralizedIndex(proof.gindex as usize),
@@ -527,7 +530,7 @@ mod tests {
             .await
             .unwrap();
 
-        let is_proof_valid = ssz_rs::verify_merkle_proof(
+        let is_proof_valid = verify_merkle_proof(
             &block
                 .body
                 .execution_payload
@@ -556,7 +559,7 @@ mod tests {
         let mut invalid_proof = proof.witnesses.clone();
         invalid_proof[0] = Node::default();
 
-        let is_proof_valid = ssz_rs::verify_merkle_proof(
+        let is_proof_valid = verify_merkle_proof(
             &block
                 .body
                 .execution_payload
@@ -581,7 +584,7 @@ mod tests {
             .await
             .unwrap();
 
-        let is_proof_valid = ssz_rs::verify_merkle_proof(
+        let is_proof_valid = verify_merkle_proof(
             &Node::default(),
             &proof.witnesses,
             &GeneralizedIndex(proof.gindex as usize),
@@ -656,7 +659,7 @@ mod tests {
                 block_roots_index,
                 block_root_proof,
             } => {
-                let is_valid_proof = ssz_rs::verify_merkle_proof(
+                let is_valid_proof = verify_merkle_proof(
                     &old_block.hash_tree_root().unwrap(),
                     block_root_proof.as_slice(),
                     &GeneralizedIndex(block_roots_index as usize),
@@ -692,7 +695,7 @@ mod tests {
                 // Make proof invalid
                 block_root_proof[0] = Node::default();
 
-                let is_valid_proof = ssz_rs::verify_merkle_proof(
+                let is_valid_proof = verify_merkle_proof(
                     &old_block.hash_tree_root().unwrap(),
                     block_root_proof.as_slice(),
                     &GeneralizedIndex(block_roots_index as usize),
@@ -731,7 +734,7 @@ mod tests {
                 block_summary_root,
             } => {
                 // Proof from state root to the specific block_summary_root of the historical_summaries
-                let is_valid_proof = ssz_rs::verify_merkle_proof(
+                let is_valid_proof = verify_merkle_proof(
                     &block_summary_root,
                     &block_summary_root_proof,
                     &GeneralizedIndex(block_summary_root_gindex as usize),
@@ -747,7 +750,7 @@ mod tests {
                     &[SszVariableOrIndex::Index(block_root_index)],
                 );
 
-                let is_valid_proof = ssz_rs::verify_merkle_proof(
+                let is_valid_proof = verify_merkle_proof(
                     &old_block.hash_tree_root().unwrap(),
                     &block_root_proof,
                     &GeneralizedIndex(gindex),
@@ -790,7 +793,7 @@ mod tests {
                 block_root_proof[0] = Node::default();
 
                 // Proof from state root to the specific block_summary_root of the historical_summaries
-                let is_valid_proof = ssz_rs::verify_merkle_proof(
+                let is_valid_proof = verify_merkle_proof(
                     &block_summary_root,
                     &block_summary_root_proof,
                     &GeneralizedIndex(block_summary_root_gindex as usize),
@@ -806,7 +809,7 @@ mod tests {
                     &[SszVariableOrIndex::Index(block_root_index)],
                 );
 
-                let is_valid_proof = ssz_rs::verify_merkle_proof(
+                let is_valid_proof = verify_merkle_proof(
                     &old_block.hash_tree_root().unwrap(),
                     &block_root_proof,
                     &GeneralizedIndex(gindex),

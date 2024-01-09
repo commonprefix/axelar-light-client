@@ -2,8 +2,8 @@ use consensus_types::consensus::{
     BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update,
 };
 
-use ssz_rs::Node;
-use sync_committee_rs::consensus_types::BeaconBlockHeader;
+use consensus_types::ssz_rs::Node;
+use consensus_types::sync_committee_rs::consensus_types::BeaconBlockHeader;
 
 #[derive(serde::Deserialize, Debug)]
 pub struct UpdateData {
