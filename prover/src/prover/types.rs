@@ -1,9 +1,9 @@
+use consensus_types::ssz_rs::{Node, SszVariableOrIndex};
+use consensus_types::sync_committee_rs::consensus_types::BeaconBlockHeader;
 use consensus_types::{common::ContentVariant, consensus::BeaconBlockAlias};
 use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use ssz_rs::{Node, SszVariableOrIndex};
-use sync_committee_rs::consensus_types::BeaconBlockHeader;
 
 // Neccessary data for proving a message
 #[derive(Debug)]
