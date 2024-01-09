@@ -50,3 +50,4 @@ This project uses open source code from the following projects. We are deeply gr
 - [Helios](https://github.com/a16z/helios/) for a major part of the light client verification/processing.
 - [Polytope's sync_committee_primitives](https://github.com/polytope-labs/sync-committee-rs) for the goerli and mainnet constants as well as some primitive beacon types.
 - [ethers.rs](https://github.com/gakonst/ethers-rs) and [alloy.rs](https://github.com/alloy-rs/core) for communicating with Ethereum and for encoding/decoding execution messages.
+- [ssz_rs](https://github.com/ralexstokes/ssz-rs?tab=readme-ov-file) for SSZ serialization/deserialization.
