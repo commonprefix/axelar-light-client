@@ -1,63 +1,85 @@
-use consensus_types::{consensus::Update, lightclient::LightClientState};
-use cosmos_sdk_proto::cosmwasm::wasm::v1::{
-    query_client::QueryClient, QuerySmartContractStateRequest,
+use std::process::Command;
+
+use crate::{
+    types::{LightClientStateResult, UpdateExecuteMsg, UpdateMsg},
+    utils::calc_sync_period,
 };
+use consensus_types::{consensus::Update, lightclient::LightClientState};
 use eyre::Result;
-use futures::executor::block_on;
-use log::error;
-use serde::de::DeserializeOwned;
 
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct Verifier {
-    _rpc: String,
+    rpc: String,
     address: String,
-    query_client: QueryClient<tonic::transport::Channel>,
 }
 
 #[allow(dead_code)]
 impl Verifier {
     pub fn new(rpc: String, address: String) -> Self {
-        Self {
-            query_client: block_on(QueryClient::connect(rpc.clone())).unwrap(),
-            _rpc: rpc,
-            address,
-        }
+        Self { rpc, address }
     }
 
     pub async fn get_period(&mut self) -> Result<u64> {
         let state = self.get_state().await?;
-        let period = state.update_slot / 32 / 256;
+        let period = calc_sync_period(state.update_slot);
         Ok(period)
     }
 
     pub async fn get_state(&mut self) -> Result<LightClientState> {
-        let query_data = b"{\"light_client_state\": {}}".to_vec();
-        let state = self.query(query_data).await?;
-        Ok(state)
+        let cmd = "axelard";
+        let args = [
+            "query",
+            "wasm",
+            "contract-state",
+            "smart",
+            self.address.as_str(),
+            "{\"light_client_state\": {}}",
+            "--node",
+            self.rpc.as_str(),
+            "--output",
+            "json",
+        ];
+
+        let output = Command::new(cmd).args(args).output()?;
+
+        let state = serde_json::from_slice::<LightClientStateResult>(&output.stdout)?;
+
+        Ok(state.data)
     }
 
-    pub async fn update(&self, _update: Update) -> Result<()> {
-        Ok(())
-    }
+    // Placeholder function which will be substituted with the API that will be provided
+    pub async fn update(&self, update: Update) -> Result<()> {
+        let cmd = "axelard";
 
-    async fn query<T: DeserializeOwned>(&mut self, query_data: Vec<u8>) -> Result<T> {
-        let query_msg = QuerySmartContractStateRequest {
-            address: self.address.clone(),
-            query_data,
+        let message = UpdateExecuteMsg {
+            light_client_update: UpdateMsg { update },
         };
 
-        let response = self
-            .query_client
-            .smart_contract_state(query_msg)
-            .await
-            .map_err(|e| {
-                error!("Error querying smart contract state: {:?}", e);
-                e
-            })?;
+        let args = [
+            "tx",
+            "wasm",
+            "execute",
+            self.address.as_str(),
+            &serde_json::to_string(&message)?,
+            "--from",
+            "pkakelas",
+            "--node",
+            self.rpc.as_str(),
+            "--gas-prices",
+            "0.0001uwasm",
+            "--gas",
+            "100000000",
+            "-y",
+        ];
 
-        let response_data = response.into_inner().data;
-        let state: T = serde_json::from_slice(&response_data)?;
-        Ok(state)
+        let output = Command::new(cmd).args(args).output()?;
+
+        if !output.status.success() {
+            println!("Error updating light client: {:?}", output);
+            return Err(eyre::eyre!("Error updating light client"));
+        }
+
+        Ok(())
     }
 }
