@@ -2,13 +2,13 @@ use std::{str::FromStr, sync::Arc};
 
 use cita_trie::{MemoryDB, PatriciaTrie, Trie};
 use consensus_types::proofs::CrossChainId;
+use consensus_types::ssz_rs::SszVariableOrIndex;
 use ethers::{
     types::{TransactionReceipt, H256},
     utils::rlp::{encode, RlpStream},
 };
 use eyre::{anyhow, Result};
 use hasher::HasherKeccak;
-use ssz_rs::SszVariableOrIndex;
 
 use super::types::BatchContentGroups;
 
@@ -102,8 +102,8 @@ pub fn debug_print_batch_message_groups(batch_message_groups: &BatchContentGroup
 #[cfg(test)]
 mod tests {
     use consensus_types::proofs::CrossChainId;
+    use consensus_types::ssz_rs::SszVariableOrIndex;
     use ethers::types::{TransactionReceipt, H256};
-    use ssz_rs::SszVariableOrIndex;
 
     use crate::prover::utils::{get_tx_hash_from_cc_id, get_tx_index, parse_path};
 

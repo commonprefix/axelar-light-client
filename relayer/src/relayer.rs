@@ -234,6 +234,7 @@ mod tests {
     use consensus_types::proofs::{
         AncestryProof, BlockProofsBatch, CrossChainId, Message, TransactionProofsBatch,
     };
+    use consensus_types::sync_committee_rs::consensus_types::BeaconBlockHeader;
     use eth::consensus::MockConsensusRPC;
     use eth::execution::MockExecutionRPC;
     use eth::types::FullBlockDetails;
@@ -247,7 +248,6 @@ mod tests {
     use prover::Prover;
     use std::fs::{self, File};
     use std::sync::Arc;
-    use sync_committee_rs::consensus_types::BeaconBlockHeader;
 
     type MockProverAlias = MockProver<MockProofGenerator<MockConsensusRPC, MockStateProver>>;
 

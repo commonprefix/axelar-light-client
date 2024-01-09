@@ -4,13 +4,13 @@ use futures::future;
 use mockall::automock;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
-use ssz_rs::Vector;
 use std::{cmp, time::Duration};
-use sync_committee_rs::{
+use types::consensus::{BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update};
+use types::ssz_rs::Vector;
+use types::sync_committee_rs::{
     consensus_types::BeaconBlockHeader,
     constants::{Root, SLOTS_PER_HISTORICAL_ROOT},
 };
-use types::consensus::{BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update};
 
 /// The thin wrapper around the BeaconAPI overloaded with custom methods
 #[async_trait]

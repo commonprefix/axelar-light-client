@@ -11,6 +11,11 @@ use self::{
     utils::get_tx_index,
 };
 use async_trait::async_trait;
+use consensus_types::ssz_rs::{Merkleized, Node};
+use consensus_types::sync_committee_rs::{
+    consensus_types::BeaconBlockHeader,
+    constants::{Root, SLOTS_PER_HISTORICAL_ROOT},
+};
 use consensus_types::{
     consensus::{to_beacon_header, BeaconBlockAlias},
     proofs::{
@@ -24,12 +29,7 @@ use eyre::{eyre, Context, Result};
 use indexmap::IndexMap;
 use log::{debug, error};
 use mockall::automock;
-use ssz_rs::{Merkleized, Node};
 use std::sync::Arc;
-use sync_committee_rs::{
-    consensus_types::BeaconBlockHeader,
-    constants::{Root, SLOTS_PER_HISTORICAL_ROOT},
-};
 use types::BatchContentGroups;
 use types::EnrichedContent;
 

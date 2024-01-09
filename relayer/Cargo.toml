@@ -10,7 +10,6 @@ eth = {path = "../eth", package = "eth"}
 prover = {path = "../prover", package = "prover"}
 serde = "1.0.190"
 async-trait = "0.1.74"
-sync-committee-rs = {package = "sync-committee-primitives", git = "https://github.com/commonprefix/sync-committee-rs", branch = "cp_changes", default-features = false, features = ["serialize"]}
 tokio = {version = "1.4.0", features = ["rt", "rt-multi-thread", "macros"]}
 dotenv = "0.15.0"
 serde_json = "1.0.108"

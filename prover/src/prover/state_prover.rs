@@ -106,8 +106,8 @@ impl StateProverAPI for StateProver {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use consensus_types::ssz_rs::SszVariableOrIndex;
     use httptest::{matchers::*, responders::*, Expectation, Server};
-    use ssz_rs::SszVariableOrIndex;
 
     fn setup_server_and_prover() -> (Server, StateProver) {
         let server = Server::run();

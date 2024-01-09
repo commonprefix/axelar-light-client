@@ -1,6 +1,7 @@
 #[cfg(test)]
 pub mod test_utils {
     use cita_trie::{MemoryDB, PatriciaTrie, Trie};
+    use consensus_types::sync_committee_rs::constants::Root;
     use consensus_types::{
         common::ContentVariant,
         consensus::{BeaconBlockAlias, FinalityUpdate, OptimisticUpdate},
@@ -14,7 +15,6 @@ pub mod test_utils {
     use hasher::HasherKeccak;
     use indexmap::IndexMap;
     use std::{fs::File, sync::Arc};
-    use sync_committee_rs::constants::Root;
 
     use crate::prover::types::{BatchContentGroups, EnrichedContent};
 
@@ -146,14 +146,14 @@ pub mod test_utils {
             slot,
             ..Default::default()
         };
-        block.body.execution_payload.transactions = ssz_rs::List::default();
+        block.body.execution_payload.transactions = consensus_types::ssz_rs::List::default();
 
         for _ in 1..10 {
             block
                 .body
                 .execution_payload
                 .transactions
-                .push(sync_committee_rs::consensus_types::Transaction::default());
+                .push(consensus_types::sync_committee_rs::consensus_types::Transaction::default());
         }
         block
     }
