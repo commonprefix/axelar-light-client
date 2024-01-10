@@ -4,6 +4,7 @@ use super::utils;
 use crate::prover::{
     state_prover::StateProverAPI,
     types::{GindexOrPath, ProofResponse},
+    errors::ProofError
 };
 use async_trait::async_trait;
 use cita_trie::Trie;
@@ -265,10 +266,10 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<
         let receipt_index = encode(&index);
         let proof = trie
             .get_proof(receipt_index.to_vec().as_slice())
-            .map_err(|e| anyhow!("Failed to generate proof: {:?}", e));
+            .map_err(|e| ProofError::from(e))?;
 
         debug!("Got receipt proof for {}", index);
-        proof
+        Ok(proof)
     }
 }
 

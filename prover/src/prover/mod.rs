@@ -3,6 +3,7 @@ pub mod state_prover;
 mod test_helpers;
 pub mod types;
 pub mod utils;
+pub mod errors;
 
 use self::{
     proof_generator::{ProofGenerator, ProofGeneratorAPI},

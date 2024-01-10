@@ -1,10 +1,8 @@
 use crate::prover::types::{GindexOrPath, ProofResponse};
 use async_trait::async_trait;
-use eyre::{anyhow, Result};
 use mockall::automock;
-use retri::{retry, BackoffSettings};
 
-use super::utils::parse_path;
+use super::{utils::parse_path, errors::StateProverError};
 
 /// A wrapper around the state [`prover`](https://github.com/commonprefix/state-prover)
 #[automock]
@@ -15,13 +13,13 @@ pub trait StateProverAPI: Sync + Send + 'static {
         &self,
         state_id: &str,
         gindex_or_path: &GindexOrPath,
-    ) -> Result<ProofResponse>;
+    ) -> Result<ProofResponse, StateProverError>;
     /// Fetches a proof from a specific g_index or a path to the beacon root of a specific block.
     async fn get_block_proof(
         &self,
         block_id: &str,
         gindex_or_path: GindexOrPath,
-    ) -> Result<ProofResponse>;
+    ) -> Result<ProofResponse, StateProverError>;
 }
 
 #[derive(Clone)]
@@ -35,19 +33,22 @@ impl StateProver {
         StateProver { network, rpc }
     }
 
-    async fn get(&self, req: &str) -> Result<ProofResponse> {
-        let bytes = retry(
-            || async { Ok::<_, eyre::Report>(reqwest::get(req).await?.bytes().await?) },
-            BackoffSettings::default(),
-        )
-        .await?;
+    async fn get(&self, req: &str) -> Result<ProofResponse, StateProverError> {
+        let response = reqwest::get(req)
+            .await
+            .map_err(StateProverError::NetworkError)?;
 
-        serde_json::from_slice::<ProofResponse>(&bytes).map_err(|_| {
-            anyhow!(
-                "Failed to parse response: {:?}",
-                std::str::from_utf8(&bytes)
-            )
-        })
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(StateProverError::NotFoundError(req.into()))
+        }
+
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(StateProverError::NetworkError)?;
+
+        serde_json::from_slice(&bytes)
+            .map_err(StateProverError::SerializationError)
     }
 }
 
@@ -58,7 +59,7 @@ impl StateProverAPI for StateProver {
         &self,
         state_id: &str,
         gindex_or_path: &GindexOrPath,
-    ) -> Result<ProofResponse> {
+    ) -> Result<ProofResponse,  StateProverError> {
         let req = match gindex_or_path {
             GindexOrPath::Gindex(gindex) => format!(
                 "{}/state_proof?state_id={}&gindex={}&network={}",
@@ -73,16 +74,14 @@ impl StateProverAPI for StateProver {
             ),
         };
 
-        self.get(&req)
-            .await
-            .map_err(|e| anyhow!("Failed to get state proof: {:?} {:?}", req, e))
+        self.get(&req).await
     }
 
     async fn get_block_proof(
         &self,
         block_id: &str,
         gindex_or_path: GindexOrPath,
-    ) -> Result<ProofResponse> {
+    ) -> Result<ProofResponse, StateProverError> {
         let req = match gindex_or_path {
             GindexOrPath::Gindex(gindex) => format!(
                 "{}/block_proof/?block_id={}&gindex={}&network={}",
@@ -97,9 +96,7 @@ impl StateProverAPI for StateProver {
             ),
         };
 
-        self.get(&req)
-            .await
-            .map_err(|e| anyhow!("Failed to get block proof: {:?} {:?}", req, e))
+        self.get(&req).await
     }
 }
 
