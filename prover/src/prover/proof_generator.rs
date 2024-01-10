@@ -1,13 +1,10 @@
 use std::sync::Arc;
 
 use super::utils;
-use crate::{
-    prover::{
-        errors::ProverError,
-        state_prover::StateProverAPI,
-        types::{GindexOrPath, ProofResponse},
-    },
-    Prover,
+use crate::prover::{
+    errors::ProverError,
+    state_prover::StateProverAPI,
+    types::{GindexOrPath, ProofResponse},
 };
 use async_trait::async_trait;
 use cita_trie::Trie;
@@ -20,7 +17,6 @@ use consensus_types::sync_committee_rs::constants::{
 use consensus_types::{consensus::BeaconStateType, proofs::AncestryProof};
 use eth::consensus::EthBeaconAPI;
 use ethers::{types::TransactionReceipt, utils::rlp::encode};
-use eyre::{anyhow, Result};
 use log::debug;
 use mockall::automock;
 
@@ -35,7 +31,10 @@ pub trait ProofGeneratorAPI {
         tx_index: u64,
     ) -> Result<ProofResponse, ProverError>;
     /// Generates a merkle proof from the receipts_root to the beacon block root.
-    async fn generate_receipts_root_proof(&self, block_id: &str) -> Result<ProofResponse>;
+    async fn generate_receipts_root_proof(
+        &self,
+        block_id: &str,
+    ) -> Result<ProofResponse, ProverError>;
     /// Generates an ancestry proof from the target block to the beacon
     /// state root using the block roots state property. This proof is easy
     /// to be generated but it can only prove blocks up to a period old (~27
@@ -124,7 +123,10 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<
 
     /// This implementation generates a merkle proof from the receipts_root to
     /// the beacon block root by calling the state prover's /block_proof endpoint.
-    async fn generate_receipts_root_proof(&self, block_id: &str) -> Result<ProofResponse> {
+    async fn generate_receipts_root_proof(
+        &self,
+        block_id: &str,
+    ) -> Result<ProofResponse, ProverError> {
         let path = vec![
             SszVariableOrIndex::Name("body"),
             SszVariableOrIndex::Name("execution_payload"),
