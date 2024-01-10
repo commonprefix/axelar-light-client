@@ -1,11 +1,21 @@
 use std::process::Command;
 
 use crate::{
-    types::{LightClientStateResult, UpdateExecuteMsg},
+    types::{
+        BatchVerificationDataRequest, BatchVerificationPayload, IsVerifiedMessages,
+        IsVerifiedRequest, IsVerifiedResponse, IsWorkerSetVerifiedRequest,
+        IsWorkerSetVerifiedResult, LightClientStateResult, UpdateExecuteMsg, UpdateMsg,
+    },
     utils::calc_sync_period,
 };
-use consensus_types::{consensus::Update, lightclient::LightClientState};
+use consensus_types::{
+    common::WorkerSetMessage,
+    consensus::Update,
+    lightclient::LightClientState,
+    proofs::{BatchVerificationData, Message},
+};
 use eyre::Result;
+use log::debug;
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -41,9 +51,79 @@ impl Verifier {
             "json",
         ];
 
+        let command_line = format!("{} {}", cmd, args.join(" "));
+        debug!("Command to be executed: {}", command_line);
+
         let output = Command::new(cmd).args(args).output()?;
+        debug!("Output: {:?}", output);
 
         let state = serde_json::from_slice::<LightClientStateResult>(&output.stdout)?;
+
+        Ok(state.data)
+    }
+
+    pub async fn is_message_verified(
+        &mut self,
+        messages: Vec<Message>,
+    ) -> Result<Vec<(Message, bool)>> {
+        let is_verified = IsVerifiedRequest {
+            is_verified: IsVerifiedMessages { messages },
+        };
+
+        let cmd = "axelard";
+        let args = [
+            "query",
+            "wasm",
+            "contract-state",
+            "smart",
+            self.address.as_str(),
+            &serde_json::to_string(&is_verified)?,
+            "--node",
+            self.rpc.as_str(),
+            "--output",
+            "json",
+        ];
+
+        let command_line = format!("{} {}", cmd, args.join(" "));
+        debug!("Command to be executed: {}", command_line);
+
+        let output = Command::new(cmd).args(args).output()?;
+        debug!("Output: {:?}", output);
+
+        let is_verified = serde_json::from_slice::<IsVerifiedResponse>(&output.stdout)?;
+
+        Ok(is_verified.data)
+    }
+
+    pub async fn is_worker_set_verified(
+        &mut self,
+        worker_set_msg: WorkerSetMessage,
+    ) -> Result<bool> {
+        let message = IsWorkerSetVerifiedRequest {
+            is_worker_set_verified: worker_set_msg,
+        };
+
+        let cmd = "axelard";
+        let args = [
+            "query",
+            "wasm",
+            "contract-state",
+            "smart",
+            self.address.as_str(),
+            &serde_json::to_string(&message)?,
+            "--node",
+            self.rpc.as_str(),
+            "--output",
+            "json",
+        ];
+
+        let command_line = format!("{} {}", cmd, args.join(" "));
+        debug!("Command to be executed: {}", command_line);
+
+        let output = Command::new(cmd).args(args).output()?;
+        debug!("Output: {:?}", output);
+
+        let state = serde_json::from_slice::<IsWorkerSetVerifiedResult>(&output.stdout)?;
 
         Ok(state.data)
     }
@@ -73,7 +153,51 @@ impl Verifier {
             "-y",
         ];
 
+        let command_line = format!("{} {}", cmd, args.join(" "));
+        debug!("Command to be executed: {}", command_line);
+
         let output = Command::new(cmd).args(args).output()?;
+        debug!("Output: {:?}", output);
+
+        if !output.status.success() {
+            println!("Error updating light client: {:?}", output);
+            return Err(eyre::eyre!("Error updating light client"));
+        }
+
+        Ok(())
+    }
+
+    pub async fn verify_data(&self, verification_data: BatchVerificationData) -> Result<()> {
+        let cmd = "axelard";
+
+        let message = BatchVerificationDataRequest {
+            batch_verification_data: BatchVerificationPayload {
+                payload: verification_data,
+            },
+        };
+
+        let args = [
+            "tx",
+            "wasm",
+            "execute",
+            self.address.as_str(),
+            &serde_json::to_string(&message)?,
+            "--from",
+            "pkakelas",
+            "--node",
+            self.rpc.as_str(),
+            "--gas-prices",
+            "0.0001uwasm",
+            "--gas",
+            "100000000",
+            "-y",
+        ];
+
+        // let command_line = format!("{} {}", cmd, args.join(" "));
+        // debug!("Command to be executed: {}", command_line);
+
+        let output = Command::new(cmd).args(args).output()?;
+        // debug!("Output: {:?}", output);
 
         if !output.status.success() {
             println!("Error updating light client: {:?}", output);

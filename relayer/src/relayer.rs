@@ -2,6 +2,7 @@ use crate::{
     consumers::Amqp,
     parser::parse_enriched_log,
     types::{Config, EnrichedLog, VerificationMethod},
+    verifier::{self, Verifier},
 };
 use consensus_types::{
     common::ContentVariant,
@@ -22,6 +23,7 @@ pub struct Relayer<P, C, CR, ER> {
     consumer: C,
     execution: Arc<ER>,
     prover: Arc<P>,
+    verifier: Verifier,
 }
 
 impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C, CR, ER> {
@@ -31,6 +33,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
         consensus: Arc<CR>,
         execution: Arc<ER>,
         prover: Arc<P>,
+        verifier: Verifier,
     ) -> Self {
         Relayer {
             config,
@@ -38,6 +41,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
             consensus,
             execution,
             prover,
+            verifier,
         }
     }
 
@@ -117,17 +121,48 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
             return Err(eyre!("No proofs where generated from proof generation"));
         }
 
-        let res = serde_json::to_string(&batch_verification_data);
-        println!("{:?}", res);
+        self.verifier
+            .verify_data(batch_verification_data.clone())
+            .await?;
+        info!("BatchVerificationData verification succeeded");
+
+        // let res = serde_json::to_string(&batch_verification_data);
+        // println!("{:?}", res);
         let processed_messages = self.extract_all_contents(&batch_verification_data);
         for (i, content) in successful_contents.iter().enumerate() {
             let delivery_tag = delivery_tags[i];
-            if processed_messages.contains(&content.content) {
-                info!("Message with delivery_id={:?} succeeded", delivery_tag);
-                self.consumer.ack_delivery(delivery_tag).await?;
-            } else {
-                error!("Message {:?} failed", delivery_tag);
+            if !processed_messages.contains(&content.content) {
+                error!("Message with_delivery_id={:?} failed", delivery_tag);
                 self.consumer.nack_delivery(delivery_tag).await?;
+            }
+
+            match &content.content {
+                ContentVariant::Message(message) => {
+                    let is_verified = self
+                        .verifier
+                        .is_message_verified(vec![message.clone()])
+                        .await?;
+                    if is_verified[0].1 {
+                        info!("Message with delivery_id={:?} succeeded", delivery_tag);
+                        self.consumer.ack_delivery(delivery_tag).await?;
+                    } else {
+                        error!("Message {:?} failed", delivery_tag);
+                        self.consumer.nack_delivery(delivery_tag).await?;
+                    }
+                }
+                ContentVariant::WorkerSet(worker_set) => {
+                    let is_verified = self
+                        .verifier
+                        .is_worker_set_verified(worker_set.clone())
+                        .await?;
+                    if is_verified {
+                        info!("WorkerSet with delivery_id={:?} succeeded", delivery_tag);
+                        self.consumer.ack_delivery(delivery_tag).await?;
+                    } else {
+                        error!("WorkerSet {:?} failed", delivery_tag);
+                        self.consumer.nack_delivery(delivery_tag).await?;
+                    }
+                }
             }
         }
 
@@ -438,6 +473,7 @@ mod tests {
             Arc::new(consensus),
             Arc::new(execution),
             Arc::new(prover),
+            Verifier::new("".to_string(), "".to_string()),
         )
         .await;
 
@@ -471,6 +507,7 @@ mod tests {
             Arc::new(consensus),
             Arc::new(execution),
             Arc::new(prover),
+            Verifier::new("".to_string(), "".to_string()),
         )
         .await;
 
@@ -523,6 +560,7 @@ mod tests {
             Arc::new(consensus),
             Arc::new(execution),
             Arc::new(prover),
+            Verifier::new("".to_string(), "".to_string()),
         )
         .await;
 
@@ -545,6 +583,7 @@ mod tests {
             Arc::new(consensus),
             Arc::new(execution),
             Arc::new(prover),
+            Verifier::new("".to_string(), "".to_string()),
         )
         .await;
 
@@ -566,6 +605,7 @@ mod tests {
             Arc::new(consensus),
             Arc::new(execution),
             Arc::new(prover),
+            Verifier::new("".to_string(), "".to_string()),
         )
         .await;
 
@@ -588,6 +628,7 @@ mod tests {
             Arc::new(consensus),
             Arc::new(execution),
             Arc::new(prover),
+            Verifier::new("".to_string(), "".to_string()),
         )
         .await;
 
@@ -612,6 +653,7 @@ mod tests {
             Arc::new(consensus),
             Arc::new(execution),
             Arc::new(prover),
+            Verifier::new("".to_string(), "".to_string()),
         )
         .await;
 

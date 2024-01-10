@@ -1,4 +1,9 @@
-use consensus_types::{consensus::Update, lightclient::LightClientState};
+use consensus_types::{
+    common::WorkerSetMessage,
+    consensus::Update,
+    lightclient::LightClientState,
+    proofs::{BatchVerificationData, Message, UpdateVariant},
+};
 use eth::types::EthConfig;
 use ethers::{
     contract::EthEvent,
@@ -113,4 +118,40 @@ pub struct LightClientStateResult {
 pub struct UpdateExecuteMsg {
     #[serde(rename = "LightClientUpdate")]
     pub light_client_update: Update,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BatchVerificationDataRequest {
+    #[serde(rename = "BatchVerificationData")]
+    pub batch_verification_data: BatchVerificationPayload,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BatchVerificationPayload {
+    pub payload: BatchVerificationData,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct IsWorkerSetVerifiedRequest {
+    pub is_worker_set_verified: WorkerSetMessage,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct IsWorkerSetVerifiedResult {
+    pub data: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct IsVerifiedMessages {
+    pub messages: Vec<Message>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct IsVerifiedRequest {
+    pub is_verified: IsVerifiedMessages,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct IsVerifiedResponse {
+    pub data: Vec<(Message, bool)>,
 }
