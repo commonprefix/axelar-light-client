@@ -2,7 +2,7 @@ use crate::prover::types::{GindexOrPath, ProofResponse};
 use async_trait::async_trait;
 use mockall::automock;
 
-use super::{utils::parse_path, errors::StateProverError};
+use super::{errors::StateProverError, utils::parse_path};
 
 /// A wrapper around the state [`prover`](https://github.com/commonprefix/state-prover)
 #[automock]
@@ -39,7 +39,7 @@ impl StateProver {
             .map_err(StateProverError::NetworkError)?;
 
         if response.status() == reqwest::StatusCode::NOT_FOUND {
-            return Err(StateProverError::NotFoundError(req.into()))
+            return Err(StateProverError::NotFoundError(req.into()));
         }
 
         let bytes = response
@@ -47,8 +47,7 @@ impl StateProver {
             .await
             .map_err(StateProverError::NetworkError)?;
 
-        serde_json::from_slice(&bytes)
-            .map_err(StateProverError::SerializationError)
+        serde_json::from_slice(&bytes).map_err(StateProverError::SerializationError)
     }
 }
 
@@ -59,7 +58,7 @@ impl StateProverAPI for StateProver {
         &self,
         state_id: &str,
         gindex_or_path: &GindexOrPath,
-    ) -> Result<ProofResponse,  StateProverError> {
+    ) -> Result<ProofResponse, StateProverError> {
         let req = match gindex_or_path {
             GindexOrPath::Gindex(gindex) => format!(
                 "{}/state_proof?state_id={}&gindex={}&network={}",
