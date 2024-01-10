@@ -2,7 +2,11 @@ extern crate relayer;
 
 use eth::{consensus::ConsensusRPC, execution::ExecutionRPC, types::EthConfig};
 use prover::{prover::types::ProverConfig, Prover};
-use relayer::{consumers::{LapinConsumer, EthersConsumer}, relayer::Relayer, utils::load_config};
+use relayer::{
+    consumers::{EthersConsumer, LapinConsumer},
+    relayer::Relayer,
+    utils::load_config,
+};
 use std::sync::Arc;
 
 /// Main entry point for the relayer.
@@ -19,13 +23,10 @@ async fn main() {
     let execution = Arc::new(ExecutionRPC::new(config.execution_rpc.clone()));
     let prover = Arc::new(Prover::with_config(consensus.clone(), prover_config));
 
-    let consumer =
-        LapinConsumer::new(&config.sentinel_queue_addr, &config.sentinel_queue_name).await;
+    // let consumer =
+    //     LapinConsumer::new(&config.sentinel_queue_addr, &config.sentinel_queue_name).await;
 
-    // let consumer = EthersConsumer::new(
-    //     execution.clone(),
-    //     config.gateway_addr.clone(),
-    // );
+    let consumer = EthersConsumer::new(execution.clone(), config.gateway_addr.clone());
 
     let mut relayer = Relayer::new(
         config.clone(),

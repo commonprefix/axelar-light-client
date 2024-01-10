@@ -74,9 +74,12 @@ async fn main() {
                 error!("Error updating wasm: {:?}", result.err());
                 break;
             }
-            let new_verifier_period = verifier.get_period().await.unwrap(); 
+            let new_verifier_period = verifier.get_period().await.unwrap();
 
-            info!("Update {} succeeded. New verifier period: {}", update_period, new_verifier_period);
+            info!(
+                "Update {} succeeded. New verifier period: {}",
+                update_period, new_verifier_period
+            );
         }
 
         debug!("Sleeping for {}", sleep_duration.as_secs());

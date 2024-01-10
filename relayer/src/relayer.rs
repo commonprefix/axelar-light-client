@@ -74,7 +74,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
         let contents = self.process_logs(fetched_logs).await;
         if contents.is_empty() {
             info!("No new contents to process");
-            return Ok(())
+            return Ok(());
         }
 
         let mut successful_contents = vec![];
@@ -107,11 +107,14 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
             .batch_generate_proofs(batch_contents, update)
             .await;
         if batch_verification_data.is_err() {
-            return Err(eyre!("BatchVerificationData generation failed {:?}", batch_verification_data.err()))
+            return Err(eyre!(
+                "BatchVerificationData generation failed {:?}",
+                batch_verification_data.err()
+            ));
         }
         let batch_verification_data = batch_verification_data.unwrap();
         if batch_verification_data.target_blocks.is_empty() {
-            return Err(eyre!("No proofs where generated from proof generation"))
+            return Err(eyre!("No proofs where generated from proof generation"));
         }
 
         let res = serde_json::to_string(&batch_verification_data);
