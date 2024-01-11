@@ -1,3 +1,4 @@
+pub mod errors;
 pub mod proof_generator;
 pub mod state_prover;
 mod test_helpers;
@@ -5,6 +6,7 @@ pub mod types;
 pub mod utils;
 
 use self::{
+    errors::ProverError,
     proof_generator::{ProofGenerator, ProofGeneratorAPI},
     state_prover::StateProver,
     types::ProverConfig,
@@ -46,7 +48,7 @@ pub trait ProverAPI {
         &self,
         batch_content_groups: BatchContentGroups,
         update: UpdateVariant,
-    ) -> Result<BatchVerificationData>;
+    ) -> Result<BatchVerificationData, ProverError>;
 }
 
 /// This is the basic prover implemntation. It uses the proof generator to
@@ -98,7 +100,7 @@ impl<PG: ProofGeneratorAPI + Sync> ProverAPI for Prover<PG> {
         &self,
         batch_content_groups: BatchContentGroups,
         update: UpdateVariant,
-    ) -> Result<BatchVerificationData> {
+    ) -> Result<BatchVerificationData, ProverError> {
         let recent_block = update.recent_block();
 
         let mut block_proofs_batch: Vec<BlockProofsBatch> = vec![];
@@ -117,12 +119,14 @@ impl<PG: ProofGeneratorAPI + Sync> ProverAPI for Prover<PG> {
 
             let mut block_proof = BlockProofsBatch {
                 ancestry_proof: ancestry_proof.unwrap(),
-                target_block: to_beacon_header(&beacon_block)?,
+                target_block: to_beacon_header(&beacon_block)
+                    .map_err(|e| ProverError::InvalidDataError(e.to_string()))?,
                 transactions_proofs: vec![],
             };
 
             for (tx_hash, contents) in block_groups {
-                let tx_index = get_tx_index(&receipts, tx_hash)?;
+                let tx_index = get_tx_index(&receipts, tx_hash)
+                    .map_err(|e| ProverError::InvalidDataError(e.to_string()))?;
 
                 let transaction_proof = self
                     .get_transaction_proof(&beacon_block, block_hash, tx_index)

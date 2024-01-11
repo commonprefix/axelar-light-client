@@ -72,6 +72,11 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
         let fetched_logs = self.collect_messages(self.config.max_batch_size).await;
 
         let contents = self.process_logs(fetched_logs).await;
+        if contents.is_empty() {
+            info!("No new contents to process");
+            return Ok(());
+        }
+
         let mut successful_contents = vec![];
         let mut delivery_tags = vec![];
         for (delivery_tag, content) in contents {
@@ -97,21 +102,24 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
         }
 
         let batch_contents = self.prover.batch_messages(&successful_contents);
-        let batch_verification_data: Result<BatchVerificationData, eyre::Error> = self
+        let batch_verification_data = self
             .prover
             .batch_generate_proofs(batch_contents, update)
             .await;
         if batch_verification_data.is_err() {
             return Err(eyre!(
-                "Error generating proofs {:?}",
-                batch_verification_data
+                "BatchVerificationData generation failed {:?}",
+                batch_verification_data.err()
             ));
         }
+        let batch_verification_data = batch_verification_data.unwrap();
+        if batch_verification_data.target_blocks.is_empty() {
+            return Err(eyre!("No proofs where generated from proof generation"));
+        }
 
-        // let res = serde_json::to_string(batch_verification_data.as_ref().unwrap()).unwrap();
-        // println!("res {}", res);
-
-        let processed_messages = self.extract_all_contents(&batch_verification_data.unwrap());
+        let res = serde_json::to_string(&batch_verification_data);
+        println!("{:?}", res);
+        let processed_messages = self.extract_all_contents(&batch_verification_data);
         for (i, content) in successful_contents.iter().enumerate() {
             let delivery_tag = delivery_tags[i];
             if processed_messages.contains(&content.content) {
