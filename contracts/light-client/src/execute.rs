@@ -210,8 +210,10 @@ mod tests {
     use types::common::{ContentVariant, WorkerSetMessage};
     use types::consensus::{FinalityUpdate, OptimisticUpdate};
     use types::execution::{ReceiptLog, ReceiptLogs};
-    use types::proofs::{BlockProofsBatch, Message, TransactionProofsBatch, UpdateVariant};
-    use types::ssz_rs::Merkleized;
+    use types::proofs::{
+        AncestryProof, BlockProofsBatch, Message, TransactionProofsBatch, UpdateVariant,
+    };
+    use types::ssz_rs::{Merkleized, Node};
 
     use super::process_batch_data;
 
@@ -429,12 +431,20 @@ mod tests {
             process_transaction_proofs(&transaction_proofs, &target_block_root, &gateway_address);
         assert_valid_contents(&content, &res);
 
+        // test error from content
         let mut corrupted_proofs = transaction_proofs.clone();
         let (_, mut messages) = filter_variants_as_mutref(&mut corrupted_proofs);
         messages[0].cc_id.id = "invalid".to_string().try_into().unwrap();
         let res =
             process_transaction_proofs(&corrupted_proofs, &target_block_root, &gateway_address);
         assert_invalid_contents(&corrupted_proofs.content, &res);
+
+        // test error in transaction proof
+        let mut corrupted_proofs = transaction_proofs.clone();
+        corrupted_proofs.transaction_proof.transaction_proof = vec![Node::default(); 32];
+        let res =
+            process_transaction_proofs(&corrupted_proofs, &target_block_root, &gateway_address);
+        assert_invalid_contents(&extract_content_from_block(block_proofs), &res);
     }
 
     fn extract_content_from_block(target_block: &BlockProofsBatch) -> Vec<ContentVariant> {
@@ -474,10 +484,7 @@ mod tests {
         assert!(res.len() > 0);
         assert_eq!(res.len(), contents.len());
         for (index, content_variant) in contents.iter().enumerate() {
-            assert_eq!(
-                res[index].1.as_ref().unwrap_err().to_string(),
-                "Invalid message id format"
-            );
+            assert!(res[index].1.is_err());
             assert_eq!(res[index].0, *content_variant);
         }
     }
@@ -492,11 +499,26 @@ mod tests {
             let content = extract_content_from_block(target_block);
 
             let res = process_block_proofs(&recent_block, target_block, &gateway_address);
-            println!("{:?}", res);
             assert_valid_contents(&content, &res);
 
             corrupt_contents(target_block);
             let contents = extract_content_from_block(target_block);
+            let res = process_block_proofs(&recent_block, target_block, &gateway_address);
+            assert_invalid_contents(&contents, &res);
+        }
+
+        // test error on ancestry proof
+        for target_block in data.target_blocks.iter_mut() {
+            let contents = extract_content_from_block(&target_block.clone());
+
+            let AncestryProof::BlockRoots {
+                block_root_proof,
+                block_roots_index,
+            } = &mut target_block.ancestry_proof
+            else {
+                panic!("")
+            };
+            *block_root_proof = vec![Node::default(); 18];
             let res = process_block_proofs(&recent_block, target_block, &gateway_address);
             assert_invalid_contents(&contents, &res);
         }
