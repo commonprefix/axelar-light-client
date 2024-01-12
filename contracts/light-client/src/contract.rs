@@ -47,16 +47,11 @@ pub fn execute(
             let config = CONFIG.load(deps.storage)?;
             let lc = LightClient::new(&config.chain_config, Some(state), &env);
 
-            let results = process_batch_data(deps, &lc, &payload);
-            if let Err(err) = results {
-                return Err(ContractError::Std(StdError::GenericErr {
-                    msg: err.to_string(),
-                }));
-            }
+            let results = process_batch_data(deps, &lc, &payload)
+                .map_err(|e| ContractError::Std(StdError::GenericErr { msg: e.to_string() }))?;
 
             Ok(Response::new().set_data(to_json_binary(
                 &results
-                    .unwrap()
                     .iter()
                     .map(|result| {
                         let key = match &result.0 {
@@ -104,20 +99,28 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use crate::execute::tests::extract_content_from_block;
     use crate::{
         contract::{execute, instantiate, query},
         lightclient::helpers::test_helpers::*,
         lightclient::LightClient,
         msg::ExecuteMsg,
     };
-    use cosmwasm_std::{testing::mock_env, Addr, Timestamp};
+    use cosmwasm_std::{from_json, testing::mock_env, Addr, Timestamp};
     use cw_multi_test::{App, ContractWrapper, Executor};
+    use types::common::{Config, ContentVariant};
+    use types::connection_router::Message;
+    use types::consensus::{Bootstrap, FinalityUpdate};
     use types::lightclient::LightClientState;
-    use types::sync_committee_rs::constants::BlsSignature;
+    use types::proofs::UpdateVariant;
+    use types::ssz_rs::Node;
+    use types::sync_committee_rs::consensus_types::SyncCommittee;
+    use types::sync_committee_rs::constants::{BlsSignature, SYNC_COMMITTEE_SIZE};
 
     use crate::msg::{InstantiateMsg, QueryMsg};
+    use crate::types::VerificationResult;
 
-    fn deploy() -> (App, Addr) {
+    fn deploy(bootstrap: Option<Bootstrap>) -> (App, Addr) {
         let mut app = App::default();
 
         let code = ContractWrapper::new(execute, instantiate, query);
@@ -137,7 +140,7 @@ mod tests {
                 code_id,
                 Addr::unchecked("owner"),
                 &InstantiateMsg {
-                    bootstrap: get_bootstrap(),
+                    bootstrap: bootstrap.unwrap_or(get_bootstrap()),
                     config: get_config(),
                 },
                 &[],
@@ -149,26 +152,30 @@ mod tests {
         (app, addr)
     }
 
+    fn get_lc_state(app: &App, addr: &Addr) -> LightClientState {
+        app.wrap()
+            .query_wasm_smart(addr, &QueryMsg::LightClientState {})
+            .unwrap()
+    }
+
     #[test]
     fn test_initialize() {
-        let (app, addr) = deploy();
+        let (app, addr) = deploy(None);
         let env = mock_env();
         let bootstrap = get_bootstrap();
 
-        let resp: LightClientState = app
-            .wrap()
-            .query_wasm_smart(addr, &QueryMsg::LightClientState {})
-            .unwrap();
+        let state = get_lc_state(&app, &addr);
 
         let mut lc = LightClient::new(&get_config().chain_config, None, &env);
         lc.bootstrap(&bootstrap).unwrap();
-        assert_eq!(resp, lc.state)
+        assert_eq!(state, lc.state)
     }
 
     #[test]
     fn test_light_client_update() {
-        let (mut app, addr) = deploy();
+        let (mut app, addr) = deploy(None);
 
+        let state_before = get_lc_state(&app, &addr);
         let update = get_update(862);
         let resp = app.execute_contract(
             Addr::unchecked("owner"),
@@ -178,8 +185,17 @@ mod tests {
             },
             &[],
         );
+        let state_after_862 = get_lc_state(&app, &addr);
 
         assert!(resp.is_ok());
+        assert_eq!(
+            state_after_862,
+            LightClientState {
+                update_slot: update.finalized_header.beacon.slot,
+                next_sync_committee: Some(update.next_sync_committee), // update is from the same period as the bootstrap
+                current_sync_committee: state_before.current_sync_committee
+            }
+        );
 
         let update = get_update(863);
         let resp = app.execute_contract(
@@ -190,13 +206,22 @@ mod tests {
             },
             &[],
         );
+        let state_after_863 = get_lc_state(&app, &addr);
 
         assert!(resp.is_ok());
+        assert_eq!(
+            state_after_863,
+            LightClientState {
+                update_slot: update.finalized_header.beacon.slot,
+                next_sync_committee: Some(update.next_sync_committee),
+                current_sync_committee: state_after_862.next_sync_committee.unwrap()
+            }
+        );
     }
 
     #[test]
     fn test_invalid_update() {
-        let (mut app, addr) = deploy();
+        let (mut app, addr) = deploy(None);
         let mut update = get_update(862);
         update.sync_aggregate.sync_committee_signature = BlsSignature::default();
 
@@ -211,5 +236,187 @@ mod tests {
         );
 
         assert!(resp.is_err());
+    }
+
+    #[test]
+    fn test_batch_verification_success() {
+        let (bootstrap, verification_data) = get_batched_data(false, "finality");
+        let (mut app, addr) = deploy(Some(bootstrap));
+        let contents = verification_data
+            .target_blocks
+            .iter()
+            .flat_map(|target_block| extract_content_from_block(target_block))
+            .collect::<Vec<ContentVariant>>();
+
+        let resp = app.execute_contract(
+            Addr::unchecked("owner"),
+            addr.to_owned(),
+            &ExecuteMsg::BatchVerificationData {
+                payload: verification_data,
+            },
+            &[],
+        );
+        assert!(resp.is_ok());
+        let result: VerificationResult = from_json(&resp.unwrap().data.unwrap()).unwrap();
+        assert_eq!(
+            result,
+            vec![
+                (String::from("message:ethereum:0xc57b29866a593b73d15981c961c8e61380d4e471f08f5b58d441fc828e0f8166:6"), String::from("OK")),
+                (String::from("workersetmessage:0xcaabfb4729c106140393eaceca29a0d90e5e64297bb9adbec9c3c7d49c9fab61:0"), String::from("OK"))
+            ]
+        );
+        for content in contents {
+            match content {
+                ContentVariant::Message(m) => {
+                    let res: Vec<(Message, bool)> = app
+                        .wrap()
+                        .query_wasm_smart(
+                            &addr,
+                            &QueryMsg::IsVerified {
+                                messages: vec![m.clone()],
+                            },
+                        )
+                        .unwrap();
+                    assert_eq!(res, vec![(m, true)]);
+                }
+                ContentVariant::WorkerSet(m) => {
+                    let res: bool = app
+                        .wrap()
+                        .query_wasm_smart(&addr, &QueryMsg::IsWorkerSetVerified { message: m })
+                        .unwrap();
+                    assert!(res);
+                }
+            };
+        }
+    }
+
+    #[test]
+    fn test_batch_verification_high_level_failure() {
+        let (bootstrap, mut verification_data) = get_batched_data(false, "finality");
+        let (mut app, addr) = deploy(Some(bootstrap));
+        let contents = verification_data
+            .target_blocks
+            .iter_mut()
+            .flat_map(|target_block| extract_content_from_block(target_block))
+            .collect::<Vec<ContentVariant>>();
+
+        // break the update
+        let mut corrupt_data = verification_data.clone();
+        corrupt_data.update = UpdateVariant::Finality(FinalityUpdate::default());
+
+        // execute
+        let resp = app.execute_contract(
+            Addr::unchecked("owner"),
+            addr.to_owned(),
+            &ExecuteMsg::BatchVerificationData {
+                payload: corrupt_data,
+            },
+            &[],
+        );
+
+        // assert
+        assert!(resp.is_err());
+        for content in contents {
+            match content {
+                ContentVariant::Message(m) => {
+                    let res: Vec<(Message, bool)> = app
+                        .wrap()
+                        .query_wasm_smart(
+                            &addr,
+                            &QueryMsg::IsVerified {
+                                messages: vec![m.clone()],
+                            },
+                        )
+                        .unwrap();
+                    assert_eq!(res, vec![(m.clone(), false)]);
+                }
+                ContentVariant::WorkerSet(m) => {
+                    let res: bool = app
+                        .wrap()
+                        .query_wasm_smart(
+                            &addr,
+                            &QueryMsg::IsWorkerSetVerified { message: m.clone() },
+                        )
+                        .unwrap();
+                    assert_eq!(res, false);
+                }
+            };
+        }
+    }
+
+    #[test]
+    fn test_batch_verification_content_failure() {
+        let (bootstrap, mut verification_data) = get_batched_data(false, "finality");
+        let (mut app, addr) = deploy(Some(bootstrap));
+        let contents = verification_data
+            .target_blocks
+            .iter_mut()
+            .flat_map(|target_block| extract_content_from_block(target_block))
+            .collect::<Vec<ContentVariant>>();
+
+        // break the transaction proof of the first content
+        verification_data.target_blocks[0].transactions_proofs[0]
+            .transaction_proof
+            .transaction_proof = vec![Node::default(); 32];
+
+        // execute
+        let resp = app.execute_contract(
+            Addr::unchecked("owner"),
+            addr.to_owned(),
+            &ExecuteMsg::BatchVerificationData {
+                payload: verification_data,
+            },
+            &[],
+        );
+
+        // assert
+        assert!(resp.is_ok());
+        let result: VerificationResult = from_json(&resp.unwrap().data.unwrap()).unwrap();
+        assert_eq!(
+            result,
+            vec![
+                (String::from("message:ethereum:0xc57b29866a593b73d15981c961c8e61380d4e471f08f5b58d441fc828e0f8166:6"), String::from("Invalid transaction proof")),
+                (String::from("workersetmessage:0xcaabfb4729c106140393eaceca29a0d90e5e64297bb9adbec9c3c7d49c9fab61:0"), String::from("OK"))
+            ]
+        );
+        for (index, content) in contents.iter().enumerate() {
+            match content {
+                // this is the first content, with the broken transaction proof
+                ContentVariant::Message(m) => {
+                    let res: Vec<(Message, bool)> = app
+                        .wrap()
+                        .query_wasm_smart(
+                            &addr,
+                            &QueryMsg::IsVerified {
+                                messages: vec![m.clone()],
+                            },
+                        )
+                        .unwrap();
+                    assert_eq!(res, vec![(m.clone(), false)]);
+                }
+                // the second content should be validated
+                ContentVariant::WorkerSet(m) => {
+                    let res: bool = app
+                        .wrap()
+                        .query_wasm_smart(
+                            &addr,
+                            &QueryMsg::IsWorkerSetVerified { message: m.clone() },
+                        )
+                        .unwrap();
+                    assert!(res);
+                }
+            };
+        }
+    }
+
+    #[test]
+    fn test_config_query() {
+        let (mut app, addr) = deploy(None);
+
+        let config: Config = app
+            .wrap()
+            .query_wasm_smart(addr, &QueryMsg::Config {})
+            .unwrap();
+        assert_eq!(config, get_config());
     }
 }

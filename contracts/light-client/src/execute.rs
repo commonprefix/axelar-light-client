@@ -186,7 +186,7 @@ pub fn light_client_update(
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use crate::execute::{process_block_proofs, process_transaction_proofs, verify_content};
     use crate::lightclient::helpers::test_helpers::{
         filter_message_variants, filter_workerset_variants, filter_workeset_message_variants,
@@ -194,11 +194,11 @@ mod tests {
     };
     use crate::lightclient::helpers::{extract_logs_from_receipt_proof, parse_message_id};
     use crate::lightclient::tests::tests::init_lightclient;
-    use crate::state::CONFIG;
+    use crate::state::{CONFIG, VERIFIED_MESSAGES, VERIFIED_WORKER_SETS};
     use cosmwasm_std::testing::mock_dependencies;
     use eyre::Result;
     use types::alloy_primitives::Address;
-    use types::common::{ContentVariant, WorkerSetMessage};
+    use types::common::{ContentVariant, PrimaryKey, WorkerSetMessage};
     use types::consensus::{FinalityUpdate, OptimisticUpdate};
     use types::execution::{ReceiptLog, ReceiptLogs};
     use types::proofs::{
@@ -438,7 +438,7 @@ mod tests {
         assert_invalid_contents(&extract_content_from_block(block_proofs), &res);
     }
 
-    fn extract_content_from_block(target_block: &BlockProofsBatch) -> Vec<ContentVariant> {
+    pub fn extract_content_from_block(target_block: &BlockProofsBatch) -> Vec<ContentVariant> {
         target_block
             .transactions_proofs
             .iter()
@@ -534,6 +534,18 @@ mod tests {
                 println!("{:?}", res);
                 assert!(res.is_ok());
                 assert_valid_contents(&contents, &res.unwrap());
+                for content in contents {
+                    match content {
+                        ContentVariant::Message(m) => {
+                            assert!(VERIFIED_MESSAGES.load(&mut deps.storage, m.hash()).is_ok());
+                        }
+                        ContentVariant::WorkerSet(m) => {
+                            assert!(VERIFIED_WORKER_SETS
+                                .load(&mut deps.storage, m.key())
+                                .is_ok());
+                        }
+                    }
+                }
 
                 // Corrupt the update
                 let mut corrupt_data = data.clone();
