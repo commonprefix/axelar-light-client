@@ -22,10 +22,10 @@ async fn main() {
     let prover = Arc::new(Prover::with_config(consensus.clone(), prover_config));
     let verifier = Verifier::new(config.wasm_rpc.clone(), config.verifier_addr.clone());
 
-    // let consumer =
-    //     LapinConsumer::new(&config.sentinel_queue_addr, &config.sentinel_queue_name).await;
+    let consumer =
+        LapinConsumer::new(&config.sentinel_queue_addr, &config.sentinel_queue_name).await;
 
-    let consumer = EthersConsumer::new(execution.clone(), config.gateway_addr.clone());
+    // let consumer = EthersConsumer::new(execution.clone(), config.gateway_addr.clone());
 
     let mut relayer = Relayer::new(
         config.clone(),
