@@ -3,6 +3,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
 };
+use cw_ownable::{assert_owner, get_ownership, update_ownership};
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
@@ -18,9 +19,11 @@ use types::connection_router::Message;
 pub fn instantiate(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    cw_ownable::initialize_owner(deps.storage, deps.api, Some(info.sender.as_str()))?;
+
     let mut lc = LightClient::new(&msg.config.chain_config, None, &env);
     lc.bootstrap(&msg.bootstrap).unwrap();
 
@@ -34,14 +37,20 @@ pub fn instantiate(
 pub fn execute(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     use ExecuteMsg::*;
 
     match msg {
-        LightClientUpdate { update } => execute::light_client_update(deps, &env, update),
-        BatchVerificationData { payload } => {
+        LightClientUpdate(update) => execute::light_client_update(deps, &env, update),
+        UpdateConfig(config) => {
+            assert_owner(deps.storage, &info.sender)
+                .map_err(|e| ContractError::Std(StdError::GenericErr { msg: e.to_string() }))?;
+            CONFIG.save(deps.storage, &config)?;
+            Ok(Response::new())
+        }
+        BatchVerificationData(payload) => {
             let state = LIGHT_CLIENT_STATE.load(deps.storage)?;
             let config = CONFIG.load(deps.storage)?;
             let lc = LightClient::new(&config.chain_config, Some(state), &env);
@@ -68,6 +77,12 @@ pub fn execute(
                     .collect::<VerificationResult>(),
             )?))
         }
+        UpdateOwnership(action) => {
+            update_ownership(deps, &env.block, &info.sender, action)
+                .map_err(|e| ContractError::Std(StdError::GenericErr { msg: e.to_string() }))?;
+            Ok(Response::new())
+        }
+        VerifyMessages { messages: _ } => Ok(Response::new()),
     }
 }
 
@@ -91,6 +106,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let result = VERIFIED_WORKER_SETS.load(deps.storage, message.key());
             to_json_binary(&result.is_ok())
         }
+        Ownership {} => to_json_binary(&get_ownership(deps.storage)?),
     }
 }
 
@@ -107,6 +123,7 @@ mod tests {
     };
     use cosmwasm_std::{from_json, testing::mock_env, Addr, Timestamp};
     use cw_multi_test::{App, ContractWrapper, Executor};
+    use cw_ownable::{Action, Ownership};
     use types::common::{Config, ContentVariant};
     use types::connection_router::Message;
     use types::consensus::{Bootstrap, FinalityUpdate};
@@ -136,7 +153,7 @@ mod tests {
         let addr = app
             .instantiate_contract(
                 code_id,
-                Addr::unchecked("owner"),
+                Addr::unchecked("deployer"),
                 &InstantiateMsg {
                     bootstrap: bootstrap.unwrap_or(get_bootstrap()),
                     config: get_config(),
@@ -178,9 +195,7 @@ mod tests {
         let resp = app.execute_contract(
             Addr::unchecked("owner"),
             addr.to_owned(),
-            &ExecuteMsg::LightClientUpdate {
-                update: update.clone(),
-            },
+            &ExecuteMsg::LightClientUpdate(update.clone()),
             &[],
         );
         let state_after_862 = get_lc_state(&app, &addr);
@@ -199,9 +214,7 @@ mod tests {
         let resp = app.execute_contract(
             Addr::unchecked("owner"),
             addr.to_owned(),
-            &ExecuteMsg::LightClientUpdate {
-                update: update.clone(),
-            },
+            &ExecuteMsg::LightClientUpdate(update.clone()),
             &[],
         );
         let state_after_863 = get_lc_state(&app, &addr);
@@ -227,9 +240,7 @@ mod tests {
         let resp = app.execute_contract(
             Addr::unchecked("owner"),
             addr.to_owned(),
-            &ExecuteMsg::LightClientUpdate {
-                update: update.clone(),
-            },
+            &ExecuteMsg::LightClientUpdate(update.clone()),
             &[],
         );
 
@@ -249,9 +260,7 @@ mod tests {
         let resp = app.execute_contract(
             Addr::unchecked("owner"),
             addr.to_owned(),
-            &ExecuteMsg::BatchVerificationData {
-                payload: verification_data,
-            },
+            &ExecuteMsg::BatchVerificationData(verification_data),
             &[],
         );
         assert!(resp.is_ok());
@@ -306,9 +315,7 @@ mod tests {
         let resp = app.execute_contract(
             Addr::unchecked("owner"),
             addr.to_owned(),
-            &ExecuteMsg::BatchVerificationData {
-                payload: corrupt_data,
-            },
+            &ExecuteMsg::BatchVerificationData(corrupt_data),
             &[],
         );
 
@@ -361,9 +368,7 @@ mod tests {
         let resp = app.execute_contract(
             Addr::unchecked("owner"),
             addr.to_owned(),
-            &ExecuteMsg::BatchVerificationData {
-                payload: verification_data,
-            },
+            &ExecuteMsg::BatchVerificationData(verification_data),
             &[],
         );
 
@@ -416,5 +421,91 @@ mod tests {
             .query_wasm_smart(addr, &QueryMsg::Config {})
             .unwrap();
         assert_eq!(config, get_config());
+    }
+
+    #[test]
+    fn test_ownership() {
+        let (mut app, addr) = deploy(None);
+
+        let res: Ownership<Addr> = app
+            .wrap()
+            .query_wasm_smart(&addr, &QueryMsg::Ownership {})
+            .unwrap();
+        assert_eq!(res.owner.unwrap(), "deployer");
+
+        // old owner proposes new owner
+        let resp = app.execute_contract(
+            Addr::unchecked("deployer"),
+            addr.to_owned(),
+            &ExecuteMsg::UpdateOwnership(Action::TransferOwnership {
+                new_owner: String::from("new_owner"),
+                expiry: None,
+            }),
+            &[],
+        );
+        assert!(resp.is_ok());
+
+        // new owner accepts
+        let resp = app.execute_contract(
+            Addr::unchecked("new_owner"),
+            addr.to_owned(),
+            &ExecuteMsg::UpdateOwnership(Action::AcceptOwnership {}),
+            &[],
+        );
+        assert!(resp.is_ok());
+
+        let res: Ownership<Addr> = app
+            .wrap()
+            .query_wasm_smart(&addr, &QueryMsg::Ownership {})
+            .unwrap();
+        assert_eq!(res.owner.unwrap(), "new_owner");
+    }
+
+    #[test]
+    fn test_update_config() {
+        let (mut app, addr) = deploy(None);
+        let default_config = get_config();
+        let mut new_config = get_config();
+
+        let config_query: Config = app
+            .wrap()
+            .query_wasm_smart(&addr, &QueryMsg::Config {})
+            .unwrap();
+        assert_eq!(config_query, default_config);
+
+        // random use should not be able to update config
+        new_config.gateway_address = String::from("new_gateway");
+        assert!(app
+            .execute_contract(
+                Addr::unchecked("some_user"),
+                addr.to_owned(),
+                &ExecuteMsg::UpdateConfig(new_config.clone()),
+                &[],
+            )
+            .is_err());
+
+        // verify that config was not updated
+        let config_query: Config = app
+            .wrap()
+            .query_wasm_smart(&addr, &QueryMsg::Config {})
+            .unwrap();
+        assert_eq!(config_query, default_config);
+
+        // owner should be able to update config
+        assert!(app
+            .execute_contract(
+                Addr::unchecked("deployer"),
+                addr.to_owned(),
+                &ExecuteMsg::UpdateConfig(new_config.clone()),
+                &[],
+            )
+            .is_ok());
+
+        // verify that config was updated
+        let config_query: Config = app
+            .wrap()
+            .query_wasm_smart(&addr, &QueryMsg::Config {})
+            .unwrap();
+        assert_eq!(config_query, new_config.clone());
     }
 }
