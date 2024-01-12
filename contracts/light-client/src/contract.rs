@@ -46,7 +46,7 @@ pub fn execute(
             let config = CONFIG.load(deps.storage)?;
             let lc = LightClient::new(&config.chain_config, Some(state), &env);
 
-            let results = process_batch_data(deps, &lc, &payload)
+            let results = process_batch_data(deps, &lc, &payload, &config)
                 .map_err(|e| ContractError::Std(StdError::GenericErr { msg: e.to_string() }))?;
 
             Ok(Response::new().set_data(to_json_binary(
@@ -166,7 +166,7 @@ mod tests {
 
         let mut lc = LightClient::new(&get_config().chain_config, None, &env);
         lc.bootstrap(&bootstrap).unwrap();
-        assert_eq!(state, lc.state)
+        assert_eq!(state, lc.state);
     }
 
     #[test]

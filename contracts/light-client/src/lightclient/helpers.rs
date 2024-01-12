@@ -402,7 +402,7 @@ pub mod test_helpers {
     use ethabi::{decode, ParamType};
     use std::fs::File;
 
-    use types::common::{Config, WorkerSetMessage};
+    use types::common::{Config, FinalizationVariant, WorkerSetMessage};
     use types::connection_router::state::Message;
     use types::execution::ReceiptLog;
     use types::proofs::{
@@ -480,6 +480,7 @@ pub mod test_helpers {
                 genesis_root: Node::from_bytes(genesis_root_bytes),
             },
             gateway_address: String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5"),
+            finalization: FinalizationVariant::Finality(),
         }
     }
 
