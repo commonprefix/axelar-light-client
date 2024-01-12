@@ -2,7 +2,7 @@ use crate::ContractError;
 use cosmwasm_std::{DepsMut, Env, Response};
 use eyre::{eyre, Result};
 use hasher::{Hasher, HasherKeccak};
-use types::common::PrimaryKey;
+use types::common::{Config, FinalizationVariant, PrimaryKey};
 use types::consensus::BeaconBlockHeader;
 use types::execution::ReceiptLogs;
 use types::proofs::{
@@ -134,13 +134,28 @@ pub fn process_batch_data(
     deps: DepsMut,
     lightclient: &LightClient,
     data: &BatchVerificationData,
+    config: &Config,
 ) -> Result<Vec<(ContentVariant, Result<()>)>> {
     match &data.update {
-        UpdateVariant::Finality(update) => lightclient.verify_finality_update(update)?,
-        UpdateVariant::Optimistic(update) => lightclient.verify_optimistic_update(update)?,
+        UpdateVariant::Finality(update) => {
+            if matches!(config.finalization, FinalizationVariant::Optimistic()) {
+                return Err(eyre!(
+                    "Optimistic verification enabled but provided Finality update"
+                ));
+            }
+            lightclient.verify_finality_update(update)?
+        }
+        UpdateVariant::Optimistic(update) => {
+            if matches!(config.finalization, FinalizationVariant::Finality()) {
+                return Err(eyre!(
+                    "Finality verification enabled but provided Optimistic update"
+                ));
+            }
+            lightclient.verify_optimistic_update(update)?
+        }
     }
     let recent_block = data.update.recent_block();
-    let gateway_address = CONFIG.load(deps.storage)?.gateway_address;
+    let gateway_address = config.gateway_address.clone();
 
     let results = data
         .target_blocks
@@ -197,7 +212,7 @@ pub mod tests {
     use cosmwasm_std::testing::mock_dependencies;
     use eyre::Result;
     use types::alloy_primitives::Address;
-    use types::common::{ContentVariant, PrimaryKey, WorkerSetMessage};
+    use types::common::{ContentVariant, FinalizationVariant, PrimaryKey, WorkerSetMessage};
     use types::consensus::{FinalityUpdate, OptimisticUpdate};
     use types::execution::{ReceiptLog, ReceiptLogs};
     use types::proofs::{
@@ -520,10 +535,16 @@ pub mod tests {
             for finalization in ["finality", "optimistic"] {
                 let (bootstrap, mut data) = get_batched_data(historical, finalization);
                 let lc = init_lightclient(Some(bootstrap));
+                let mut config = get_config();
+                config.finalization = match finalization {
+                    "finality" => FinalizationVariant::Finality(),
+                    "optimistic" => FinalizationVariant::Optimistic(),
+                    _ => config.finalization,
+                };
                 let mut deps = mock_dependencies();
                 CONFIG.save(&mut deps.storage, &get_config()).unwrap();
 
-                let res = process_batch_data(deps.as_mut(), &lc, &data);
+                let res = process_batch_data(deps.as_mut(), &lc, &data, &config);
                 let contents = data
                     .target_blocks
                     .iter()
@@ -546,6 +567,15 @@ pub mod tests {
                     }
                 }
 
+                // finalization type of update is different than config
+                let mut corrupt_config = config.clone();
+                corrupt_config.finalization = match finalization {
+                    "finality" => FinalizationVariant::Optimistic(),
+                    "optimistic" => FinalizationVariant::Finality(),
+                    _ => corrupt_config.finalization,
+                };
+                assert!(process_batch_data(deps.as_mut(), &lc, &data, &corrupt_config).is_err());
+
                 // Corrupt the update
                 let mut corrupt_data = data.clone();
                 match finalization {
@@ -557,7 +587,7 @@ pub mod tests {
                     }
                     _ => panic!("Unknown finalization"),
                 };
-                assert!(process_batch_data(deps.as_mut(), &lc, &corrupt_data).is_err());
+                assert!(process_batch_data(deps.as_mut(), &lc, &corrupt_data, &config).is_err(),);
 
                 // Corrupt the contents
                 for target_block in data.target_blocks.iter_mut() {
@@ -568,7 +598,7 @@ pub mod tests {
                     .iter()
                     .flat_map(|target_block| extract_content_from_block(target_block))
                     .collect::<Vec<ContentVariant>>();
-                let res = process_batch_data(deps.as_mut(), &lc, &data);
+                let res = process_batch_data(deps.as_mut(), &lc, &data, &config);
                 assert!(res.is_ok());
                 assert_invalid_contents(&contents, &res.unwrap());
             }

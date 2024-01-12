@@ -18,9 +18,16 @@ pub struct ChainConfig {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
+pub enum FinalizationVariant {
+    Optimistic(),
+    Finality(),
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
 pub struct Config {
     pub chain_config: ChainConfig,
     pub gateway_address: String,
+    pub finalization: FinalizationVariant,
 }
 
 /// Message describing an update of the operators set
