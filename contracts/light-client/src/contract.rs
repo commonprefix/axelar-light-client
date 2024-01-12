@@ -28,12 +28,6 @@ pub fn instantiate(
     LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
     CONFIG.save(deps.storage, &msg.config)?;
 
-    let period = calc_sync_period(msg.bootstrap.header.beacon.slot);
-    SYNC_COMMITTEE.save(
-        deps.storage,
-        &(msg.bootstrap.current_sync_committee, period),
-    )?;
-
     Ok(Response::new())
 }
 
@@ -80,9 +74,6 @@ pub fn execute(
                     .collect::<VerificationResult>(),
             )?))
         }
-        VerifyMessages {
-            messages: _messages,
-        } => Ok(Response::new()),
     }
 }
 
@@ -93,10 +84,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         LightClientState {} => to_json_binary(&LIGHT_CLIENT_STATE.load(deps.storage)?),
         Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
-        SyncCommittee {} => {
-            let sync_committee = &SYNC_COMMITTEE.load(deps.storage)?;
-            to_json_binary(&sync_committee)
-        }
         IsVerified { messages } => to_json_binary(
             &messages
                 .into_iter()

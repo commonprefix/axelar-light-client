@@ -18,9 +18,7 @@ use crate::lightclient::helpers::{
     verify_ancestry_proof, verify_transaction_proof,
 };
 use crate::lightclient::LightClient;
-use crate::state::{
-    CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE, VERIFIED_MESSAGES, VERIFIED_WORKER_SETS,
-};
+use crate::state::{CONFIG, LIGHT_CLIENT_STATE, VERIFIED_MESSAGES, VERIFIED_WORKER_SETS};
 
 /// Finds the necessary log from a list of logs and then verifies the provided content.
 fn verify_content(
@@ -182,13 +180,6 @@ pub fn light_client_update(
         return Err(ContractError::from(res.err().unwrap()));
     }
 
-    SYNC_COMMITTEE.save(
-        deps.storage,
-        &(
-            update.next_sync_committee,
-            calc_sync_period(update.attested_header.beacon.slot) + 1,
-        ),
-    )?;
     LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
 
     Ok(Response::new())
