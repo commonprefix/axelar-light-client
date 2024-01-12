@@ -19,6 +19,7 @@ pub enum ExecuteMsg {
     LightClientUpdate(Update),
     BatchVerificationData(BatchVerificationData),
     UpdateConfig(Config),
+    VerifyMessages { messages: Vec<Message> },
 }
 
 #[cw_ownable_query]

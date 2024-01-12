@@ -82,6 +82,7 @@ pub fn execute(
                 .map_err(|e| ContractError::Std(StdError::GenericErr { msg: e.to_string() }))?;
             Ok(Response::new())
         }
+        VerifyMessages { messages: _ } => Ok(Response::new()),
     }
 }
 
