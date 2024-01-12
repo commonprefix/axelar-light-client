@@ -1,7 +1,7 @@
 use std::process::Command;
 
 use crate::{
-    types::{LightClientStateResult, UpdateExecuteMsg, UpdateMsg},
+    types::{LightClientStateResult, UpdateExecuteMsg},
     utils::calc_sync_period,
 };
 use consensus_types::{consensus::Update, lightclient::LightClientState};
