@@ -1,6 +1,6 @@
 [package]
 authors = ["Dimitris Lamprinos <pkakelas@gmail.com>", "Themis Papameletiou <papameletiou.themis@gmail.com>"]
-edition = "2023"
+edition = "2021"
 name = "types"
 version = "0.1.0"
 
