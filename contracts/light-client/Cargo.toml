@@ -1,6 +1,6 @@
 [package]
-authors = ["Dimitris Lamprinos <pkakelas@gmail.com>"]
-edition = "2021"
+authors = ["Dimitris Lamprinos <pkakelas@gmail.com>", "Themis Papameletiou <papameletiou.themis@gmail.com>"]
+edition = "2023"
 name = "light-client"
 version = "0.1.0"
 
