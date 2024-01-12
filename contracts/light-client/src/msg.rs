@@ -16,8 +16,8 @@ pub struct InstantiateMsg {
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 #[allow(clippy::large_enum_variant)] // TODO: Properly fix this
 pub enum ExecuteMsg {
-    LightClientUpdate { update: Update },
-    BatchVerificationData { payload: BatchVerificationData },
+    LightClientUpdate(Update),
+    BatchVerificationData(BatchVerificationData),
     UpdateConfig(Config),
 }
 

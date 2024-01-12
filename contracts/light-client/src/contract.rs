@@ -194,9 +194,7 @@ mod tests {
         let resp = app.execute_contract(
             Addr::unchecked("owner"),
             addr.to_owned(),
-            &ExecuteMsg::LightClientUpdate {
-                update: update.clone(),
-            },
+            &ExecuteMsg::LightClientUpdate(update.clone()),
             &[],
         );
         let state_after_862 = get_lc_state(&app, &addr);
@@ -215,9 +213,7 @@ mod tests {
         let resp = app.execute_contract(
             Addr::unchecked("owner"),
             addr.to_owned(),
-            &ExecuteMsg::LightClientUpdate {
-                update: update.clone(),
-            },
+            &ExecuteMsg::LightClientUpdate(update.clone()),
             &[],
         );
         let state_after_863 = get_lc_state(&app, &addr);
@@ -243,9 +239,7 @@ mod tests {
         let resp = app.execute_contract(
             Addr::unchecked("owner"),
             addr.to_owned(),
-            &ExecuteMsg::LightClientUpdate {
-                update: update.clone(),
-            },
+            &ExecuteMsg::LightClientUpdate(update.clone()),
             &[],
         );
 
@@ -265,9 +259,7 @@ mod tests {
         let resp = app.execute_contract(
             Addr::unchecked("owner"),
             addr.to_owned(),
-            &ExecuteMsg::BatchVerificationData {
-                payload: verification_data,
-            },
+            &ExecuteMsg::BatchVerificationData(verification_data),
             &[],
         );
         assert!(resp.is_ok());
@@ -322,9 +314,7 @@ mod tests {
         let resp = app.execute_contract(
             Addr::unchecked("owner"),
             addr.to_owned(),
-            &ExecuteMsg::BatchVerificationData {
-                payload: corrupt_data,
-            },
+            &ExecuteMsg::BatchVerificationData(corrupt_data),
             &[],
         );
 
@@ -377,9 +367,7 @@ mod tests {
         let resp = app.execute_contract(
             Addr::unchecked("owner"),
             addr.to_owned(),
-            &ExecuteMsg::BatchVerificationData {
-                payload: verification_data,
-            },
+            &ExecuteMsg::BatchVerificationData(verification_data),
             &[],
         );
 
