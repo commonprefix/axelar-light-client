@@ -15,12 +15,10 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     LightClientUpdate { update: Update },
     BatchVerificationData { payload: BatchVerificationData },
-    VerifyMessages { messages: Vec<Message> },
 }
 
 #[cw_serde]
 pub enum QueryMsg {
-    SyncCommittee {},
     LightClientState {},
     Config {},
     IsVerified { messages: Vec<Message> },

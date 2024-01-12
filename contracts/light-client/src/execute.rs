@@ -14,13 +14,11 @@ use types::sync_committee_rs::constants::MAX_BYTES_PER_TRANSACTION;
 use types::{common::ContentVariant, consensus::Update};
 
 use crate::lightclient::helpers::{
-    calc_sync_period, compare_content_with_log, extract_logs_from_receipt_proof, parse_message_id,
+    compare_content_with_log, extract_logs_from_receipt_proof, parse_message_id,
     verify_ancestry_proof, verify_transaction_proof,
 };
 use crate::lightclient::LightClient;
-use crate::state::{
-    CONFIG, LIGHT_CLIENT_STATE, SYNC_COMMITTEE, VERIFIED_MESSAGES, VERIFIED_WORKER_SETS,
-};
+use crate::state::{CONFIG, LIGHT_CLIENT_STATE, VERIFIED_MESSAGES, VERIFIED_WORKER_SETS};
 
 /// Finds the necessary log from a list of logs and then verifies the provided content.
 fn verify_content(
@@ -182,36 +180,30 @@ pub fn light_client_update(
         return Err(ContractError::from(res.err().unwrap()));
     }
 
-    SYNC_COMMITTEE.save(
-        deps.storage,
-        &(
-            update.next_sync_committee,
-            calc_sync_period(update.attested_header.beacon.slot) + 1,
-        ),
-    )?;
     LIGHT_CLIENT_STATE.save(deps.storage, &lc.state)?;
 
     Ok(Response::new())
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use crate::execute::{process_block_proofs, process_transaction_proofs, verify_content};
     use crate::lightclient::helpers::test_helpers::{
-        filter_message_variants, filter_workerset_variants, filter_workeset_message_variants,
-        get_batched_data, get_config,
+        filter_message_variants, filter_workerset_variants, get_batched_data, get_config,
     };
     use crate::lightclient::helpers::{extract_logs_from_receipt_proof, parse_message_id};
     use crate::lightclient::tests::tests::init_lightclient;
-    use crate::state::CONFIG;
+    use crate::state::{CONFIG, VERIFIED_MESSAGES, VERIFIED_WORKER_SETS};
     use cosmwasm_std::testing::mock_dependencies;
     use eyre::Result;
     use types::alloy_primitives::Address;
-    use types::common::{ContentVariant, WorkerSetMessage};
+    use types::common::{ContentVariant, PrimaryKey, WorkerSetMessage};
     use types::consensus::{FinalityUpdate, OptimisticUpdate};
     use types::execution::{ReceiptLog, ReceiptLogs};
-    use types::proofs::{BlockProofsBatch, Message, TransactionProofsBatch, UpdateVariant};
-    use types::ssz_rs::Merkleized;
+    use types::proofs::{
+        AncestryProof, BlockProofsBatch, Message, TransactionProofsBatch, UpdateVariant,
+    };
+    use types::ssz_rs::{Merkleized, Node};
 
     use super::process_batch_data;
 
@@ -429,15 +421,23 @@ mod tests {
             process_transaction_proofs(&transaction_proofs, &target_block_root, &gateway_address);
         assert_valid_contents(&content, &res);
 
+        // test error from content
         let mut corrupted_proofs = transaction_proofs.clone();
         let (_, mut messages) = filter_variants_as_mutref(&mut corrupted_proofs);
         messages[0].cc_id.id = "invalid".to_string().try_into().unwrap();
         let res =
             process_transaction_proofs(&corrupted_proofs, &target_block_root, &gateway_address);
         assert_invalid_contents(&corrupted_proofs.content, &res);
+
+        // test error in transaction proof
+        let mut corrupted_proofs = transaction_proofs.clone();
+        corrupted_proofs.transaction_proof.transaction_proof = vec![Node::default(); 32];
+        let res =
+            process_transaction_proofs(&corrupted_proofs, &target_block_root, &gateway_address);
+        assert_invalid_contents(&extract_content_from_block(block_proofs), &res);
     }
 
-    fn extract_content_from_block(target_block: &BlockProofsBatch) -> Vec<ContentVariant> {
+    pub fn extract_content_from_block(target_block: &BlockProofsBatch) -> Vec<ContentVariant> {
         target_block
             .transactions_proofs
             .iter()
@@ -474,10 +474,7 @@ mod tests {
         assert!(res.len() > 0);
         assert_eq!(res.len(), contents.len());
         for (index, content_variant) in contents.iter().enumerate() {
-            assert_eq!(
-                res[index].1.as_ref().unwrap_err().to_string(),
-                "Invalid message id format"
-            );
+            assert!(res[index].1.is_err());
             assert_eq!(res[index].0, *content_variant);
         }
     }
@@ -492,11 +489,26 @@ mod tests {
             let content = extract_content_from_block(target_block);
 
             let res = process_block_proofs(&recent_block, target_block, &gateway_address);
-            println!("{:?}", res);
             assert_valid_contents(&content, &res);
 
             corrupt_contents(target_block);
             let contents = extract_content_from_block(target_block);
+            let res = process_block_proofs(&recent_block, target_block, &gateway_address);
+            assert_invalid_contents(&contents, &res);
+        }
+
+        // test error on ancestry proof
+        for target_block in data.target_blocks.iter_mut() {
+            let contents = extract_content_from_block(&target_block.clone());
+
+            let AncestryProof::BlockRoots {
+                block_root_proof,
+                block_roots_index: _,
+            } = &mut target_block.ancestry_proof
+            else {
+                panic!("")
+            };
+            *block_root_proof = vec![Node::default(); 18];
             let res = process_block_proofs(&recent_block, target_block, &gateway_address);
             assert_invalid_contents(&contents, &res);
         }
@@ -521,6 +533,18 @@ mod tests {
                 println!("{:?}", res);
                 assert!(res.is_ok());
                 assert_valid_contents(&contents, &res.unwrap());
+                for content in contents {
+                    match content {
+                        ContentVariant::Message(m) => {
+                            assert!(VERIFIED_MESSAGES.load(&mut deps.storage, m.hash()).is_ok());
+                        }
+                        ContentVariant::WorkerSet(m) => {
+                            assert!(VERIFIED_WORKER_SETS
+                                .load(&mut deps.storage, m.key())
+                                .is_ok());
+                        }
+                    }
+                }
 
                 // Corrupt the update
                 let mut corrupt_data = data.clone();

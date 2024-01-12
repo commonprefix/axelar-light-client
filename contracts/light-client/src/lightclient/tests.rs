@@ -60,6 +60,31 @@ pub mod tests {
     }
 
     #[test]
+    fn test_apply_bootstrap() {
+        let config = get_config();
+        let env = mock_env();
+        let mut client = LightClient::new(&config.chain_config, None, &env);
+
+        // test corrupt current committee branch
+        let mut bootstrap = get_bootstrap();
+        bootstrap.current_sync_committee_branch = vec![];
+        assert!(client.bootstrap(&bootstrap).is_err());
+
+        // test normal bootstrap
+        let bootstrap = get_bootstrap();
+        assert!(client.bootstrap(&bootstrap).is_ok());
+
+        assert_eq!(
+            client.state,
+            LightClientState {
+                update_slot: bootstrap.header.beacon.slot,
+                current_sync_committee: bootstrap.current_sync_committee,
+                next_sync_committee: None
+            }
+        );
+    }
+
+    #[test]
     fn test_is_proof_valid() {
         let mut update = get_update(862);
 
@@ -950,21 +975,6 @@ pub mod tests {
     }
 
     #[test]
-    fn test_bootstrap_state() {
-        let lightclient = init_lightclient(None);
-        let bootstrap = get_bootstrap();
-
-        assert_eq!(
-            lightclient.state,
-            LightClientState {
-                update_slot: bootstrap.header.beacon.slot,
-                current_sync_committee: bootstrap.current_sync_committee,
-                next_sync_committee: None,
-            }
-        );
-    }
-
-    #[test]
     fn test_apply_first_update() {
         let mut lightclient = init_lightclient(None);
         let update = get_update(862);
@@ -1018,7 +1028,7 @@ pub mod tests {
     // TODO: need two updates from the same period
     fn test_apply_same_period_update() {
         let mut lightclient = init_lightclient(None);
-        let mut update = get_update(862);
+        let update = get_update(862);
 
         assert!(lightclient.apply_update(&update).is_ok());
         let state_before_update = lightclient.state.clone();

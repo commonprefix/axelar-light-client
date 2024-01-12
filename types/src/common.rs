@@ -10,14 +10,14 @@ pub trait PrimaryKey {
 }
 
 /// Chain configuration that is used from the Light Client module for the verification of signatures
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
 pub struct ChainConfig {
     pub chain_id: u64,
     pub genesis_time: u64,
     pub genesis_root: Node,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
 pub struct Config {
     pub chain_config: ChainConfig,
     pub gateway_address: String,
