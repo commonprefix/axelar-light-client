@@ -1,6 +1,6 @@
 use crate::types::{ContractCallWithToken, EnrichedLog, OperatorshipTransferred};
 use consensus_types::{
-    common::{ContentVariant, WorkerSetMessage},
+    common::{ContentVariant, WorkerSetMessage, PrimaryKey},
     proofs::{CrossChainId, Message},
 };
 use eth::types::FullBlockDetails;
@@ -72,6 +72,10 @@ fn enrich_content(
         beacon_block: block_details.beacon_block.clone(),
         receipts: block_details.receipts.clone(),
         tx_hash: log.transaction_hash.unwrap(),
+        id: match content {
+            ContentVariant::Message(message) => message.key(),
+            ContentVariant::WorkerSet(message) => message.key(),
+        },
     };
 
     Ok(msg)

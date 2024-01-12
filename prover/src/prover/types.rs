@@ -27,6 +27,7 @@ pub struct ProofResponse {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnrichedContent {
+    pub id: String,
     pub content: ContentVariant,
     pub tx_hash: H256,
     pub exec_block: Block<Transaction>,

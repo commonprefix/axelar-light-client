@@ -5,7 +5,7 @@ use crate::{
     verifier::{self, Verifier},
 };
 use consensus_types::{
-    common::ContentVariant,
+    common::{ContentVariant, PrimaryKey},
     proofs::{BatchVerificationData, UpdateVariant},
 };
 use eth::{consensus::EthBeaconAPI, execution::EthExecutionAPI, utils::get_full_block_details};
