@@ -5,7 +5,6 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
-use crate::lightclient::helpers::calc_sync_period;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::{lightclient::LightClient, state::*};
 use eyre::Result;
@@ -114,8 +113,7 @@ mod tests {
     use types::lightclient::LightClientState;
     use types::proofs::UpdateVariant;
     use types::ssz_rs::Node;
-    use types::sync_committee_rs::consensus_types::SyncCommittee;
-    use types::sync_committee_rs::constants::{BlsSignature, SYNC_COMMITTEE_SIZE};
+    use types::sync_committee_rs::constants::BlsSignature;
 
     use crate::msg::{InstantiateMsg, QueryMsg};
     use crate::types::VerificationResult;
@@ -379,7 +377,7 @@ mod tests {
                 (String::from("workersetmessage:0xcaabfb4729c106140393eaceca29a0d90e5e64297bb9adbec9c3c7d49c9fab61:0"), String::from("OK"))
             ]
         );
-        for (index, content) in contents.iter().enumerate() {
+        for (_index, content) in contents.iter().enumerate() {
             match content {
                 // this is the first content, with the broken transaction proof
                 ContentVariant::Message(m) => {
@@ -411,7 +409,7 @@ mod tests {
 
     #[test]
     fn test_config_query() {
-        let (mut app, addr) = deploy(None);
+        let (app, addr) = deploy(None);
 
         let config: Config = app
             .wrap()

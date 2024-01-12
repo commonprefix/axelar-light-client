@@ -59,6 +59,7 @@ pub mod tests {
         client
     }
 
+    #[test]
     fn test_apply_bootstrap() {
         let config = get_config();
         let env = mock_env();
@@ -70,7 +71,7 @@ pub mod tests {
         assert!(client.bootstrap(&bootstrap).is_err());
 
         // test normal bootstrap
-        let mut bootstrap = get_bootstrap();
+        let bootstrap = get_bootstrap();
         assert!(client.bootstrap(&bootstrap).is_ok());
 
         assert_eq!(
@@ -1027,7 +1028,7 @@ pub mod tests {
     // TODO: need two updates from the same period
     fn test_apply_same_period_update() {
         let mut lightclient = init_lightclient(None);
-        let mut update = get_update(862);
+        let update = get_update(862);
 
         assert!(lightclient.apply_update(&update).is_ok());
         let state_before_update = lightclient.state.clone();

@@ -14,7 +14,7 @@ use types::sync_committee_rs::constants::MAX_BYTES_PER_TRANSACTION;
 use types::{common::ContentVariant, consensus::Update};
 
 use crate::lightclient::helpers::{
-    calc_sync_period, compare_content_with_log, extract_logs_from_receipt_proof, parse_message_id,
+    compare_content_with_log, extract_logs_from_receipt_proof, parse_message_id,
     verify_ancestry_proof, verify_transaction_proof,
 };
 use crate::lightclient::LightClient;
@@ -189,8 +189,7 @@ pub fn light_client_update(
 pub mod tests {
     use crate::execute::{process_block_proofs, process_transaction_proofs, verify_content};
     use crate::lightclient::helpers::test_helpers::{
-        filter_message_variants, filter_workerset_variants, filter_workeset_message_variants,
-        get_batched_data, get_config,
+        filter_message_variants, filter_workerset_variants, get_batched_data, get_config,
     };
     use crate::lightclient::helpers::{extract_logs_from_receipt_proof, parse_message_id};
     use crate::lightclient::tests::tests::init_lightclient;
@@ -504,7 +503,7 @@ pub mod tests {
 
             let AncestryProof::BlockRoots {
                 block_root_proof,
-                block_roots_index,
+                block_roots_index: _,
             } = &mut target_block.ancestry_proof
             else {
                 panic!("")

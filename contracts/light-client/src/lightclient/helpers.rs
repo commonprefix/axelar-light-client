@@ -406,8 +406,7 @@ pub mod test_helpers {
     use types::connection_router::state::Message;
     use types::execution::ReceiptLog;
     use types::proofs::{
-        BatchVerificationData, BlockProofsBatch, CrossChainId, TransactionProofsBatch,
-        UpdateVariant,
+        BatchVerificationData, CrossChainId, TransactionProofsBatch, UpdateVariant,
     };
     use types::ssz_rs::Node;
     use types::{
