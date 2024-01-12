@@ -101,7 +101,6 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
                 None => {
                     error!("Error processing log. Requeuing");
                     self.consumer.nack_delivery(delivery_tag).await?;
-                    continue;
                 }
             }
         }
@@ -152,7 +151,6 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
                         error!("Content {} failed by the verifer with err: {}", id, res);
                         self.consumer.nack_delivery(delivery_tag).await?;
                     }
-                    self.consumer.ack_delivery(delivery_tag).await?;
                 }
                 None => {
                     error!("No proof generated for content with id={}", content.id);

@@ -7,7 +7,7 @@ use lapin::{
     types::FieldTable,
     Channel, Connection, ConnectionProperties, Consumer,
 };
-use log::info;
+use log::{info, debug};
 use mockall::automock;
 
 pub struct LapinConsumer {
@@ -67,6 +67,8 @@ impl Amqp for LapinConsumer {
     }
 
     async fn nack_delivery(&self, delivery_tag: u64) -> Result<()> {
+        debug!("Nacking delivery {}", delivery_tag);
+
         let requeue_nack = BasicNackOptions {
             requeue: true,
             ..Default::default()
@@ -81,6 +83,7 @@ impl Amqp for LapinConsumer {
     }
 
     async fn ack_delivery(&self, delivery_tag: u64) -> Result<()> {
+        debug!("Acking delivery {}", delivery_tag);
         self.channel
             .basic_ack(delivery_tag, BasicAckOptions::default())
             .await
