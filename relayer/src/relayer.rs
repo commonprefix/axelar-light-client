@@ -74,6 +74,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
         let recent_block_slot = update.recent_block().slot;
 
         let fetched_logs = self.collect_messages(self.config.max_batch_size).await;
+        let fetched_logs_len = fetched_logs.len();
 
         let contents = self.process_logs(fetched_logs).await;
         if contents.is_empty() {
@@ -111,62 +112,58 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI> Relayer<P, C,
             .batch_generate_proofs(batch_contents, update)
             .await;
         if batch_verification_data.is_err() {
+            for delivery_tag in delivery_tags {
+                self.consumer.nack_delivery(delivery_tag).await?;
+            }
+
             return Err(eyre!(
                 "BatchVerificationData generation failed {:?}",
                 batch_verification_data.err()
             ));
         }
+
         let batch_verification_data = batch_verification_data.unwrap();
         if batch_verification_data.target_blocks.is_empty() {
-            return Err(eyre!("No proofs where generated from proof generation"));
-        }
-
-        self.verifier
-            .verify_data(batch_verification_data.clone())
-            .await?;
-        info!("BatchVerificationData verification succeeded");
-
-        // let res = serde_json::to_string(&batch_verification_data);
-        // println!("{:?}", res);
-        let processed_messages = self.extract_all_contents(&batch_verification_data);
-        for (i, content) in successful_contents.iter().enumerate() {
-            let delivery_tag = delivery_tags[i];
-            if !processed_messages.contains(&content.content) {
-                error!("Message with_delivery_id={:?} failed", delivery_tag);
+            for delivery_tag in delivery_tags {
                 self.consumer.nack_delivery(delivery_tag).await?;
             }
 
-            match &content.content {
-                ContentVariant::Message(message) => {
-                    let is_verified = self
-                        .verifier
-                        .is_message_verified(vec![message.clone()])
-                        .await?;
-                    if is_verified[0].1 {
-                        info!("Message with delivery_id={:?} succeeded", delivery_tag);
+            return Err(eyre!("No proofs where generated from proof generation"));
+        }
+
+        let result = self.verifier
+            .verify_data(batch_verification_data.clone())
+            .await?;
+        let successful_ver_result = result
+            .iter()
+            .filter(|(_, res)| res == "OK")
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<String>>();
+
+        for (i, content) in successful_contents.iter().enumerate() {
+            let delivery_tag = delivery_tags[i];
+            let c = result.iter().find(|(key, _)| *key == content.id);
+            match c {
+                Some((id, res)) => {
+                    if res == "OK" {
+                        info!("Content with id={:?} succeeded", id);
                         self.consumer.ack_delivery(delivery_tag).await?;
                     } else {
-                        error!("Message {:?} failed", delivery_tag);
+                        error!("Content {} failed by the verifer with err: {}", id, res);
                         self.consumer.nack_delivery(delivery_tag).await?;
                     }
+                    self.consumer.ack_delivery(delivery_tag).await?;
                 }
-                ContentVariant::WorkerSet(worker_set) => {
-                    let is_verified = self
-                        .verifier
-                        .is_worker_set_verified(worker_set.clone())
-                        .await?;
-                    if is_verified {
-                        info!("WorkerSet with delivery_id={:?} succeeded", delivery_tag);
-                        self.consumer.ack_delivery(delivery_tag).await?;
-                    } else {
-                        error!("WorkerSet {:?} failed", delivery_tag);
-                        self.consumer.nack_delivery(delivery_tag).await?;
-                    }
+                None => {
+                    error!("No proof generated for content with id={}", content.id);
+                    self.consumer.nack_delivery(delivery_tag).await?;
                 }
             }
         }
 
-        info!("Processed {} messages", processed_messages.len());
+        info!("BatchVerificationData verification finished.\n\
+            Fetched {} logs. Generated {} contents. Generated {} proofs. Verified {} proofs.",
+            fetched_logs_len, successful_contents.len(), result.len(), successful_ver_result.len()); 
         Ok(())
     }
 

@@ -4,18 +4,20 @@ use crate::{
     types::{
         BatchVerificationDataRequest, BatchVerificationPayload, IsVerifiedMessages,
         IsVerifiedRequest, IsVerifiedResponse, IsWorkerSetVerifiedRequest,
-        IsWorkerSetVerifiedResult, LightClientStateResult, UpdateExecuteMsg, UpdateMsg,
+        IsWorkerSetVerifiedResult, LightClientStateResult, UpdateExecuteMsg, UpdateMsg, VerifyDataResponse,
     },
     utils::calc_sync_period,
 };
 use consensus_types::{
-    common::WorkerSetMessage,
+    common::{WorkerSetMessage, VerificationResult},
     consensus::Update,
     lightclient::LightClientState,
     proofs::{BatchVerificationData, Message},
 };
+use ethers::utils::hex;
 use eyre::Result;
 use log::debug;
+use serde::{Serialize, Deserialize};
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -167,7 +169,7 @@ impl Verifier {
         Ok(())
     }
 
-    pub async fn verify_data(&self, verification_data: BatchVerificationData) -> Result<()> {
+    pub async fn verify_data(&self, verification_data: BatchVerificationData) -> Result<VerificationResult> {
         let cmd = "axelard";
 
         let message = BatchVerificationDataRequest {
@@ -193,17 +195,27 @@ impl Verifier {
             "-y",
         ];
 
-        // let command_line = format!("{} {}", cmd, args.join(" "));
-        // debug!("Command to be executed: {}", command_line);
 
         let output = Command::new(cmd).args(args).output()?;
-        // debug!("Output: {:?}", output);
 
         if !output.status.success() {
             println!("Error updating light client: {:?}", output);
             return Err(eyre::eyre!("Error updating light client"));
         }
 
-        Ok(())
+        let result: VerifyDataResponse = serde_json::from_slice(&output.stdout)?; 
+        let decoded = hex::decode(result.data)?;
+        let str = String::from_utf8_lossy(&decoded);
+
+        if let Some(json_start_index) = str.find("[[") {
+            println!("json_start_index: {}", json_start_index);
+            let json_string = &str[json_start_index..];
+            println!("json_string: {}", json_string);
+            let res: VerificationResult = cosmwasm_std::from_json(json_string).unwrap();
+            println!("res: {:?}", res);
+            return Ok(res);
+        }
+
+        Err(eyre::eyre!("Error decoding verification result"))
     }
 }
