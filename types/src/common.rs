@@ -54,3 +54,5 @@ impl PrimaryKey for Message {
         format!("message:{}", self.cc_id)
     }
 }
+
+pub type VerificationResult = Vec<(String, String)>;

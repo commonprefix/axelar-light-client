@@ -11,8 +11,7 @@ use crate::{lightclient::LightClient, state::*};
 use eyre::Result;
 
 use crate::execute::{self, process_batch_data};
-use crate::types::VerificationResult;
-use types::common::{ContentVariant, PrimaryKey};
+use types::common::{ContentVariant, PrimaryKey, VerificationResult};
 use types::connection_router::Message;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
