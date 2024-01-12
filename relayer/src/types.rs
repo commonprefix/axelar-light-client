@@ -112,9 +112,5 @@ pub struct LightClientStateResult {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UpdateExecuteMsg {
     #[serde(rename = "LightClientUpdate")]
-    pub light_client_update: UpdateMsg,
-}
-#[derive(Serialize, Deserialize, Debug)]
-pub struct UpdateMsg {
-    pub update: Update,
+    pub light_client_update: Update,
 }
