@@ -1,6 +1,6 @@
 use crate::cosmwasm_schema::schemars;
 use axelar_wasm_std::nonempty;
-use connection_router::state::Message;
+use connection_router::state::{Message, CrossChainId};
 use cosmwasm_schema::schemars::JsonSchema;
 use ssz_rs::prelude::*;
 
@@ -43,6 +43,28 @@ pub enum ContentVariant {
     Message(Message),
     WorkerSet(WorkerSetMessage),
 }
+
+impl Default for ContentVariant {
+    fn default() -> Self {
+        let message = Message {
+            cc_id: CrossChainId {
+                chain: String::from("ethereum").try_into().unwrap(),
+                id: String::from("foo:bar").try_into().unwrap(),
+            },
+            source_address: String::from("0x0000000000000000000000000000000000000000")
+                .try_into()
+                .unwrap(),
+            destination_chain: String::from("fantom").try_into().unwrap(),
+            destination_address: String::from("0x0000000000000000000000000000000000000")
+                .try_into()
+                .unwrap(),
+            payload_hash: Default::default()
+        };
+
+        ContentVariant::Message(message)
+    }
+}
+
 impl PrimaryKey for WorkerSetMessage {
     fn key(&self) -> String {
         format!("workersetmessage:{}", *self.message_id)

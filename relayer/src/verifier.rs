@@ -8,6 +8,7 @@ use crate::{
     },
     utils::calc_sync_period,
 };
+use async_trait::async_trait;
 use consensus_types::{
     common::{WorkerSetMessage, VerificationResult},
     consensus::Update,
@@ -17,7 +18,7 @@ use consensus_types::{
 use ethers::utils::hex;
 use eyre::Result;
 use log::debug;
-use serde::{Serialize, Deserialize};
+use mockall::automock;
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -26,19 +27,28 @@ pub struct Verifier {
     address: String,
 }
 
-#[allow(dead_code)]
+#[automock]
+#[async_trait]
+pub trait VerifierAPI {
+    async fn get_period(&mut self) -> Result<u64>;
+    async fn is_message_verified(
+        &mut self,
+        messages: Vec<Message>,
+    ) -> Result<Vec<(Message, bool)>>;
+    async fn is_worker_set_verified(
+        &mut self,
+        worker_set_msg: WorkerSetMessage,
+    ) -> Result<bool>;
+    async fn update(&self, update: Update) -> Result<()>;
+    async fn verify_data(&self, verification_data: BatchVerificationData) -> Result<VerificationResult>;
+}
+
 impl Verifier {
     pub fn new(rpc: String, address: String) -> Self {
         Self { rpc, address }
     }
 
-    pub async fn get_period(&mut self) -> Result<u64> {
-        let state = self.get_state().await?;
-        let period = calc_sync_period(state.update_slot);
-        Ok(period)
-    }
-
-    pub async fn get_state(&mut self) -> Result<LightClientState> {
+    async fn get_state(&mut self) -> Result<LightClientState> {
         let cmd = "axelard";
         let args = [
             "query",
@@ -64,7 +74,18 @@ impl Verifier {
         Ok(state.data)
     }
 
-    pub async fn is_message_verified(
+}
+
+
+#[async_trait]
+impl VerifierAPI for Verifier {
+    async fn get_period(&mut self) -> Result<u64> {
+        let state = self.get_state().await?;
+        let period = calc_sync_period(state.update_slot);
+        Ok(period)
+    }
+
+    async fn is_message_verified(
         &mut self,
         messages: Vec<Message>,
     ) -> Result<Vec<(Message, bool)>> {
@@ -97,7 +118,7 @@ impl Verifier {
         Ok(is_verified.data)
     }
 
-    pub async fn is_worker_set_verified(
+    async fn is_worker_set_verified(
         &mut self,
         worker_set_msg: WorkerSetMessage,
     ) -> Result<bool> {
@@ -131,7 +152,7 @@ impl Verifier {
     }
 
     // Placeholder function which will be substituted with the API that will be provided
-    pub async fn update(&self, update: Update) -> Result<()> {
+    async fn update(&self, update: Update) -> Result<()> {
         let cmd = "axelard";
 
         let message = UpdateExecuteMsg {
@@ -169,7 +190,7 @@ impl Verifier {
         Ok(())
     }
 
-    pub async fn verify_data(&self, verification_data: BatchVerificationData) -> Result<VerificationResult> {
+    async fn verify_data(&self, verification_data: BatchVerificationData) -> Result<VerificationResult> {
         let cmd = "axelard";
 
         let message = BatchVerificationDataRequest {

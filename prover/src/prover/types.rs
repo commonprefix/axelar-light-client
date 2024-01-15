@@ -25,7 +25,7 @@ pub struct ProofResponse {
     pub leaf: Node,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct EnrichedContent {
     pub id: String,
     pub content: ContentVariant,

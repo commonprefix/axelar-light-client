@@ -7,7 +7,7 @@ use eth::{
 use log::{debug, error, info};
 use relayer::{
     utils::{calc_sync_period, load_config},
-    verifier::Verifier,
+    verifier::{Verifier, VerifierAPI},
 };
 use std::{sync::Arc, time::Duration};
 use tokio::time::sleep;
