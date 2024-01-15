@@ -4,7 +4,7 @@ use crate::{
     types::{
         BatchVerificationDataRequest, BatchVerificationPayload, IsVerifiedMessages,
         IsVerifiedRequest, IsVerifiedResponse, IsWorkerSetVerifiedRequest,
-        IsWorkerSetVerifiedResult, LightClientStateResult, UpdateExecuteMsg, UpdateMsg, VerifyDataResponse,
+        IsWorkerSetVerifiedResult, LightClientStateResult, UpdateExecuteMsg, VerifyDataResponse,
     },
     utils::calc_sync_period,
 };
@@ -197,6 +197,7 @@ impl Verifier {
 
 
         let output = Command::new(cmd).args(args).output()?;
+        debug!("Output: {:?}", output);
 
         if !output.status.success() {
             println!("Error updating light client: {:?}", output);

@@ -18,6 +18,7 @@ use prover::prover::types::EnrichedContent;
 pub fn parse_enriched_log(
     enriched_log: &EnrichedLog,
     block_details: &FullBlockDetails,
+    delivery_tag: u64
 ) -> Result<EnrichedContent> {
     let log = &enriched_log.log;
     match enriched_log.event_name.as_str() {
@@ -57,7 +58,7 @@ pub fn parse_enriched_log(
             enriched_log.log.log_index.unwrap(),
         )),
     }
-    .and_then(|content| enrich_content(&content, log, block_details))
+    .and_then(|content| enrich_content(&content, log, block_details, delivery_tag))
 }
 
 /// Enriches the content with the block details and the transaction hash.
@@ -65,6 +66,7 @@ fn enrich_content(
     content: &ContentVariant,
     log: &Log,
     block_details: &FullBlockDetails,
+    delivery_tag: u64
 ) -> Result<EnrichedContent> {
     let msg = EnrichedContent {
         content: content.clone(),
@@ -76,6 +78,7 @@ fn enrich_content(
             ContentVariant::Message(message) => message.key(),
             ContentVariant::WorkerSet(message) => message.key(),
         },
+        delivery_tag,
     };
 
     Ok(msg)
@@ -169,7 +172,7 @@ mod tests {
         let enriched_log = serde_json::from_reader(file).unwrap();
         let block_details = create_test_block_details();
 
-        let result = parse_enriched_log(&enriched_log, &block_details);
+        let result = parse_enriched_log(&enriched_log, &block_details, 1);
         assert!(result.is_ok());
         let enriched_content = result.unwrap();
 
@@ -206,7 +209,7 @@ mod tests {
         });
         let block_details = create_test_block_details();
         let log = create_test_log(0, 5);
-        let enriched_content = enrich_content(&content, &log, &block_details).unwrap();
+        let enriched_content = enrich_content(&content, &log, &block_details, 1).unwrap();
 
         assert_eq!(enriched_content.exec_block, block_details.exec_block);
         assert_eq!(enriched_content.beacon_block, block_details.beacon_block);

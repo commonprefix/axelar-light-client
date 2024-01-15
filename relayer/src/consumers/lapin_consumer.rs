@@ -43,15 +43,19 @@ impl Amqp for LapinConsumer {
         let mut count = 0;
 
         while let Some(delivery) = self.consumer.next().await {
+            println!("Got delivery");
             let (_, delivery) = delivery.expect("Error in consumer");
             deliveries.push(delivery);
             count += 1;
+            debug!("Got delivery {}", count);
 
             if count >= max_deliveries {
+                debug!("breaking");
                 break;
             }
         }
-        info!("Got {} logs from sentinel", deliveries.len());
+        println!("deliveries: {:?}", deliveries);
+        debug!("Got {} logs from sentinel", deliveries.len());
 
         let result = deliveries
             .iter()

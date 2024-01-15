@@ -3,6 +3,10 @@ use std::{env, str::FromStr};
 
 use crate::types::{Config, VerificationMethod};
 
+pub fn is_in_slot_range(slot: u64, start_slot: u64, end_slot: u64) -> bool {
+    slot >= start_slot && slot < end_slot
+}
+
 /// Loads the full relayer configuration from the environment variables.
 pub fn load_config() -> Config {
     dotenv().ok();
