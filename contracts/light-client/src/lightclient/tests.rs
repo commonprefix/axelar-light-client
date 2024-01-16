@@ -3,8 +3,8 @@ pub mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use crate::lightclient::helpers::test_helpers::{
-        filter_message_variants, get_batched_data, mock_contractcall_message_with_log,
-        mock_workerset_message_with_log,
+        filter_message_variants, get_batched_data, get_legacy_verification_data,
+        mock_contractcall_message_with_log, mock_workerset_message_with_log,
     };
     use crate::lightclient::helpers::{
         calc_sync_period, compare_content_with_log, extract_logs_from_receipt_proof,
@@ -24,7 +24,7 @@ pub mod tests {
     use types::alloy_primitives::Address;
     use types::common::ContentVariant;
     use types::consensus::{Bootstrap, OptimisticUpdate};
-    use types::execution::GatewayEvent;
+    use types::execution::{ContractCallBase, GatewayEvent};
     use types::lightclient::LightClientState;
     use types::proofs::{nonempty, AncestryProof, UpdateVariant};
     use types::ssz_rs::{Bitvector, Merkleized, Node};
@@ -384,6 +384,42 @@ pub mod tests {
             &Root::default()
         )
         .is_err());
+    }
+
+    #[test]
+    fn test_parse_logs_from_legacy_receipt() {
+        let legacy_receipt = get_legacy_verification_data();
+
+        let logs_result = parse_logs_from_receipt(&legacy_receipt);
+        assert!(logs_result.is_ok());
+
+        let parse_result = parse_log(&logs_result.unwrap().0[7]);
+        assert!(parse_result.is_ok());
+
+        assert_eq!(
+            parse_result.unwrap(),
+            GatewayEvent::ContactCall(ContractCallBase {
+                source_address: Some(
+                    hex::decode("481a2aae41cd34832ddcf5a79404538bb2c02bc8")
+                        .unwrap()
+                        .as_slice()
+                        .try_into()
+                        .unwrap()
+                ),
+                destination_chain: Some(String::from("osmosis-7")),
+                destination_address: Some(String::from(
+                    "osmo1zl9ztmwe2wcdvv9std8xn06mdaqaqm789rutmazfh3z869zcax4sv0ctqw"
+                )),
+                payload_hash: Some(
+                    vec![
+                        229, 110, 107, 115, 37, 22, 199, 64, 219, 239, 95, 60, 169, 125, 156, 99,
+                        142, 37, 17, 70, 214, 194, 31, 64, 39, 194, 58, 132, 172, 220, 90, 201
+                    ]
+                    .try_into()
+                    .unwrap()
+                )
+            })
+        );
     }
 
     #[test]

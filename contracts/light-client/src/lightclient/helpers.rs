@@ -432,6 +432,13 @@ pub mod test_helpers {
         update
     }
 
+    pub fn get_legacy_verification_data() -> Vec<u8> {
+        let file_name = "testdata/legacy_receipt.json";
+        let file = File::open(file_name).unwrap();
+
+        serde_json::from_reader(file).unwrap()
+    }
+
     pub fn get_batched_data(
         historical: bool,
         finalization: &str,
