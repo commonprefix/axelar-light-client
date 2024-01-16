@@ -61,7 +61,7 @@ async fn main() {
             continue;
         }
         let updates = updates.unwrap();
-        println!(
+        info!(
             "Processing {} updates starting from period {}",
             updates.len(),
             verifier_period + 1

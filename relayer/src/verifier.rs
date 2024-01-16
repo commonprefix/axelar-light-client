@@ -2,7 +2,7 @@ use std::process::Command;
 
 use crate::{
     types::{
-        BatchVerificationDataRequest, BatchVerificationPayload, IsVerifiedMessages,
+        BatchVerificationDataRequest, IsVerifiedMessages,
         IsVerifiedRequest, IsVerifiedResponse, IsWorkerSetVerifiedRequest,
         IsWorkerSetVerifiedResult, LightClientStateResult, UpdateExecuteMsg, VerifyDataResponse,
     },
@@ -15,9 +15,10 @@ use consensus_types::{
     lightclient::LightClientState,
     proofs::{BatchVerificationData, Message},
 };
+use log::error;
 use ethers::utils::hex;
 use eyre::Result;
-use log::debug;
+// use log::debug;
 use mockall::automock;
 
 #[derive(Debug)]
@@ -64,10 +65,10 @@ impl Verifier {
         ];
 
         let command_line = format!("{} {}", cmd, args.join(" "));
-        debug!("Command to be executed: {}", command_line);
+        // debug!("Command to be executed: {}", command_line);
 
         let output = Command::new(cmd).args(args).output()?;
-        debug!("Output: {:?}", output);
+        // debug!("Output: {:?}", output);
 
         let state = serde_json::from_slice::<LightClientStateResult>(&output.stdout)?;
 
@@ -108,10 +109,10 @@ impl VerifierAPI for Verifier {
         ];
 
         let command_line = format!("{} {}", cmd, args.join(" "));
-        debug!("Command to be executed: {}", command_line);
+        // debug!("Command to be executed: {}", command_line);
 
         let output = Command::new(cmd).args(args).output()?;
-        debug!("Output: {:?}", output);
+        // debug!("Output: {:?}", output);
 
         let is_verified = serde_json::from_slice::<IsVerifiedResponse>(&output.stdout)?;
 
@@ -141,10 +142,10 @@ impl VerifierAPI for Verifier {
         ];
 
         let command_line = format!("{} {}", cmd, args.join(" "));
-        debug!("Command to be executed: {}", command_line);
+        // debug!("Command to be executed: {}", command_line);
 
         let output = Command::new(cmd).args(args).output()?;
-        debug!("Output: {:?}", output);
+        // debug!("Output: {:?}", output);
 
         let state = serde_json::from_slice::<IsWorkerSetVerifiedResult>(&output.stdout)?;
 
@@ -176,14 +177,14 @@ impl VerifierAPI for Verifier {
             "-y",
         ];
 
-        let command_line = format!("{} {}", cmd, args.join(" "));
-        debug!("Command to be executed: {}", command_line);
+        // let command_line = format!("{} {}", cmd, args.join(" "));
+        // debug!("Command to be executed: {}", command_line);
 
         let output = Command::new(cmd).args(args).output()?;
-        debug!("Output: {:?}", output);
+        // debug!("Output: {:?}", output);
 
         if !output.status.success() {
-            println!("Error updating light client: {:?}", output);
+            error!("Error updating light client: {:?}", output);
             return Err(eyre::eyre!("Error updating light client"));
         }
 
@@ -194,9 +195,7 @@ impl VerifierAPI for Verifier {
         let cmd = "axelard";
 
         let message = BatchVerificationDataRequest {
-            batch_verification_data: BatchVerificationPayload {
-                payload: verification_data,
-            },
+            batch_verification_data: verification_data
         };
 
         let args = [
@@ -218,10 +217,10 @@ impl VerifierAPI for Verifier {
 
 
         let output = Command::new(cmd).args(args).output()?;
-        debug!("Output: {:?}", output);
+        // debug!("Output: {:?}", output);
 
         if !output.status.success() {
-            println!("Error updating light client: {:?}", output);
+            error!("Error updating light client: {:?}", output);
             return Err(eyre::eyre!("Error updating light client"));
         }
 
@@ -230,11 +229,8 @@ impl VerifierAPI for Verifier {
         let str = String::from_utf8_lossy(&decoded);
 
         if let Some(json_start_index) = str.find("[[") {
-            println!("json_start_index: {}", json_start_index);
             let json_string = &str[json_start_index..];
-            println!("json_string: {}", json_string);
             let res: VerificationResult = cosmwasm_std::from_json(json_string).unwrap();
-            println!("res: {:?}", res);
             return Ok(res);
         }
 

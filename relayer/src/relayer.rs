@@ -77,19 +77,23 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
             info!("No new logs to process");
             return Ok(());
         }
-        println!("Collected {} logs", fetched_logs.len());
+        info!("Collected {} logs", fetched_logs.len());
 
         let contents = self.process_logs(fetched_logs).await;
-        println!("Generated {} contents", contents.len());
+        info!("Generated {} contents", contents.len());
 
         let contents = self.filter_applicable_content(contents, update.clone()).await?;
-        println!("Will process {} contents", contents.len());
+        info!("Will process {} contents", contents.len());
 
         let (proof_contents, batched_proofs) = self.get_proofs(contents, &update).await.map_err(|e| eyre!("Error generating proofs {}", e))?; 
-        println!("Generated {} proofs", proof_contents.len());
+        if proof_contents.is_empty() {
+            info!("No new contents to process");
+            return Ok(());
+        }
+        info!("Generated {} proofs", proof_contents.len());
 
         let ids = self.submit_proofs(&proof_contents, &batched_proofs).await?;
-        println!("Verified the following events {:?}", ids);
+        info!("Verified the following events {:?}", ids);
 
         Ok(())
     }
@@ -139,6 +143,9 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
             successful_enriched.push(content);
         }
 
+        let res =serde_json::to_string(&batch_verification_data);
+        println!("Batch verification data: {:?}", res);
+
         Ok((successful_enriched, batch_verification_data))
     }
 
@@ -146,16 +153,22 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
     // - Will nack (requeue) if the content is more recent than the recent block of the latest update
     async fn filter_applicable_content(&self, contents: Vec<EnrichedContent>, update: UpdateVariant) -> Result<Vec<EnrichedContent>> {
         let recent_block_slot = update.recent_block().slot;
-        println!("RECENT BLOCK SLOT {}", recent_block_slot);
         let mut applicable = vec![];
         for content in contents {
-            if content.beacon_block.slot >= recent_block_slot {
-            println!("HERE FOR content: {} {}", recent_block_slot, content.beacon_block.slot);
+            if content.beacon_block.slot >= recent_block_slot { 
                 warn!(
                     "Message {:?} is too recent. Update slot: {}, content slot: {}. Requeuing",
                     content.content, recent_block_slot, content.beacon_block.slot
                 );
                 self.consumer.nack_delivery(content.delivery_tag).await?;
+                continue;
+            }
+            if content.beacon_block.slot < recent_block_slot - 7000 {
+                warn!(
+                    "Message {:?} would be in historical. Update slot: {}, content slot: {}. Removing",
+                    content.content, recent_block_slot, content.beacon_block.slot
+                );
+                self.consumer.ack_delivery(content.delivery_tag).await?;
                 continue;
             }
             applicable.push(content);

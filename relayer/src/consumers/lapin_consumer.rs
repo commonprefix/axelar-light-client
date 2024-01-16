@@ -54,8 +54,7 @@ impl Amqp for LapinConsumer {
                 break;
             }
         }
-        println!("deliveries: {:?}", deliveries);
-        debug!("Got {} logs from sentinel", deliveries.len());
+        info!("Got {} logs from sentinel", deliveries.len());
 
         let result = deliveries
             .iter()

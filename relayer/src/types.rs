@@ -123,12 +123,7 @@ pub struct UpdateExecuteMsg {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BatchVerificationDataRequest {
     #[serde(rename = "BatchVerificationData")]
-    pub batch_verification_data: BatchVerificationPayload,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct BatchVerificationPayload {
-    pub payload: BatchVerificationData,
+    pub batch_verification_data: BatchVerificationData,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
