@@ -62,7 +62,7 @@ impl Verifier {
             "json",
         ];
 
-        let command_line = format!("{} {}", cmd, args.join(" "));
+        let _command_line = format!("{} {}", cmd, args.join(" "));
         // debug!("Command to be executed: {}", command_line);
 
         let output = Command::new(cmd).args(args).output()?;
@@ -104,7 +104,7 @@ impl VerifierAPI for Verifier {
             "json",
         ];
 
-        let command_line = format!("{} {}", cmd, args.join(" "));
+        let _command_line = format!("{} {}", cmd, args.join(" "));
         // debug!("Command to be executed: {}", command_line);
 
         let output = Command::new(cmd).args(args).output()?;
@@ -134,7 +134,7 @@ impl VerifierAPI for Verifier {
             "json",
         ];
 
-        let command_line = format!("{} {}", cmd, args.join(" "));
+        let _command_line = format!("{} {}", cmd, args.join(" "));
         // debug!("Command to be executed: {}", command_line);
 
         let output = Command::new(cmd).args(args).output()?;

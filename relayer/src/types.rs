@@ -2,7 +2,7 @@ use consensus_types::{
     common::WorkerSetMessage,
     consensus::Update,
     lightclient::LightClientState,
-    proofs::{BatchVerificationData, Message, UpdateVariant},
+    proofs::{BatchVerificationData, Message},
 };
 use eth::types::EthConfig;
 use ethers::{

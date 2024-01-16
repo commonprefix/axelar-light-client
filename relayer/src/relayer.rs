@@ -2,11 +2,10 @@ use crate::{
     consumers::Amqp,
     parser::parse_enriched_log,
     types::{Config, EnrichedLog, VerificationMethod},
-    utils::is_in_slot_range,
-    verifier::{self, Verifier, VerifierAPI},
+    verifier::{VerifierAPI},
 };
 use consensus_types::{
-    common::{ContentVariant, PrimaryKey},
+    common::{ContentVariant},
     proofs::{BatchVerificationData, UpdateVariant},
 };
 use eth::{consensus::EthBeaconAPI, execution::EthExecutionAPI, utils::get_full_block_details};
