@@ -2,10 +2,10 @@ use crate::{
     consumers::Amqp,
     parser::parse_enriched_log,
     types::{Config, EnrichedLog, VerificationMethod},
-    verifier::{VerifierAPI},
+    verifier::VerifierAPI,
 };
 use consensus_types::{
-    common::{ContentVariant},
+    common::ContentVariant,
     proofs::{BatchVerificationData, UpdateVariant},
 };
 use eth::{consensus::EthBeaconAPI, execution::EthExecutionAPI, utils::get_full_block_details};
@@ -64,7 +64,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
         }
     }
 
-    /// This function makes a single round of relaying. It fetches a set of logs
+    /// This function does a single round of relaying. It fetches a set of logs
     /// from the consumer, parses them accordingly, generates the needed proofs
     /// and relays them to the verifier. If the relay failed for any reason, the
     /// message is being requeued to the RabbitMQ otherwise it's being acked.
@@ -79,15 +79,11 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
             info!("No new logs to process");
             return Ok(());
         }
-        info!("Collected {} logs", fetched_logs.len());
 
         let contents = self.process_logs(fetched_logs).await;
-        info!("Generated {} contents", contents.len());
-
         let contents = self
             .filter_applicable_content(contents, update.clone())
             .await?;
-        info!("Will process {} contents", contents.len());
 
         let (proof_contents, batched_proofs) = self
             .get_proofs(contents, &update)
@@ -97,10 +93,8 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
             info!("No new contents to process");
             return Ok(());
         }
-        info!("Generated {} proofs", proof_contents.len());
 
-        let ids = self.submit_proofs(&proof_contents, &batched_proofs).await?;
-        info!("Verified the following events {:?}", ids);
+        let _ = self.submit_proofs(&proof_contents, &batched_proofs).await?;
 
         Ok(())
     }
@@ -127,6 +121,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
             }
         }
 
+        info!("Verified the following events {:#?}", successful_ids);
         Ok(successful_ids)
     }
 
@@ -159,9 +154,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
             successful_enriched.push(content);
         }
 
-        let res = serde_json::to_string(&batch_verification_data);
-        println!("Batch verification data: {:?}", res);
-
+        info!("Generated {} proofs", successful_enriched.len());
         Ok((successful_enriched, batch_verification_data))
     }
 
@@ -174,6 +167,8 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
     ) -> Result<Vec<EnrichedContent>> {
         let recent_block_slot = update.recent_block().slot;
         let mut applicable = vec![];
+        let contents_len = contents.len();
+
         for content in contents {
             if content.beacon_block.slot >= recent_block_slot {
                 warn!(
@@ -194,6 +189,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
             applicable.push(content);
         }
 
+        info!("Filtered {} out of {} contents", applicable.len(), contents_len);
         Ok(applicable)
     }
 
@@ -242,6 +238,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
             contents.push(content)
         }
 
+        info!("Generated {} contents", contents.len());
         contents
     }
 
@@ -265,7 +262,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
             enriched_logs.insert(*delivery_tag, enriched_log.unwrap());
         }
 
-        debug!(
+        info!(
             "Generated {} enriched_logs from {} deliveries",
             enriched_logs.len(),
             &deliveries.len()
