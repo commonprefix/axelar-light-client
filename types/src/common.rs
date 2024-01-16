@@ -1,6 +1,6 @@
 use crate::cosmwasm_schema::schemars;
 use axelar_wasm_std::nonempty;
-use connection_router::state::{Message, CrossChainId};
+use connection_router::state::{CrossChainId, Message};
 use cosmwasm_schema::schemars::JsonSchema;
 use ssz_rs::prelude::*;
 
@@ -58,7 +58,7 @@ impl Default for ContentVariant {
             destination_address: String::from("0x0000000000000000000000000000000000000")
                 .try_into()
                 .unwrap(),
-            payload_hash: Default::default()
+            payload_hash: Default::default(),
         };
 
         ContentVariant::Message(message)

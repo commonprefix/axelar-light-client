@@ -33,7 +33,7 @@ pub struct EnrichedContent {
     pub exec_block: Block<Transaction>,
     pub beacon_block: BeaconBlockAlias,
     pub receipts: Vec<TransactionReceipt>,
-    pub delivery_tag: u64
+    pub delivery_tag: u64,
 }
 
 #[derive(Debug, PartialEq)]

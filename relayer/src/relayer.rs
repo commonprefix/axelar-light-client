@@ -2,7 +2,8 @@ use crate::{
     consumers::Amqp,
     parser::parse_enriched_log,
     types::{Config, EnrichedLog, VerificationMethod},
-    verifier::{self, Verifier, VerifierAPI}, utils::is_in_slot_range,
+    utils::is_in_slot_range,
+    verifier::{self, Verifier, VerifierAPI},
 };
 use consensus_types::{
     common::{ContentVariant, PrimaryKey},
@@ -26,7 +27,9 @@ pub struct Relayer<P, C, CR, ER, V> {
     verifier: V,
 }
 
-impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAPI> Relayer<P, C, CR, ER, V> {
+impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAPI>
+    Relayer<P, C, CR, ER, V>
+{
     pub async fn new(
         config: Config,
         consumer: C,
@@ -82,10 +85,15 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
         let contents = self.process_logs(fetched_logs).await;
         info!("Generated {} contents", contents.len());
 
-        let contents = self.filter_applicable_content(contents, update.clone()).await?;
+        let contents = self
+            .filter_applicable_content(contents, update.clone())
+            .await?;
         info!("Will process {} contents", contents.len());
 
-        let (proof_contents, batched_proofs) = self.get_proofs(contents, &update).await.map_err(|e| eyre!("Error generating proofs {}", e))?; 
+        let (proof_contents, batched_proofs) = self
+            .get_proofs(contents, &update)
+            .await
+            .map_err(|e| eyre!("Error generating proofs {}", e))?;
         if proof_contents.is_empty() {
             info!("No new contents to process");
             return Ok(());
@@ -98,10 +106,12 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
         Ok(())
     }
 
-    async fn submit_proofs(&self, contents: &Vec<EnrichedContent>, proofs: &BatchVerificationData) -> Result<Vec<String>> {
-        let result = self.verifier
-            .verify_data(proofs.clone())
-            .await?;
+    async fn submit_proofs(
+        &self,
+        contents: &Vec<EnrichedContent>,
+        proofs: &BatchVerificationData,
+    ) -> Result<Vec<String>> {
+        let result = self.verifier.verify_data(proofs.clone()).await?;
 
         let mut successful_ids = vec![];
 
@@ -121,9 +131,13 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
         Ok(successful_ids)
     }
 
-    /// This function generates the batched proofs for a set of contents. 
+    /// This function generates the batched proofs for a set of contents.
     /// - Will nack (requeue) if the batch_verification_data generation failed for a message
-    async fn get_proofs(&self, contents: Vec<EnrichedContent>, update: &UpdateVariant) -> Result<(Vec<EnrichedContent>, BatchVerificationData)> {
+    async fn get_proofs(
+        &self,
+        contents: Vec<EnrichedContent>,
+        update: &UpdateVariant,
+    ) -> Result<(Vec<EnrichedContent>, BatchVerificationData)> {
         let batched = self.prover.batch_messages(&contents);
 
         let batch_verification_data = self
@@ -136,14 +150,17 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
         // Reject the contents that were not included in the batch_verification_data
         for content in contents {
             if !successful.contains(&content.content) {
-                warn!("Content {:?} was not included in the batch_verification_data. Requeuing", content.content);
+                warn!(
+                    "Content {:?} was not included in the batch_verification_data. Requeuing",
+                    content.content
+                );
                 self.consumer.nack_delivery(content.delivery_tag).await?;
                 continue;
             }
             successful_enriched.push(content);
         }
 
-        let res =serde_json::to_string(&batch_verification_data);
+        let res = serde_json::to_string(&batch_verification_data);
         println!("Batch verification data: {:?}", res);
 
         Ok((successful_enriched, batch_verification_data))
@@ -151,11 +168,15 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
 
     // Filters out the contents that are not applicable to the current update.
     // - Will nack (requeue) if the content is more recent than the recent block of the latest update
-    async fn filter_applicable_content(&self, contents: Vec<EnrichedContent>, update: UpdateVariant) -> Result<Vec<EnrichedContent>> {
+    async fn filter_applicable_content(
+        &self,
+        contents: Vec<EnrichedContent>,
+        update: UpdateVariant,
+    ) -> Result<Vec<EnrichedContent>> {
         let recent_block_slot = update.recent_block().slot;
         let mut applicable = vec![];
         for content in contents {
-            if content.beacon_block.slot >= recent_block_slot { 
+            if content.beacon_block.slot >= recent_block_slot {
                 warn!(
                     "Message {:?} is too recent. Update slot: {}, content slot: {}. Requeuing",
                     content.content, recent_block_slot, content.beacon_block.slot
@@ -223,7 +244,6 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
         }
 
         contents
-            
     }
 
     /// Fetches a set of messages from the consumer up to a limit.
@@ -314,7 +334,7 @@ mod tests {
         MockConsensusRPC,
         MockExecutionRPC,
         MockProverAlias,
-        MockVerifierAPI
+        MockVerifierAPI,
     ) {
         let config = Config {
             max_batch_size: 1,
@@ -416,7 +436,12 @@ mod tests {
         enriched_log
     }
 
-    fn get_mock_enriched_content(slot: u64, block_num: u64, delivery_tag: u64, id: &str) -> EnrichedContent {
+    fn get_mock_enriched_content(
+        slot: u64,
+        block_num: u64,
+        delivery_tag: u64,
+        id: &str,
+    ) -> EnrichedContent {
         EnrichedContent {
             id: id.to_string(),
             content: get_content(1, 1),
@@ -434,7 +459,10 @@ mod tests {
         }
     }
 
-    pub fn get_mock_batched_data(update: UpdateVariant, contents: Vec<EnrichedContent>) -> (BatchContentGroups, BatchVerificationData) {
+    pub fn get_mock_batched_data(
+        update: UpdateVariant,
+        contents: Vec<EnrichedContent>,
+    ) -> (BatchContentGroups, BatchVerificationData) {
         let mut groups: BatchContentGroups = IndexMap::new();
         for content in contents {
             groups
@@ -466,54 +494,23 @@ mod tests {
             block_proofs_batch.push(block_proof);
         }
 
-        (groups, BatchVerificationData {update, target_blocks: block_proofs_batch })
+        (
+            groups,
+            BatchVerificationData {
+                update,
+                target_blocks: block_proofs_batch,
+            },
+        )
     }
 
     #[tokio::test]
     async fn test_filter_applicable_content() {
         let (config, mut consumer, consensus, execution, prover, verifier) = setup_test();
 
-        consumer.expect_nack_delivery().times(3).returning(|_| Ok(()));
-
-        let relayer = Relayer::new(
-            config,
-            consumer,
-            Arc::new(consensus),
-            Arc::new(execution),
-            Arc::new(prover),
-            verifier
-        )
-        .await;
-
-
-        let update = UpdateVariant::Finality(get_mock_finality_update(10));
-        let contents = vec![
-            get_mock_enriched_content(8, 8, 0, "id1"),
-            get_mock_enriched_content(10, 10, 1, "id2"),
-            get_mock_enriched_content(15, 15, 2, "id3"),
-            get_mock_enriched_content(12, 12, 3, "id4"),
-        ];
-
-        let filtered = relayer.filter_applicable_content(contents, update).await.unwrap();
-        assert_eq!(filtered.len(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_submit_proofs() {
-        let (config, mut consumer, consensus, execution, prover, mut verifier) = setup_test();
-
-        let contents = vec![get_mock_enriched_content(1, 1, 1, "id1")];
-        let finality_update = get_mock_finality_update(10);
-        let (_, ver_data) = get_mock_batched_data(UpdateVariant::Finality(finality_update.clone()), contents.clone());
-
         consumer
-            .expect_ack_delivery()
-            .with(predicate::eq(1))
+            .expect_nack_delivery()
+            .times(3)
             .returning(|_| Ok(()));
-
-        consumer.expect_nack_delivery().never();
-
-        verifier.expect_verify_data().returning(move |_| Ok(vec![("id1".to_string(), "OK".to_string())]));
 
         let relayer = Relayer::new(
             config,
@@ -524,7 +521,54 @@ mod tests {
             verifier,
         )
         .await;
-        
+
+        let update = UpdateVariant::Finality(get_mock_finality_update(10));
+        let contents = vec![
+            get_mock_enriched_content(8, 8, 0, "id1"),
+            get_mock_enriched_content(10, 10, 1, "id2"),
+            get_mock_enriched_content(15, 15, 2, "id3"),
+            get_mock_enriched_content(12, 12, 3, "id4"),
+        ];
+
+        let filtered = relayer
+            .filter_applicable_content(contents, update)
+            .await
+            .unwrap();
+        assert_eq!(filtered.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_submit_proofs() {
+        let (config, mut consumer, consensus, execution, prover, mut verifier) = setup_test();
+
+        let contents = vec![get_mock_enriched_content(1, 1, 1, "id1")];
+        let finality_update = get_mock_finality_update(10);
+        let (_, ver_data) = get_mock_batched_data(
+            UpdateVariant::Finality(finality_update.clone()),
+            contents.clone(),
+        );
+
+        consumer
+            .expect_ack_delivery()
+            .with(predicate::eq(1))
+            .returning(|_| Ok(()));
+
+        consumer.expect_nack_delivery().never();
+
+        verifier
+            .expect_verify_data()
+            .returning(move |_| Ok(vec![("id1".to_string(), "OK".to_string())]));
+
+        let relayer = Relayer::new(
+            config,
+            consumer,
+            Arc::new(consensus),
+            Arc::new(execution),
+            Arc::new(prover),
+            verifier,
+        )
+        .await;
+
         let proofs = relayer.submit_proofs(&contents, &ver_data).await;
         assert!(proofs.is_ok());
         assert_eq!(proofs.unwrap(), vec!["id1".to_string()]);
@@ -539,14 +583,28 @@ mod tests {
         let contents = vec![c1, c2];
 
         let finality_update = get_mock_finality_update(10);
-        let (_, mut ver_data) = get_mock_batched_data(UpdateVariant::Finality(finality_update.clone()), contents.clone());
+        let (_, mut ver_data) = get_mock_batched_data(
+            UpdateVariant::Finality(finality_update.clone()),
+            contents.clone(),
+        );
         ver_data.target_blocks.remove(1);
 
         consumer
             .expect_ack_delivery()
-            .with(predicate::eq(1)).once().returning(|_| Ok(()));
-        consumer.expect_nack_delivery().with(predicate::eq(2)).once().returning(|_| Ok(()));
-        verifier.expect_verify_data().returning(move |_| Ok(vec![("id1".to_string(), "OK".to_string()), ("id2".to_string(), "ERR".to_string())]));
+            .with(predicate::eq(1))
+            .once()
+            .returning(|_| Ok(()));
+        consumer
+            .expect_nack_delivery()
+            .with(predicate::eq(2))
+            .once()
+            .returning(|_| Ok(()));
+        verifier.expect_verify_data().returning(move |_| {
+            Ok(vec![
+                ("id1".to_string(), "OK".to_string()),
+                ("id2".to_string(), "ERR".to_string()),
+            ])
+        });
 
         let relayer = Relayer::new(
             config,
@@ -557,7 +615,7 @@ mod tests {
             verifier,
         )
         .await;
-        
+
         let proofs = relayer.submit_proofs(&contents, &ver_data).await;
         assert!(proofs.is_ok());
         assert_eq!(proofs.unwrap(), vec!["id1".to_string()]);
@@ -579,7 +637,10 @@ mod tests {
 
         let mut contents = vec![parse_enriched_log(&enriched_log, &block_details, 1).unwrap()];
         let finality_update = get_mock_finality_update(10);
-        let (batched_contents, ver_data) = get_mock_batched_data(UpdateVariant::Finality(finality_update.clone()), contents.clone());
+        let (batched_contents, ver_data) = get_mock_batched_data(
+            UpdateVariant::Finality(finality_update.clone()),
+            contents.clone(),
+        );
 
         prover
             .expect_batch_messages()
@@ -603,7 +664,7 @@ mod tests {
             Verifier::new("".to_string(), "".to_string()),
         )
         .await;
-        
+
         contents.push(get_mock_enriched_content(2, 2, 1, "id2"));
         let update = UpdateVariant::Finality(finality_update);
         let proofs = relayer.get_proofs(contents, &update).await;
@@ -617,7 +678,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_relay_valid() {
-        let (config, mut consumer, mut consensus, mut execution, mut prover, mut verifier) = setup_test();
+        let (config, mut consumer, mut consensus, mut execution, mut prover, mut verifier) =
+            setup_test();
 
         let content = get_mock_enriched_content(5, 5, 1, "id1");
         let enriched_log = get_mock_enriched_log(5, 1, 0);
@@ -632,7 +694,10 @@ mod tests {
 
         let finality_update = get_mock_finality_update(10);
 
-        let (batched, ver_data) = get_mock_batched_data(UpdateVariant::Finality(finality_update.clone()), vec![content]);
+        let (batched, ver_data) = get_mock_batched_data(
+            UpdateVariant::Finality(finality_update.clone()),
+            vec![content],
+        );
 
         consensus
             .expect_get_finality_update()
@@ -665,7 +730,9 @@ mod tests {
 
         consumer.expect_nack_delivery().returning(|_| Ok(()));
 
-        verifier.expect_verify_data().returning(move |_| Ok(vec![("id1".to_string(), "OK".to_string())]));
+        verifier
+            .expect_verify_data()
+            .returning(move |_| Ok(vec![("id1".to_string(), "OK".to_string())]));
 
         let mut relayer = Relayer::new(
             config,
@@ -673,7 +740,7 @@ mod tests {
             Arc::new(consensus),
             Arc::new(execution),
             Arc::new(prover),
-            verifier
+            verifier,
         )
         .await;
 
@@ -707,7 +774,7 @@ mod tests {
             Arc::new(consensus),
             Arc::new(execution),
             Arc::new(prover),
-            verifier
+            verifier,
         )
         .await;
 
@@ -760,7 +827,7 @@ mod tests {
             Arc::new(consensus),
             Arc::new(execution),
             Arc::new(prover),
-            verifier
+            verifier,
         )
         .await;
 
@@ -783,7 +850,7 @@ mod tests {
             Arc::new(consensus),
             Arc::new(execution),
             Arc::new(prover),
-            verifier
+            verifier,
         )
         .await;
 
@@ -805,7 +872,7 @@ mod tests {
             Arc::new(consensus),
             Arc::new(execution),
             Arc::new(prover),
-            verifier
+            verifier,
         )
         .await;
 
@@ -828,7 +895,7 @@ mod tests {
             Arc::new(consensus),
             Arc::new(execution),
             Arc::new(prover),
-            verifier
+            verifier,
         )
         .await;
 
@@ -853,7 +920,7 @@ mod tests {
             Arc::new(consensus),
             Arc::new(execution),
             Arc::new(prover),
-            verifier
+            verifier,
         )
         .await;
 

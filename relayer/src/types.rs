@@ -151,8 +151,7 @@ pub struct IsVerifiedResponse {
     pub data: Vec<(Message, bool)>,
 }
 
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct VerifyDataResponse {
-    pub data: String
+    pub data: String,
 }

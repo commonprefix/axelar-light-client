@@ -1,6 +1,6 @@
 use crate::types::{ContractCallWithToken, EnrichedLog, OperatorshipTransferred};
 use consensus_types::{
-    common::{ContentVariant, WorkerSetMessage, PrimaryKey},
+    common::{ContentVariant, PrimaryKey, WorkerSetMessage},
     proofs::{CrossChainId, Message},
 };
 use eth::types::FullBlockDetails;
@@ -18,7 +18,7 @@ use prover::prover::types::EnrichedContent;
 pub fn parse_enriched_log(
     enriched_log: &EnrichedLog,
     block_details: &FullBlockDetails,
-    delivery_tag: u64
+    delivery_tag: u64,
 ) -> Result<EnrichedContent> {
     let log = &enriched_log.log;
     match enriched_log.event_name.as_str() {
@@ -66,7 +66,7 @@ fn enrich_content(
     content: &ContentVariant,
     log: &Log,
     block_details: &FullBlockDetails,
-    delivery_tag: u64
+    delivery_tag: u64,
 ) -> Result<EnrichedContent> {
     let msg = EnrichedContent {
         content: content.clone(),

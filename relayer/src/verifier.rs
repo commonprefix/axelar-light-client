@@ -2,22 +2,22 @@ use std::process::Command;
 
 use crate::{
     types::{
-        BatchVerificationDataRequest, IsVerifiedMessages,
-        IsVerifiedRequest, IsVerifiedResponse, IsWorkerSetVerifiedRequest,
-        IsWorkerSetVerifiedResult, LightClientStateResult, UpdateExecuteMsg, VerifyDataResponse,
+        BatchVerificationDataRequest, IsVerifiedMessages, IsVerifiedRequest, IsVerifiedResponse,
+        IsWorkerSetVerifiedRequest, IsWorkerSetVerifiedResult, LightClientStateResult,
+        UpdateExecuteMsg, VerifyDataResponse,
     },
     utils::calc_sync_period,
 };
 use async_trait::async_trait;
 use consensus_types::{
-    common::{WorkerSetMessage, VerificationResult},
+    common::{VerificationResult, WorkerSetMessage},
     consensus::Update,
     lightclient::LightClientState,
     proofs::{BatchVerificationData, Message},
 };
-use log::error;
 use ethers::utils::hex;
 use eyre::Result;
+use log::error;
 // use log::debug;
 use mockall::automock;
 
@@ -32,16 +32,14 @@ pub struct Verifier {
 #[async_trait]
 pub trait VerifierAPI {
     async fn get_period(&mut self) -> Result<u64>;
-    async fn is_message_verified(
-        &mut self,
-        messages: Vec<Message>,
-    ) -> Result<Vec<(Message, bool)>>;
-    async fn is_worker_set_verified(
-        &mut self,
-        worker_set_msg: WorkerSetMessage,
-    ) -> Result<bool>;
+    async fn is_message_verified(&mut self, messages: Vec<Message>)
+        -> Result<Vec<(Message, bool)>>;
+    async fn is_worker_set_verified(&mut self, worker_set_msg: WorkerSetMessage) -> Result<bool>;
     async fn update(&self, update: Update) -> Result<()>;
-    async fn verify_data(&self, verification_data: BatchVerificationData) -> Result<VerificationResult>;
+    async fn verify_data(
+        &self,
+        verification_data: BatchVerificationData,
+    ) -> Result<VerificationResult>;
 }
 
 impl Verifier {
@@ -74,9 +72,7 @@ impl Verifier {
 
         Ok(state.data)
     }
-
 }
-
 
 #[async_trait]
 impl VerifierAPI for Verifier {
@@ -119,10 +115,7 @@ impl VerifierAPI for Verifier {
         Ok(is_verified.data)
     }
 
-    async fn is_worker_set_verified(
-        &mut self,
-        worker_set_msg: WorkerSetMessage,
-    ) -> Result<bool> {
+    async fn is_worker_set_verified(&mut self, worker_set_msg: WorkerSetMessage) -> Result<bool> {
         let message = IsWorkerSetVerifiedRequest {
             is_worker_set_verified: worker_set_msg,
         };
@@ -191,11 +184,14 @@ impl VerifierAPI for Verifier {
         Ok(())
     }
 
-    async fn verify_data(&self, verification_data: BatchVerificationData) -> Result<VerificationResult> {
+    async fn verify_data(
+        &self,
+        verification_data: BatchVerificationData,
+    ) -> Result<VerificationResult> {
         let cmd = "axelard";
 
         let message = BatchVerificationDataRequest {
-            batch_verification_data: verification_data
+            batch_verification_data: verification_data,
         };
 
         let args = [
@@ -215,7 +211,6 @@ impl VerifierAPI for Verifier {
             "-y",
         ];
 
-
         let output = Command::new(cmd).args(args).output()?;
         // debug!("Output: {:?}", output);
 
@@ -224,7 +219,7 @@ impl VerifierAPI for Verifier {
             return Err(eyre::eyre!("Error updating light client"));
         }
 
-        let result: VerifyDataResponse = serde_json::from_slice(&output.stdout)?; 
+        let result: VerifyDataResponse = serde_json::from_slice(&output.stdout)?;
         let decoded = hex::decode(result.data)?;
         let str = String::from_utf8_lossy(&decoded);
 
