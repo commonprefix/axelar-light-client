@@ -15,7 +15,7 @@ pub struct ReceiptLog {
 }
 
 /// Structure of a ContractCall event, emitted from the Gateway
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct ContractCallBase {
     pub source_address: Option<Address>,
     pub destination_chain: Option<String>,
@@ -24,12 +24,12 @@ pub struct ContractCallBase {
 }
 
 /// Structure of an OperatorshipTransferred event, emitted from the Gateway
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct OperatorshipTransferredBase {
     pub new_operators_data: Option<Vec<u8>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum GatewayEvent {
     ContactCall(ContractCallBase),
     OperatorshipTransferred(OperatorshipTransferredBase),
@@ -54,52 +54,54 @@ impl Decodable for ReceiptLogs {
                 if receipt_type > 3 {
                     return Err(alloy_rlp::Error::Custom("Invalid Receipt Type"));
                 }
-
-                let mut logs_list: ReceiptLogs = ReceiptLogs::default();
                 buf.advance(1);
-
-                let b = &mut &**buf;
-                let rlp_head = alloy_rlp::Header::decode(b)?;
-                if !rlp_head.list {
-                    return Err(alloy_rlp::Error::UnexpectedString);
-                }
-
-                for _i in 0..3 {
-                    // skip the first 3 fields: success, cumulative_gas_used, bloom
-                    let head = alloy_rlp::Header::decode(b)?;
-                    b.advance(head.payload_length);
-                }
-
-                let logs_head = alloy_rlp::Header::decode(b)?;
-                if !logs_head.list {
-                    return Err(alloy_rlp::Error::UnexpectedString);
-                }
-
-                while !b.is_empty() {
-                    let mut log: ReceiptLog = ReceiptLog::default();
-                    let item_head = alloy_rlp::Header::decode(b)?;
-                    if !item_head.list {
-                        return Err(alloy_rlp::Error::UnexpectedString);
-                    }
-
-                    log.address = alloy_rlp::Decodable::decode(b)?;
-
-                    let topic_list_head = alloy_rlp::Header::decode(b)?;
-                    for _i in 0..(topic_list_head.payload_length / 32) {
-                        log.topics.push(alloy_rlp::Decodable::decode(b)?);
-                    }
-
-                    log.data = Vec::from(alloy_rlp::Header::decode_bytes(b, false)?);
-
-                    logs_list.0.push(log);
-                }
-
-                Ok(logs_list)
             }
-            Ordering::Equal => Err(alloy_rlp::Error::Custom(
-                "an empty list is not a valid receipt encoding",
-            )),
-            Ordering::Greater => Err(alloy_rlp::Error::Custom("Transaction Type Not Supported")),
+            Ordering::Equal => {
+                return Err(alloy_rlp::Error::Custom(
+                    "an empty list is not a valid receipt encoding",
+                ));
+            }
+            _ => {}
+        };
+
+        let mut logs_list: ReceiptLogs = ReceiptLogs::default();
+
+        let b = &mut &**buf;
+        let rlp_head = alloy_rlp::Header::decode(b)?;
+        if !rlp_head.list {
+            return Err(alloy_rlp::Error::UnexpectedString);
         }
+
+        for _i in 0..3 {
+            // skip the first 3 fields: success, cumulative_gas_used, bloom
+            let head = alloy_rlp::Header::decode(b)?;
+            b.advance(head.payload_length);
+        }
+
+        let logs_head = alloy_rlp::Header::decode(b)?;
+        if !logs_head.list {
+            return Err(alloy_rlp::Error::UnexpectedString);
+        }
+
+        while !b.is_empty() {
+            let mut log: ReceiptLog = ReceiptLog::default();
+            let item_head = alloy_rlp::Header::decode(b)?;
+            if !item_head.list {
+                return Err(alloy_rlp::Error::UnexpectedString);
+            }
+
+            log.address = alloy_rlp::Decodable::decode(b)?;
+
+            let topic_list_head = alloy_rlp::Header::decode(b)?;
+            for _i in 0..(topic_list_head.payload_length / 32) {
+                log.topics.push(alloy_rlp::Decodable::decode(b)?);
+            }
+
+            log.data = Vec::from(alloy_rlp::Header::decode_bytes(b, false)?);
+
+            logs_list.0.push(log);
+        }
+
+        Ok(logs_list)
     }
 }
