@@ -11,9 +11,10 @@ use consensus_types::{
 use eth::{consensus::EthBeaconAPI, execution::EthExecutionAPI, utils::get_full_block_details};
 use eyre::{eyre, Result};
 use log::{debug, error, info, warn};
-use prover::prover::{types::EnrichedContent, ProverAPI};
+use prover::prover::{types::EnrichedContent, ProverAPI, errors::StateProverError};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::time::sleep;
+use reqwest::Client;
 
 // This is the main module of the relayer. It fetches logs from the rabbitMQ
 // consumer, generates the proofs and forwards them to the verifier.
@@ -55,9 +56,8 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
 
         loop {
             let res = self.relay().await;
-            match res {
-                Ok(_) => info!("Relay succeeded"),
-                Err(e) => error!("Relay failed {:?}", e),
+            if let Err(e) = res {
+                error!("Relay failed {:?}", e);
             }
 
             sleep(interval).await;
@@ -73,6 +73,10 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
             .get_update(&self.config.verification_method)
             .await
             .map_err(|e| eyre!("Error fetching update {}", e))?;
+
+        if !self.has_state(&update.recent_block().state_root.to_string()).await? {
+            error!("State {} not found in state_prover (lodestar) cache. Requeuing", update.recent_block().state_root);
+        }
 
         let fetched_logs = self.collect_messages(self.config.max_batch_size).await;
         if fetched_logs.is_empty() {
@@ -274,11 +278,17 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
     async fn get_update(&self, verification_method: &VerificationMethod) -> Result<UpdateVariant> {
         match verification_method {
             VerificationMethod::Finality => match self.consensus.get_finality_update().await {
-                Ok(update) => Ok(UpdateVariant::Finality(update)),
+                Ok(update) => {
+                    info!("Got finality update with slot {}", update.finalized_header.beacon.slot);
+                    return Ok(UpdateVariant::Finality(update))
+                },
                 Err(e) => Err(eyre!("Error fetching finality update {}", e)),
             },
             VerificationMethod::Optimistic => match self.consensus.get_optimistic_update().await {
-                Ok(update) => Ok(UpdateVariant::Optimistic(update)),
+                Ok(update) => {
+                    info!("Got optimistic update with slot {}", update.attested_header.beacon.slot);
+                    return Ok(UpdateVariant::Optimistic(update))
+                },
                 Err(e) => Err(eyre!("Error fetching finality update {}", e)),
             },
         }
@@ -293,6 +303,21 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
             .flat_map(|transaction| &transaction.content)
             .cloned() // Clone each ContentVariant, required if ContentVariant does not implement Copy
             .collect()
+    }
+
+    pub async fn has_state(&self, state_id: &str) -> Result<bool, StateProverError> {
+        println!("Checking state for {}", state_id);
+        let req = format!("{}/has_state?state_id={}&network={}", self.config.state_prover_rpc, state_id, self.config.network);
+
+        let response = reqwest::get(&req)
+            .await?;
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(false);
+        }
+
+        println!("STATE WOULD PASS");
+        return Ok(true);
     }
 }
 

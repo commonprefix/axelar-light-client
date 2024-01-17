@@ -14,6 +14,7 @@ pub trait StateProverAPI: Sync + Send + 'static {
         state_id: &str,
         gindex_or_path: &GindexOrPath,
     ) -> Result<ProofResponse, StateProverError>;
+
     /// Fetches a proof from a specific g_index or a path to the beacon root of a specific block.
     async fn get_block_proof(
         &self,
