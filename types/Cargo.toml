@@ -13,5 +13,5 @@ eyre = "0.6.8"
 hex = "0.4.3"
 serde = {version = "1.0.145", default-features = false, features = ["derive"]}
 ssz-rs = {git = "https://github.com/commonprefix/ssz-rs", branch = "main"}
-sync-committee-rs = {package = "sync-committee-primitives", git = "https://github.com/commonprefix/sync-committee-rs", branch = "cp_changes", default-features = false, features = ["serialize", "mainnet"]}
+sync-committee-rs = {package = "sync-committee-primitives", git = "https://github.com/commonprefix/sync-committee-rs", branch = "cp_changes", default-features = false, features = ["serialize", "sepolia"]}
 cosmwasm-schema = "1.1.3"
