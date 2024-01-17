@@ -205,7 +205,10 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         target_block_slot: u64,
         recent_block: &BeaconBlockHeader,
     ) -> Result<AncestryProof> {
-        info!("Will create proof from {} to {}", recent_block.slot, target_block_slot);
+        info!(
+            "Will create proof from {} to {}",
+            recent_block.slot, target_block_slot
+        );
         if target_block_slot >= recent_block.slot {
             return Err(eyre!(
                 "Target block slot {} is greater than recent block slot {}",

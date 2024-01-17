@@ -7,7 +7,7 @@ use lapin::{
     types::FieldTable,
     Channel, Connection, ConnectionProperties, Consumer,
 };
-use log::{debug, info, error};
+use log::{debug, error, info};
 use mockall::automock;
 
 pub struct LapinConsumer {
