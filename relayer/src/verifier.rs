@@ -52,7 +52,7 @@ impl Verifier {
         }
     }
 
-    async fn get_state(&mut self) -> Result<LightClientState> {
+    pub async fn get_state(&mut self) -> Result<LightClientState> {
         let cmd = "axelard";
         let args = [
             "query",
@@ -67,7 +67,7 @@ impl Verifier {
             "json",
         ];
 
-        let _command_line = format!("{} {}", cmd, args.join(" "));
+        // let command_line = format!("{} {}", cmd, args.join(" "));
         // debug!("Command to be executed: {}", command_line);
 
         let output = Command::new(cmd).args(args).output()?;

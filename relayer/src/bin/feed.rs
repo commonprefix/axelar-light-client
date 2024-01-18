@@ -35,14 +35,16 @@ async fn main() {
             continue;
         }
         let latest_header = latest_header.unwrap();
-
         let latest_period = calc_sync_period(latest_header.slot);
-        let verifier_period = verifier.get_period().await;
-        if verifier_period.is_err() {
-            error!("Error getting period from wasm: {:?}", verifier_period);
+
+        let state = verifier.get_state().await;
+        if state.is_err() {
+            error!("Error getting state from wasm: {:?}", state.err());
             continue;
         }
-        let verifier_period = verifier_period.unwrap();
+        let state = state.unwrap();
+        let verifier_period = calc_sync_period(state.update_slot);
+        let is_on_bootstrap = state.next_sync_committee.is_none();
 
         info!(
             "Latest period: {}, Verifier period: {}",
@@ -53,8 +55,16 @@ async fn main() {
             continue;
         }
 
+        let start_update_period = if is_on_bootstrap {
+            info!("Verifier is on bootstrap. Will apply updates starting from period {}", verifier_period);
+            verifier_period
+        }
+        else {
+            verifier_period + 1
+        };
+
         let updates = consensus
-            .get_updates(verifier_period + 1, MAX_UPDATES_PER_LOOP)
+            .get_updates(start_update_period, MAX_UPDATES_PER_LOOP)
             .await;
         if updates.is_err() {
             error!("Error getting updates from consensus: {:?}", updates.err());
@@ -64,7 +74,7 @@ async fn main() {
         info!(
             "Processing {} updates starting from period {}",
             updates.len(),
-            verifier_period + 1
+            start_update_period
         );
 
         for update in updates {
