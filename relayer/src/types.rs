@@ -83,7 +83,7 @@ impl From<Config> for EthConfig {
 
 // Events
 #[derive(Debug, Clone, EthEvent, PartialEq)]
-pub struct ContractCallWithToken {
+pub struct ContractCall {
     #[ethevent(indexed)]
     pub sender: Address,
     pub destination_chain: String,
@@ -91,8 +91,6 @@ pub struct ContractCallWithToken {
     #[ethevent(indexed)]
     pub payload_hash: H256,
     pub payload: Bytes,
-    pub symbol: String,
-    pub amount: U256,
 }
 
 #[derive(Debug, Clone, EthEvent, PartialEq)]

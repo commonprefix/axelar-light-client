@@ -1,4 +1,4 @@
-use crate::types::{ContractCallWithToken, EnrichedLog, OperatorshipTransferred};
+use crate::types::{ContractCall, EnrichedLog, OperatorshipTransferred};
 use consensus_types::{
     common::{ContentVariant, PrimaryKey, WorkerSetMessage},
     proofs::{CrossChainId, Message},
@@ -14,7 +14,7 @@ use prover::prover::types::EnrichedContent;
 
 /// The driver function for parsing an enriched log into an enriched content.
 /// This is the only place where we need to know about the different enriched log variants.
-/// Currenlty we support only ContractCallWithToken events.
+/// Currenlty we support only ContractCall and OperatorshipTransferred events.
 pub fn parse_enriched_log(
     enriched_log: &EnrichedLog,
     block_details: &FullBlockDetails,
@@ -22,8 +22,8 @@ pub fn parse_enriched_log(
 ) -> Result<EnrichedContent> {
     let log = &enriched_log.log;
     match enriched_log.event_name.as_str() {
-        "ContractCallWithToken" => {
-            let event: ContractCallWithToken = EthEvent::decode_log(&RawLog::from(log.clone()))
+        "ContractCall" => {
+            let event: ContractCall = EthEvent::decode_log(&RawLog::from(log.clone()))
                 .map_err(|e| eyre!("Error decoding log {:?}", e))?;
             let message = Message {
                 cc_id: CrossChainId {

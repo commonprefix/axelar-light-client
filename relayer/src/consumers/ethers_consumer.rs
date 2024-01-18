@@ -1,4 +1,4 @@
-use crate::types::{ContractCallWithToken, EnrichedLog, OperatorshipTransferred};
+use crate::types::{ContractCall, EnrichedLog, OperatorshipTransferred};
 use async_trait::async_trait;
 use eth::execution::{EthExecutionAPI, ExecutionRPC};
 use ethers::{
@@ -24,7 +24,7 @@ impl EthersConsumer {
 
     async fn get_logs(&self, from_block: u64, to_block: u64) -> Result<Vec<EnrichedLog>> {
         let signatures = vec![
-            "ContractCallWithToken(address,string,string,bytes32,bytes,string,uint256)",
+            "ContractCall(address,string,string,bytes32,bytes)",
             "OperatorshipTransferred(bytes)",
         ];
 
@@ -38,8 +38,8 @@ impl EthersConsumer {
 
         let mut enriched_logs = vec![];
         for log in &logs {
-            let event_name = if parse_log::<ContractCallWithToken>(log.clone()).is_ok() {
-                "ContractCallWithToken"
+            let event_name = if parse_log::<ContractCall>(log.clone()).is_ok() {
+                "ContractCall"
             } else if parse_log::<OperatorshipTransferred>(log.clone()).is_ok() {
                 "OperatorshipTransferred"
             } else {
