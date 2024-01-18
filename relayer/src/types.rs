@@ -7,7 +7,7 @@ use consensus_types::{
 use eth::types::EthConfig;
 use ethers::{
     contract::EthEvent,
-    types::{Address, Bytes, Log, H256, U256},
+    types::{Address, Bytes, Log, H256},
 };
 use prover::prover::types::ProverConfig;
 use serde::{Deserialize, Serialize};

@@ -1,13 +1,13 @@
 use super::Amqp;
 use async_trait::async_trait;
 use eyre::{eyre, Result};
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt;
 use lapin::{
     options::{BasicAckOptions, BasicConsumeOptions, BasicNackOptions},
     types::FieldTable,
     Channel, Connection, ConnectionProperties, Consumer,
 };
-use log::{debug, error, info};
+use log::{debug, info};
 use mockall::automock;
 
 pub struct LapinConsumer {

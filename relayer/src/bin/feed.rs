@@ -56,10 +56,12 @@ async fn main() {
         }
 
         let start_update_period = if is_on_bootstrap {
-            info!("Verifier is on bootstrap. Will apply updates starting from period {}", verifier_period);
+            info!(
+                "Verifier is on bootstrap. Will apply updates starting from period {}",
+                verifier_period
+            );
             verifier_period
-        }
-        else {
+        } else {
             verifier_period + 1
         };
 

@@ -12,7 +12,7 @@ use eth::{consensus::EthBeaconAPI, execution::EthExecutionAPI, utils::get_full_b
 use eyre::{eyre, Result};
 use log::{debug, error, info, warn};
 use prover::prover::{errors::StateProverError, types::EnrichedContent, ProverAPI};
-use reqwest::Client;
+
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::time::sleep;
 
@@ -293,7 +293,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
                         "Got finality update with slot {}",
                         update.finalized_header.beacon.slot
                     );
-                    return Ok(UpdateVariant::Finality(update));
+                    Ok(UpdateVariant::Finality(update))
                 }
                 Err(e) => Err(eyre!("Error fetching finality update {}", e)),
             },
@@ -303,7 +303,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
                         "Got optimistic update with slot {}",
                         update.attested_header.beacon.slot
                     );
-                    return Ok(UpdateVariant::Optimistic(update));
+                    Ok(UpdateVariant::Optimistic(update))
                 }
                 Err(e) => Err(eyre!("Error fetching finality update {}", e)),
             },
@@ -335,7 +335,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
         }
 
         println!("STATE WOULD PASS");
-        return Ok(true);
+        Ok(true)
     }
 }
 
