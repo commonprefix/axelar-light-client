@@ -73,6 +73,7 @@ pub fn load_config() -> Config {
                 .as_str(),
         )
         .unwrap(),
+        wasm_wallet: env::var("WASM_WALLET").expect("Missing WASM_WALLET from .env"),
     }
 }
 

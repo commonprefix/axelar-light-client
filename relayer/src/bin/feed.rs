@@ -23,7 +23,7 @@ async fn main() {
     let sleep_duration = Duration::from_secs(config.feed_interval);
 
     let consensus = Arc::new(ConsensusRPC::new(config.consensus_rpc.clone(), eth_config));
-    let mut verifier = Verifier::new(config.wasm_rpc, config.verifier_addr);
+    let mut verifier = Verifier::new(config.wasm_rpc, config.verifier_addr, config.wasm_wallet);
 
     loop {
         let latest_header = consensus.get_latest_beacon_block_header().await;

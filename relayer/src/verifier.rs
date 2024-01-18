@@ -26,6 +26,7 @@ use mockall::automock;
 pub struct Verifier {
     rpc: String,
     address: String,
+    wasm_wallet: String,
 }
 
 #[automock]
@@ -43,8 +44,12 @@ pub trait VerifierAPI {
 }
 
 impl Verifier {
-    pub fn new(rpc: String, address: String) -> Self {
-        Self { rpc, address }
+    pub fn new(rpc: String, address: String, wasm_wallet: String) -> Self {
+        Self {
+            rpc,
+            address,
+            wasm_wallet,
+        }
     }
 
     async fn get_state(&mut self) -> Result<LightClientState> {
@@ -160,7 +165,7 @@ impl VerifierAPI for Verifier {
             self.address.as_str(),
             &serde_json::to_string(&message)?,
             "--from",
-            "pkakelas",
+            self.wasm_wallet.as_str(),
             "--node",
             self.rpc.as_str(),
             "--gas-prices",
@@ -201,7 +206,7 @@ impl VerifierAPI for Verifier {
             self.address.as_str(),
             &serde_json::to_string(&message)?,
             "--from",
-            "pkakelas",
+            self.wasm_wallet.as_str(),
             "--node",
             self.rpc.as_str(),
             "--gas-prices",

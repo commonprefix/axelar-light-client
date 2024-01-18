@@ -55,6 +55,7 @@ pub struct Config {
     pub max_batch_size: usize,
     pub process_interval: u64,
     pub feed_interval: u64,
+    pub wasm_wallet: String,
 }
 
 impl From<Config> for ProverConfig {
