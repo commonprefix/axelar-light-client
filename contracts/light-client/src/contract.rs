@@ -11,6 +11,7 @@ use crate::{lightclient::LightClient, state::*};
 use eyre::Result;
 
 use crate::execute::{self, process_batch_data};
+use crate::lightclient::helpers::LowerCaseFields;
 use types::common::{ContentVariant, PrimaryKey, VerificationResult};
 use types::connection_router::Message;
 
@@ -96,13 +97,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             &messages
                 .into_iter()
                 .map(|message| {
-                    let result = VERIFIED_MESSAGES.load(deps.storage, message.hash());
+                    let result =
+                        VERIFIED_MESSAGES.load(deps.storage, message.to_lowercase().hash());
                     (message, result.is_ok())
                 })
                 .collect::<Vec<(Message, bool)>>(),
         ),
         IsWorkerSetVerified { message } => {
-            let result = VERIFIED_WORKER_SETS.load(deps.storage, message.key());
+            let result = VERIFIED_WORKER_SETS.load(deps.storage, message.to_lowercase().key());
             to_json_binary(&result.is_ok())
         }
         Ownership {} => to_json_binary(&get_ownership(deps.storage)?),
@@ -123,7 +125,7 @@ mod tests {
     use cosmwasm_std::{from_json, testing::mock_env, Addr, Timestamp};
     use cw_multi_test::{App, ContractWrapper, Executor};
     use cw_ownable::{Action, Ownership};
-    use types::common::{Config, ContentVariant};
+    use types::common::{Config, ContentVariant, VerificationResult};
     use types::connection_router::Message;
     use types::consensus::{Bootstrap, FinalityUpdate};
     use types::lightclient::LightClientState;
@@ -132,7 +134,6 @@ mod tests {
     use types::sync_committee_rs::constants::BlsSignature;
 
     use crate::msg::{InstantiateMsg, QueryMsg};
-    use crate::types::VerificationResult;
 
     fn deploy(bootstrap: Option<Bootstrap>) -> (App, Addr) {
         let mut app = App::default();

@@ -15,7 +15,7 @@ use types::{common::ContentVariant, consensus::Update};
 
 use crate::lightclient::helpers::{
     compare_content_with_log, extract_logs_from_receipt_proof, parse_message_id,
-    verify_ancestry_proof, verify_transaction_proof,
+    verify_ancestry_proof, verify_transaction_proof, LowerCaseFields,
 };
 use crate::lightclient::LightClient;
 use crate::state::{CONFIG, LIGHT_CLIENT_STATE, VERIFIED_MESSAGES, VERIFIED_WORKER_SETS};
@@ -169,11 +169,13 @@ pub fn process_batch_data(
         if content_variant_result.1.is_ok() {
             match &content_variant_result.0 {
                 ContentVariant::Message(message) => {
-                    VERIFIED_MESSAGES.save(deps.storage, message.hash(), message)?
+                    VERIFIED_MESSAGES.save(deps.storage, message.to_lowercase().hash(), message)?
                 }
-                ContentVariant::WorkerSet(message) => {
-                    VERIFIED_WORKER_SETS.save(deps.storage, message.key(), message)?
-                }
+                ContentVariant::WorkerSet(message) => VERIFIED_WORKER_SETS.save(
+                    deps.storage,
+                    message.to_lowercase().key(),
+                    message,
+                )?,
             }
         }
     }
@@ -206,7 +208,9 @@ pub mod tests {
     use crate::lightclient::helpers::test_helpers::{
         filter_message_variants, filter_workerset_variants, get_batched_data, get_config,
     };
-    use crate::lightclient::helpers::{extract_logs_from_receipt_proof, parse_message_id};
+    use crate::lightclient::helpers::{
+        extract_logs_from_receipt_proof, parse_message_id, LowerCaseFields,
+    };
     use crate::lightclient::tests::tests::init_lightclient;
     use crate::state::{CONFIG, VERIFIED_MESSAGES, VERIFIED_WORKER_SETS};
     use cosmwasm_std::testing::mock_dependencies;
@@ -557,7 +561,9 @@ pub mod tests {
                 for content in contents {
                     match content {
                         ContentVariant::Message(m) => {
-                            assert!(VERIFIED_MESSAGES.load(&mut deps.storage, m.hash()).is_ok());
+                            assert!(VERIFIED_MESSAGES
+                                .load(&mut deps.storage, m.to_lowercase().hash())
+                                .is_ok());
                         }
                         ContentVariant::WorkerSet(m) => {
                             assert!(VERIFIED_WORKER_SETS

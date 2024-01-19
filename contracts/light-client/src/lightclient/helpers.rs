@@ -10,12 +10,12 @@ use crate::ContractError;
 use hasher::{Hasher, HasherKeccak};
 use types::alloy_rlp::encode;
 use types::common::{ContentVariant, WorkerSetMessage};
-use types::connection_router::state::{Message, ID_SEPARATOR};
+use types::connection_router::state::{Address, Message, ID_SEPARATOR};
 use types::execution::{ContractCallBase, ReceiptLog};
 use types::execution::{
     GatewayEvent, OperatorshipTransferredBase, ReceiptLogs, RECEIPTS_ROOT_GINDEX,
 };
-use types::proofs::{nonempty, AncestryProof, ReceiptProof, TransactionProof};
+use types::proofs::{nonempty, AncestryProof, CrossChainId, ReceiptProof, TransactionProof};
 use types::ssz_rs::{
     get_generalized_index, is_valid_merkle_branch, verify_merkle_proof, GeneralizedIndex,
     Merkleized, Node, SszVariableOrIndex, Vector,
@@ -26,6 +26,11 @@ use types::sync_committee_rs::constants::{Bytes32, Root, SLOTS_PER_HISTORICAL_RO
 /// Trait implemented from messages to compare with the appropriate event
 pub trait Comparison<E> {
     fn compare_with_event(&self, event: E) -> Result<()>;
+}
+
+/// Trait implemented from messages to convert string fields to lowercase
+pub trait LowerCaseFields: Sized {
+    fn to_lowercase(&self) -> Self;
 }
 
 pub fn is_proof_valid<L: Merkleized>(
@@ -318,6 +323,41 @@ pub fn parse_message_id(id: &nonempty::String) -> Result<(String, usize)> {
     }
 
     Ok((tx_hash.to_string(), components[1].parse::<usize>()?))
+}
+
+impl LowerCaseFields for Message {
+    fn to_lowercase(&self) -> Message {
+        return Message {
+            cc_id: CrossChainId {
+                id: self.cc_id.id.to_lowercase().try_into().unwrap(),
+                chain: self
+                    .cc_id
+                    .chain
+                    .to_string()
+                    .to_lowercase()
+                    .try_into()
+                    .unwrap(),
+            },
+            source_address: self.source_address.to_lowercase().try_into().unwrap(),
+            destination_address: self.destination_address.to_lowercase().try_into().unwrap(),
+            destination_chain: self
+                .destination_chain
+                .to_string()
+                .to_lowercase()
+                .try_into()
+                .unwrap(),
+            payload_hash: self.payload_hash,
+        };
+    }
+}
+
+impl LowerCaseFields for WorkerSetMessage {
+    fn to_lowercase(&self) -> WorkerSetMessage {
+        return WorkerSetMessage {
+            message_id: self.message_id.to_lowercase().try_into().unwrap(),
+            new_operators_data: self.new_operators_data.to_owned(),
+        };
+    }
 }
 
 impl Comparison<ContractCallBase> for Message {
