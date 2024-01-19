@@ -10,7 +10,7 @@ use crate::ContractError;
 use hasher::{Hasher, HasherKeccak};
 use types::alloy_rlp::encode;
 use types::common::{ContentVariant, WorkerSetMessage};
-use types::connection_router::state::{Address, Message, ID_SEPARATOR};
+use types::connection_router::state::{Message, ID_SEPARATOR};
 use types::execution::{ContractCallBase, ReceiptLog};
 use types::execution::{
     GatewayEvent, OperatorshipTransferredBase, ReceiptLogs, RECEIPTS_ROOT_GINDEX,
@@ -327,7 +327,7 @@ pub fn parse_message_id(id: &nonempty::String) -> Result<(String, usize)> {
 
 impl LowerCaseFields for Message {
     fn to_lowercase(&self) -> Message {
-        return Message {
+        Message {
             cc_id: CrossChainId {
                 id: self.cc_id.id.to_lowercase().try_into().unwrap(),
                 chain: self
@@ -347,16 +347,16 @@ impl LowerCaseFields for Message {
                 .try_into()
                 .unwrap(),
             payload_hash: self.payload_hash,
-        };
+        }
     }
 }
 
 impl LowerCaseFields for WorkerSetMessage {
     fn to_lowercase(&self) -> WorkerSetMessage {
-        return WorkerSetMessage {
+        WorkerSetMessage {
             message_id: self.message_id.to_lowercase().try_into().unwrap(),
             new_operators_data: self.new_operators_data.to_owned(),
-        };
+        }
     }
 }
 
