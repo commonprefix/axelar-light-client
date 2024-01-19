@@ -341,11 +341,10 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
 
 #[cfg(test)]
 mod tests {
-    use self::verifier::MockVerifierAPI;
-
     use super::*;
     use crate::consumers::MockLapinConsumer;
     use crate::types::{Config, VerificationMethod};
+    use crate::verifier::{MockVerifierAPI, Verifier};
     use consensus_types::consensus::{BeaconBlockAlias, FinalityUpdate};
     use consensus_types::proofs::{
         AncestryProof, BlockProofsBatch, CrossChainId, Message, TransactionProofsBatch,
@@ -700,7 +699,7 @@ mod tests {
             Arc::new(consensus),
             Arc::new(execution),
             Arc::new(prover),
-            Verifier::new("".to_string(), "".to_string()),
+            Verifier::new("".to_string(), "".to_string(), "".to_string()),
         )
         .await;
 
