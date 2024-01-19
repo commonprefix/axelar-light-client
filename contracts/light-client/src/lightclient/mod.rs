@@ -11,7 +11,8 @@ use types::common::ChainConfig;
 use types::ssz_rs::prelude::*;
 use types::sync_committee_rs::constants::{
     Version, ALTAIR_FORK_EPOCH, ALTAIR_FORK_VERSION, BELLATRIX_FORK_EPOCH, BELLATRIX_FORK_VERSION,
-    CAPELLA_FORK_EPOCH, CAPELLA_FORK_VERSION, GENESIS_FORK_VERSION,
+    CAPELLA_FORK_EPOCH, CAPELLA_FORK_VERSION, DENEB_FORK_EPOCH, DENEB_FORK_VERSION,
+    GENESIS_FORK_VERSION,
 };
 use types::sync_committee_rs::{
     consensus_types::{BeaconBlockHeader, ForkData, SyncCommittee},
@@ -274,6 +275,7 @@ impl LightClient {
         let epoch = slot / 32;
 
         match epoch {
+            e if e >= DENEB_FORK_EPOCH => DENEB_FORK_VERSION,
             e if e >= CAPELLA_FORK_EPOCH => CAPELLA_FORK_VERSION,
             e if e >= BELLATRIX_FORK_EPOCH => BELLATRIX_FORK_VERSION,
             e if e >= ALTAIR_FORK_EPOCH => ALTAIR_FORK_VERSION,
