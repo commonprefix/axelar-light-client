@@ -441,6 +441,7 @@ pub fn calc_sync_period(slot: u64) -> u64 {
 pub mod test_helpers {
     use ethabi::{decode, ParamType};
     use std::fs::File;
+    use types::sync_committee_rs::constants::FORKS;
 
     use types::common::{Config, FinalizationVariant, WorkerSetMessage};
     use types::connection_router::state::Message;
@@ -525,6 +526,7 @@ pub mod test_helpers {
                 chain_id: 1,
                 genesis_time: 1606824023,
                 genesis_root: Node::from_bytes(genesis_root_bytes),
+                forks: FORKS.to_vec(),
             },
             gateway_address: String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5"),
             finalization: FinalizationVariant::Finality(),
