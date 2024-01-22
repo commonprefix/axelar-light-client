@@ -3,7 +3,25 @@
     "chain_config": {
       "chain_id": 11155111,
       "genesis_time": 1655733600,
-      "genesis_root": "0xd8ea171f3c94aea21ebc42a1ed61052acf3f9209c00e4efbaaddac09ed9b8078"
+      "genesis_root": "0xd8ea171f3c94aea21ebc42a1ed61052acf3f9209c00e4efbaaddac09ed9b8078",
+      "forks": [
+        [
+          50,
+          "0x90000070"
+        ],
+        [
+          100,
+          "0x90000071"
+        ],
+        [
+          56832,
+          "0x90000072"
+        ],
+        [
+          18446744073709551615,
+          "0x90000073"
+        ]
+      ]
     },
     "gateway_address": "0xdF4AcA1d028bF5DfA2E5D336A19786f9CAC8f958",
     "finalization": {
