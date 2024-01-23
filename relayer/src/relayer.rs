@@ -345,7 +345,7 @@ mod tests {
     use super::*;
     use crate::consumers::MockLapinConsumer;
     use crate::types::{Config, VerificationMethod};
-    use crate::verifier::{MockVerifierAPI};
+    use crate::verifier::MockVerifierAPI;
     use consensus_types::consensus::{BeaconBlockAlias, FinalityUpdate};
     use consensus_types::proofs::{
         AncestryProof, BlockProofsBatch, CrossChainId, Message, TransactionProofsBatch,
