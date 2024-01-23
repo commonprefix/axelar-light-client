@@ -101,7 +101,7 @@ pub mod test_utils {
                 })
                 .collect(),
             id: "id1".to_string(),
-            delivery_tag: 1
+            delivery_tag: 1,
         }
     }
 

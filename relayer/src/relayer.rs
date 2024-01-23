@@ -74,9 +74,10 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
             .await
             .map_err(|e| eyre!("Error fetching update {}", e))?;
 
-        if self.config.state_prover_check && !self
-            .has_state(&update.recent_block().state_root.to_string())
-            .await?
+        if self.config.state_prover_check
+            && !self
+                .has_state(&update.recent_block().state_root.to_string())
+                .await?
         {
             error!(
                 "State {} not found in state_prover (lodestar) cache. Requeuing",
@@ -349,9 +350,7 @@ mod tests {
     use consensus_types::proofs::{
         AncestryProof, BlockProofsBatch, CrossChainId, Message, TransactionProofsBatch,
     };
-    use consensus_types::sync_committee_rs::consensus_types::{
-        BeaconBlock,BeaconBlockHeader,
-    };
+    use consensus_types::sync_committee_rs::consensus_types::{BeaconBlock, BeaconBlockHeader};
     use eth::consensus::MockConsensusRPC;
     use eth::execution::MockExecutionRPC;
     use eth::types::FullBlockDetails;

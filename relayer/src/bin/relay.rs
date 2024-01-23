@@ -1,11 +1,6 @@
 extern crate relayer;
 
-
-use eth::{
-    consensus::{ConsensusRPC},
-    execution::ExecutionRPC,
-    types::EthConfig,
-};
+use eth::{consensus::ConsensusRPC, execution::ExecutionRPC, types::EthConfig};
 use prover::{prover::types::ProverConfig, Prover};
 use relayer::{consumers::LapinConsumer, relayer::Relayer, utils::load_config, verifier::Verifier};
 use std::sync::Arc;
