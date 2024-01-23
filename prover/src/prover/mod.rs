@@ -291,7 +291,7 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         tx_index: u64,
     ) -> Result<TransactionProof> {
         let transaction =
-            beacon_block.body.execution_payload.transactions[tx_index as usize].clone();
+            beacon_block.body.execution_payload().transactions()[tx_index as usize].clone();
 
         let proof = self
             .proof_generator

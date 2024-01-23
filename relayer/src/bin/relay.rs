@@ -1,9 +1,10 @@
 extern crate relayer;
 
-use eth::{consensus::ConsensusRPC, execution::ExecutionRPC, types::EthConfig};
+use eth::{consensus::{ConsensusRPC, EthBeaconAPI}, execution::ExecutionRPC, types::EthConfig};
 use prover::{prover::types::ProverConfig, Prover};
 use relayer::{consumers::LapinConsumer, relayer::Relayer, utils::load_config, verifier::Verifier};
 use std::sync::Arc;
+use consensus_types::ssz_rs::Merkleized;
 
 /// Main entry point for the relayer.
 #[tokio::main]

@@ -17,7 +17,7 @@ use consensus_types::{
 };
 use ethers::utils::hex;
 use eyre::Result;
-use log::error;
+use log::{error, debug};
 // use log::debug;
 use mockall::automock;
 
@@ -217,7 +217,7 @@ impl VerifierAPI for Verifier {
         ];
 
         let output = Command::new(cmd).args(args).output()?;
-        // debug!("Output: {:?}", output);
+        debug!("Output: {:?}", output);
 
         if !output.status.success() {
             error!("Error updating light client: {:?}", output);

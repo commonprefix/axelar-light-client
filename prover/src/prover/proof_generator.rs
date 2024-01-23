@@ -395,7 +395,7 @@ mod tests {
         let proof_generator = ProofGenerator::new(consensus, state_prover);
         let tx_index = 15;
 
-        let transaction = &mut block.body.execution_payload.transactions[tx_index];
+        let transaction = &mut block.body.execution_payload_mut().transactions_mut()[tx_index];
         let node = transaction.hash_tree_root().unwrap();
 
         let proof = proof_generator
@@ -421,7 +421,7 @@ mod tests {
 
         let tx_index = 15;
 
-        let transaction = &mut block.body.execution_payload.transactions[tx_index];
+        let transaction = &mut block.body.execution_payload_mut().transactions_mut()[tx_index];
         transaction[0] = 0;
 
         let node = transaction.hash_tree_root().unwrap();
@@ -452,7 +452,7 @@ mod tests {
         let tx_index = 15;
 
         // Different transaction
-        let transaction = &mut block.body.execution_payload.transactions[16];
+        let transaction = &mut block.body.execution_payload_mut().transactions_mut()[16];
         let node = transaction.hash_tree_root().unwrap();
 
         let proof = proof_generator
@@ -477,7 +477,7 @@ mod tests {
         let proof_generator = ProofGenerator::new(consensus, state_prover);
 
         let tx_index = 15;
-        let transaction = &mut block.body.execution_payload.transactions[tx_index];
+        let transaction = &mut block.body.execution_payload_mut().transactions_mut()[tx_index];
         let node = transaction.hash_tree_root().unwrap();
 
         let proof = proof_generator
@@ -504,7 +504,7 @@ mod tests {
             setup_block_and_provers(7807119).await;
         let proof_generator = ProofGenerator::new(consensus, state_prover);
         let tx_index = 15;
-        let transaction = &mut block.body.execution_payload.transactions[tx_index];
+        let transaction = &mut block.body.execution_payload_mut().transactions_mut()[tx_index];
         let node = transaction.hash_tree_root().unwrap();
 
         let proof = proof_generator
@@ -539,8 +539,8 @@ mod tests {
         let is_proof_valid = verify_merkle_proof(
             &block
                 .body
-                .execution_payload
-                .receipts_root
+                .execution_payload_mut()
+                .receipts_root_mut()
                 .hash_tree_root()
                 .unwrap(),
             proof.witnesses.as_slice(),
@@ -568,8 +568,8 @@ mod tests {
         let is_proof_valid = verify_merkle_proof(
             &block
                 .body
-                .execution_payload
-                .receipts_root
+                .execution_payload_mut() 
+                .receipts_root_mut()
                 .hash_tree_root()
                 .unwrap(),
             &invalid_proof,

@@ -349,7 +349,7 @@ mod tests {
     use consensus_types::proofs::{
         AncestryProof, BlockProofsBatch, CrossChainId, Message, TransactionProofsBatch,
     };
-    use consensus_types::sync_committee_rs::consensus_types::BeaconBlockHeader;
+    use consensus_types::sync_committee_rs::consensus_types::{BeaconBlockHeader, BeaconBlockCapella, BeaconBlock};
     use eth::consensus::MockConsensusRPC;
     use eth::execution::MockExecutionRPC;
     use eth::types::FullBlockDetails;
@@ -699,7 +699,7 @@ mod tests {
             Arc::new(consensus),
             Arc::new(execution),
             Arc::new(prover),
-            Verifier::new("".to_string(), "".to_string(), "".to_string()),
+            MockVerifierAPI::new()
         )
         .await;
 
@@ -723,10 +723,10 @@ mod tests {
         let enriched_log = get_mock_enriched_log(5, 1, 0);
         let block_details = FullBlockDetails {
             exec_block: get_mock_exec_block(5),
-            beacon_block: BeaconBlockAlias {
+            beacon_block: BeaconBlock::Capella(BeaconBlockCapella {
                 slot: 5,
                 ..Default::default()
-            },
+            }),
             receipts: vec![],
         };
 
