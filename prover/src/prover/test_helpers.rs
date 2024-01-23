@@ -1,6 +1,7 @@
 #[cfg(test)]
 pub mod test_utils {
     use cita_trie::{MemoryDB, PatriciaTrie, Trie};
+    use consensus_types::sync_committee_rs::consensus_types::BeaconBlock;
     use consensus_types::sync_committee_rs::constants::Root;
     use consensus_types::{
         common::ContentVariant,
@@ -99,6 +100,8 @@ pub mod test_utils {
                     ..Default::default()
                 })
                 .collect(),
+            id: "id1".to_string(),
+            delivery_tag: 1
         }
     }
 
@@ -142,17 +145,16 @@ pub mod test_utils {
     }
 
     pub fn get_mock_beacon_block(slot: u64) -> BeaconBlockAlias {
-        let mut block = BeaconBlockAlias {
+        let mut block = BeaconBlock {
             slot,
             ..Default::default()
         };
-        block.body.execution_payload.transactions = consensus_types::ssz_rs::List::default();
 
         for _ in 1..10 {
             block
                 .body
-                .execution_payload
-                .transactions
+                .execution_payload_mut()
+                .transactions_mut()
                 .push(consensus_types::sync_committee_rs::consensus_types::Transaction::default());
         }
         block

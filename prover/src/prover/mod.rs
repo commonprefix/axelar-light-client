@@ -291,7 +291,7 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         tx_index: u64,
     ) -> Result<TransactionProof> {
         let transaction =
-            beacon_block.body.execution_payload.transactions[tx_index as usize].clone();
+            beacon_block.body.execution_payload().transactions()[tx_index as usize].clone();
 
         let proof = self
             .proof_generator
@@ -379,8 +379,8 @@ mod tests {
         assert_eq!(target_blocks[1].transactions_proofs.len(), 2);
         assert_eq!(target_blocks[2].transactions_proofs.len(), 1);
 
-        for i in 0..target_blocks.len() {
-            for j in 0..target_blocks[i].transactions_proofs.len() {
+        for (i, target_block) in target_blocks.iter().enumerate(){
+            for j in 0..target_block.transactions_proofs.len() {
                 let content_count = target_blocks[i].transactions_proofs[j]
                     .content
                     .iter()
