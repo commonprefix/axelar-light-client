@@ -18,7 +18,7 @@ use types::execution::{
 use types::proofs::{nonempty, AncestryProof, CrossChainId, ReceiptProof, TransactionProof};
 use types::ssz_rs::{
     get_generalized_index, is_valid_merkle_branch, verify_merkle_proof, GeneralizedIndex,
-    Merkleized, Node, SszVariableOrIndex, Vector,
+    GeneralizedIndex64, Merkleized, Node, SszVariableOrIndex, Vector,
 };
 use types::sync_committee_rs::consensus_types::BeaconBlockHeader;
 use types::sync_committee_rs::constants::{Bytes32, Root, SLOTS_PER_HISTORICAL_ROOT};
@@ -110,7 +110,7 @@ pub fn verify_block_roots_proof(
     if !verify_merkle_proof(
         leaf_root,
         block_root_proof.as_slice(),
-        &GeneralizedIndex(*block_roots_index as usize),
+        &GeneralizedIndex64(*block_roots_index),
         root,
     ) {
         return Err(ContractError::InvalidBlockRootsProof.into());
@@ -130,6 +130,7 @@ pub fn verify_historical_roots_proof(
 
     let block_root_index = target_block.slot as usize % SLOTS_PER_HISTORICAL_ROOT;
     let block_root_gindex = get_generalized_index(
+        // TODO: check if it overflows, maybe use u64
         &Vector::<Node, SLOTS_PER_HISTORICAL_ROOT>::default(),
         &[SszVariableOrIndex::Index(block_root_index)],
     );
@@ -144,7 +145,7 @@ pub fn verify_historical_roots_proof(
     let valid_block_summary_root_proof = verify_merkle_proof(
         block_summary_root,
         block_summary_root_proof.as_slice(),
-        &GeneralizedIndex(*block_summary_root_gindex as usize),
+        &GeneralizedIndex64(*block_summary_root_gindex),
         recent_block_state_root,
     );
 
@@ -194,7 +195,7 @@ pub fn verify_transaction_proof(proof: &TransactionProof, target_block_root: &No
     if !verify_merkle_proof(
         &proof.transaction.clone().hash_tree_root()?,
         proof.transaction_proof.as_slice(),
-        &GeneralizedIndex(proof.transaction_gindex as usize),
+        &GeneralizedIndex64(proof.transaction_gindex),
         target_block_root,
     ) {
         return Err(ContractError::InvalidTransactionProof.into());
