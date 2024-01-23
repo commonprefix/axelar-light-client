@@ -568,7 +568,7 @@ mod tests {
         let is_proof_valid = verify_merkle_proof(
             &block
                 .body
-                .execution_payload_mut() 
+                .execution_payload_mut()
                 .receipts_root_mut()
                 .hash_tree_root()
                 .unwrap(),

@@ -379,8 +379,8 @@ mod tests {
         assert_eq!(target_blocks[1].transactions_proofs.len(), 2);
         assert_eq!(target_blocks[2].transactions_proofs.len(), 1);
 
-        for i in 0..target_blocks.len() {
-            for j in 0..target_blocks[i].transactions_proofs.len() {
+        for (i, target_block) in target_blocks.iter().enumerate(){
+            for j in 0..target_block.transactions_proofs.len() {
                 let content_count = target_blocks[i].transactions_proofs[j]
                     .content
                     .iter()

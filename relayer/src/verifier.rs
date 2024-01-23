@@ -17,7 +17,7 @@ use consensus_types::{
 };
 use ethers::utils::hex;
 use eyre::Result;
-use log::{error, debug};
+use log::{debug, error};
 // use log::debug;
 use mockall::automock;
 

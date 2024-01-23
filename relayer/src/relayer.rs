@@ -349,7 +349,9 @@ mod tests {
     use consensus_types::proofs::{
         AncestryProof, BlockProofsBatch, CrossChainId, Message, TransactionProofsBatch,
     };
-    use consensus_types::sync_committee_rs::consensus_types::{BeaconBlockHeader, BeaconBlockCapella, BeaconBlock};
+    use consensus_types::sync_committee_rs::consensus_types::{
+        BeaconBlock, BeaconBlockCapella, BeaconBlockHeader,
+    };
     use eth::consensus::MockConsensusRPC;
     use eth::execution::MockExecutionRPC;
     use eth::types::FullBlockDetails;
@@ -699,7 +701,7 @@ mod tests {
             Arc::new(consensus),
             Arc::new(execution),
             Arc::new(prover),
-            MockVerifierAPI::new()
+            MockVerifierAPI::new(),
         )
         .await;
 

@@ -100,8 +100,8 @@ pub mod test_utils {
                     ..Default::default()
                 })
                 .collect(),
-            id: todo!(),
-            delivery_tag: todo!(),
+            id: "id1".to_string(),
+            delivery_tag: 1
         }
     }
 
