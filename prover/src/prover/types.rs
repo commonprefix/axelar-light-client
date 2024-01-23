@@ -47,7 +47,7 @@ pub struct ProverConfig {
     pub consensus_rpc: String,
     pub execution_rpc: String,
     pub state_prover_rpc: String,
-    pub historical_roots_enabled: bool,
+    pub reject_historical_roots: bool,
     pub historical_roots_block_roots_batch_size: u64,
 }
 

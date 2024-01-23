@@ -23,7 +23,7 @@ pub fn load_config() -> Config {
             .expect("Missing SENTINEL_QUEUE_ADDR from .env"),
         sentinel_queue_name: env::var("SENTINEL_QUEUE_NAME")
             .expect("Missing SENTINEL_QUEUE_NAME from .env"),
-        historical_roots_enabled: true,
+        reject_historical_roots: true,
         historical_roots_block_roots_batch_size: 1000,
         verification_method: VerificationMethod::from_str(
             env::var("VERIFICATION_METHOD")

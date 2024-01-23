@@ -16,8 +16,8 @@ use prover::prover::{errors::StateProverError, types::EnrichedContent, ProverAPI
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::time::sleep;
 
-// This is the main module of the relayer. It fetches logs from the rabbitMQ
-// consumer, generates the proofs and forwards them to the verifier.
+/// This is the main module of the relayer. It fetches logs from the rabbitMQ
+/// consumer, generates the proofs and forwards them to the verifier.
 pub struct Relayer<P, C, CR, ER, V> {
     config: Config,
     consensus: Arc<CR>,
@@ -169,8 +169,8 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
         Ok((successful_enriched, batch_verification_data))
     }
 
-    // Filters out the contents that are not applicable to the current update.
-    // - Will nack (requeue) if the content is more recent than the recent block of the latest update
+    /// Filters out the contents that are not applicable to the current update.
+    /// - Will nack (requeue) if the content is more recent than the recent block of the latest update
     async fn filter_applicable_content(
         &self,
         contents: Vec<EnrichedContent>,
@@ -189,14 +189,16 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
                 self.consumer.nack_delivery(content.delivery_tag).await?;
                 continue;
             }
-            // if content.beacon_block.slot < recent_block_slot - 7000 {
-            //     warn!(
-            //         "Message {:?} would be in historical. Update slot: {}, content slot: {}. Removing",
-            //         content.content, recent_block_slot, content.beacon_block.slot
-            //     );
-            //     self.consumer.ack_delivery(content.delivery_tag).await?;
-            //     continue;
-            // }
+
+            if self.config.reject_historical_roots && content.beacon_block.slot < recent_block_slot - 7000 {
+                warn!(
+                    "Message {:?} would be in historical. Update slot: {}, content slot: {}. Removing",
+                    content.content, recent_block_slot, content.beacon_block.slot
+                );
+                self.consumer.ack_delivery(content.delivery_tag).await?;
+                continue;
+            }
+
             applicable.push(content);
         }
 

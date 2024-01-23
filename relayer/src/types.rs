@@ -43,7 +43,7 @@ pub struct Config {
     pub state_prover_rpc: String,
     pub gateway_addr: String,
     pub verifier_addr: String,
-    pub historical_roots_enabled: bool,
+    pub reject_historical_roots: bool,
     pub historical_roots_block_roots_batch_size: u64,
     pub verification_method: VerificationMethod,
     pub sentinel_queue_addr: String,
@@ -66,7 +66,7 @@ impl From<Config> for ProverConfig {
             consensus_rpc: config.consensus_rpc,
             execution_rpc: config.execution_rpc,
             state_prover_rpc: config.state_prover_rpc,
-            historical_roots_enabled: config.historical_roots_enabled,
+            reject_historical_roots: config.reject_historical_roots,
             historical_roots_block_roots_batch_size: config.historical_roots_block_roots_batch_size,
         }
     }
