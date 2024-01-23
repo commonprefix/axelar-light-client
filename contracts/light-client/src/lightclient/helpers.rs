@@ -12,13 +12,11 @@ use types::alloy_rlp::encode;
 use types::common::{ContentVariant, WorkerSetMessage};
 use types::connection_router::state::{Message, ID_SEPARATOR};
 use types::execution::{ContractCallBase, ReceiptLog};
-use types::execution::{
-    GatewayEvent, OperatorshipTransferredBase, ReceiptLogs, RECEIPTS_ROOT_GINDEX,
-};
+use types::execution::{GatewayEvent, OperatorshipTransferredBase, ReceiptLogs};
 use types::proofs::{nonempty, AncestryProof, CrossChainId, ReceiptProof, TransactionProof};
 use types::ssz_rs::{
-    get_generalized_index, is_valid_merkle_branch, verify_merkle_proof, GeneralizedIndex,
-    GeneralizedIndex64, Merkleized, Node, SszVariableOrIndex, Vector,
+    get_generalized_index, is_valid_merkle_branch, verify_merkle_proof, GeneralizedIndex64,
+    Merkleized, Node, SszVariableOrIndex, Vector,
 };
 use types::sync_committee_rs::consensus_types::BeaconBlockHeader;
 use types::sync_committee_rs::constants::{Bytes32, Root, SLOTS_PER_HISTORICAL_ROOT};
@@ -164,7 +162,7 @@ pub fn extract_logs_from_receipt_proof(
     if !verify_merkle_proof(
         &proof.receipts_root,
         &proof.receipts_root_proof,
-        &GeneralizedIndex(RECEIPTS_ROOT_GINDEX),
+        &GeneralizedIndex64(proof.receipts_root_gindex),
         target_block_root,
     ) {
         return Err(ContractError::InvalidReceiptsBranchProof.into());

@@ -273,6 +273,7 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         let receipt_proof = ReceiptProof {
             receipt_proof,
             receipts_root_proof: receipts_root_proof.witnesses,
+            receipts_root_gindex: receipts_root_proof.gindex,
             receipts_root: Node::from_bytes(exec_block.receipts_root.as_bytes().try_into()?),
         };
 

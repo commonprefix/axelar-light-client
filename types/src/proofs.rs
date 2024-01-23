@@ -87,6 +87,8 @@ pub struct TransactionProof {
 pub struct ReceiptProof {
     /// Proof that a receipts_root is part of a block
     pub receipts_root_proof: Vec<Node>,
+    /// Generalized index of receipts_root in target block
+    pub receipts_root_gindex: u64,
     /// Proof that a receipt is part of the receipts_root
     #[serde(
         serialize_with = "hex_array_serializer",
