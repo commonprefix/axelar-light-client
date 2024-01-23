@@ -5,7 +5,7 @@ use serde::Deserialize;
 use ssz_rs::prelude::*;
 use std::cmp::Ordering;
 
-pub const RECEIPTS_ROOT_GINDEX: usize = 3219;
+pub const RECEIPTS_ROOT_GINDEX: usize = 6435;
 
 #[derive(Default, Debug, Clone, Deserialize)]
 pub struct ReceiptLog {
