@@ -345,7 +345,7 @@ mod tests {
     use super::*;
     use crate::consumers::MockLapinConsumer;
     use crate::types::{Config, VerificationMethod};
-    use crate::verifier::{MockVerifierAPI, Verifier};
+    use crate::verifier::{MockVerifierAPI};
     use consensus_types::consensus::{BeaconBlockAlias, FinalityUpdate};
     use consensus_types::proofs::{
         AncestryProof, BlockProofsBatch, CrossChainId, Message, TransactionProofsBatch,
@@ -389,7 +389,7 @@ mod tests {
         let prover = MockProver::new();
         let verifier = MockVerifierAPI::new();
 
-        return (config, consumer, consensus, execution, prover, verifier);
+        (config, consumer, consensus, execution, prover, verifier)
     }
 
     fn get_content(tx_hash_n: u64, log_index: u64) -> ContentVariant {
@@ -663,7 +663,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_proofs() {
-        let (config, mut consumer, consensus, execution, mut prover, verifier) = setup_test();
+        let (config, mut consumer, consensus, execution, mut prover, _verifier) = setup_test();
 
         let enriched_log = get_mock_enriched_log(5, 1, 0);
         let block_details = FullBlockDetails {
