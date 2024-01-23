@@ -190,7 +190,9 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
                 continue;
             }
 
-            if self.config.reject_historical_roots && content.beacon_block.slot < recent_block_slot - 7000 {
+            if self.config.reject_historical_roots
+                && content.beacon_block.slot < recent_block_slot - 7000
+            {
                 warn!(
                     "Message {:?} would be in historical. Update slot: {}, content slot: {}. Removing",
                     content.content, recent_block_slot, content.beacon_block.slot
@@ -260,6 +262,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
     }
 
     /// Fetches a set of messages from the consumer up to a limit.
+    /// If the message cannot be parsed, it's being taken out of the queue.
     async fn collect_messages(&mut self, max_messages: usize) -> HashMap<u64, EnrichedLog> {
         let deliveries = self.consumer.consume(max_messages).await;
         if deliveries.is_err() {
@@ -274,6 +277,8 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
             let enriched_log = serde_json::from_str(data_str);
             if enriched_log.is_err() {
                 error!("Error parsing log {:?}", enriched_log);
+
+                self.consumer.ack_delivery(*delivery_tag).await.unwrap();
                 continue;
             }
             enriched_logs.insert(*delivery_tag, enriched_log.unwrap());
@@ -886,6 +891,7 @@ mod tests {
         consumer
             .expect_consume()
             .returning(move |_| Ok(vec![(0, "invalid message".to_string())]));
+        consumer.expect_ack_delivery().once().returning(|_| Ok(()));
 
         let mut relayer = Relayer::new(
             config,

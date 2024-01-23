@@ -24,10 +24,11 @@ async fn main() {
         config.wasm_wallet.clone(),
     );
 
-    let consumer =
-        LapinConsumer::new(&config.sentinel_queue_addr, &config.sentinel_queue_name).await;
-
-    // let consumer = EthersConsumer::new(execution.clone(), config.gateway_addr.clone());
+    let consumer = LapinConsumer::new(
+        &config.sentinel_queue_addr,
+        config.sentinel_queue_name.clone(),
+    )
+    .await;
 
     let mut relayer = Relayer::new(
         config.clone(),
