@@ -56,6 +56,7 @@ pub struct Config {
     pub process_interval: u64,
     pub feed_interval: u64,
     pub wasm_wallet: String,
+    pub state_prover_check: bool,
 }
 
 impl From<Config> for ProverConfig {

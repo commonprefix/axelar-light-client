@@ -74,6 +74,7 @@ pub fn load_config() -> Config {
         )
         .unwrap(),
         wasm_wallet: env::var("WASM_WALLET").expect("Missing WASM_WALLET from .env"),
+        state_prover_check: true
     }
 }
 

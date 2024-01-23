@@ -74,7 +74,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
             .await
             .map_err(|e| eyre!("Error fetching update {}", e))?;
 
-        if !self
+        if self.config.state_prover_check && !self
             .has_state(&update.recent_block().state_root.to_string())
             .await?
         {
@@ -188,14 +188,14 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
                 self.consumer.nack_delivery(content.delivery_tag).await?;
                 continue;
             }
-            if content.beacon_block.slot < recent_block_slot - 7000 {
-                warn!(
-                    "Message {:?} would be in historical. Update slot: {}, content slot: {}. Removing",
-                    content.content, recent_block_slot, content.beacon_block.slot
-                );
-                self.consumer.ack_delivery(content.delivery_tag).await?;
-                continue;
-            }
+            // if content.beacon_block.slot < recent_block_slot - 7000 {
+            //     warn!(
+            //         "Message {:?} would be in historical. Update slot: {}, content slot: {}. Removing",
+            //         content.content, recent_block_slot, content.beacon_block.slot
+            //     );
+            //     self.consumer.ack_delivery(content.delivery_tag).await?;
+            //     continue;
+            // }
             applicable.push(content);
         }
 
@@ -350,7 +350,7 @@ mod tests {
         AncestryProof, BlockProofsBatch, CrossChainId, Message, TransactionProofsBatch,
     };
     use consensus_types::sync_committee_rs::consensus_types::{
-        BeaconBlock, BeaconBlockCapella, BeaconBlockHeader,
+        BeaconBlock,BeaconBlockHeader,
     };
     use eth::consensus::MockConsensusRPC;
     use eth::execution::MockExecutionRPC;
@@ -381,6 +381,7 @@ mod tests {
             process_interval: 1,
             verification_method: VerificationMethod::Finality,
             genesis_timestamp: 0,
+            state_prover_check: false,
             ..Default::default()
         };
         let consumer = MockLapinConsumer::new();
@@ -468,7 +469,7 @@ mod tests {
     }
 
     fn get_mock_enriched_log(block_number: u64, tx_hash_n: u64, log_index: u64) -> EnrichedLog {
-        let file = File::open("testdata/contract_call_with_token.json").unwrap();
+        let file = File::open("testdata/contract_call.json").unwrap();
         let mut enriched_log: EnrichedLog = serde_json::from_reader(file).unwrap();
         enriched_log.log.transaction_hash = Some(H256::from_low_u64_be(tx_hash_n));
         enriched_log.log.block_number = Some(block_number.into());
@@ -725,10 +726,10 @@ mod tests {
         let enriched_log = get_mock_enriched_log(5, 1, 0);
         let block_details = FullBlockDetails {
             exec_block: get_mock_exec_block(5),
-            beacon_block: BeaconBlock::Capella(BeaconBlockCapella {
+            beacon_block: BeaconBlock {
                 slot: 5,
                 ..Default::default()
-            }),
+            },
             receipts: vec![],
         };
 
@@ -785,13 +786,14 @@ mod tests {
         .await;
 
         let relayed = relayer.relay().await;
+        println!("{:?}", relayed);
         assert!(relayed.is_ok());
     }
 
     #[tokio::test]
     async fn test_process_logs_valid() {
         let (config, consumer, mut consensus, mut execution, _, verifier) = setup_test();
-        let file = File::open("testdata/contract_call_with_token.json").unwrap();
+        let file = File::open("testdata/contract_call.json").unwrap();
         let enriched_log: EnrichedLog = serde_json::from_reader(file).unwrap();
         let prover = Prover::new(MockProofGenerator::<MockConsensusRPC, MockStateProver>::new());
 
@@ -853,7 +855,7 @@ mod tests {
     #[tokio::test]
     async fn test_collect_messages_valid() {
         let (config, mut consumer, consensus, execution, prover, verifier) = setup_test();
-        let path = "testdata/contract_call_with_token.json";
+        let path = "testdata/contract_call.json";
         let contents = fs::read_to_string(path).unwrap();
         let expected_log = serde_json::from_str::<EnrichedLog>(&contents).unwrap();
 

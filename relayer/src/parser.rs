@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn test_parse_enriched_log() {
-        let file = File::open("testdata/contract_call_with_token.json").unwrap();
+        let file = File::open("testdata/contract_call.json").unwrap();
         let enriched_log = serde_json::from_reader(file).unwrap();
         let block_details = create_test_block_details();
 
