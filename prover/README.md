@@ -42,10 +42,9 @@ Specifically, the prover module exposes 2 basic endpoints:
 - `batch_contents(contents: [EnrichedContent]) -> BatchContentGroups`: It
 accepts a set of contents and generates a batched version of those messages
 batched both per block and per transaction. Specifically, the
-returned `BatchContentGroups` struct is a hashMap that looks like: 
+returned `BatchContentGroups` struct is a map from the block number to a map from a tx_hash to messages.
 
 ```
-// A map from block number to a map from tx hash to messages
 pub type BatchContentGroups = IndexMap<u64, IndexMap<H256, Vec<EnrichedContent>>>
 ```
 
