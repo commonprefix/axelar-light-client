@@ -3,6 +3,8 @@
 An Ethereum prover/verifier implementation of a light client that employs the
 Sync Committee protocol of Ethereum to bridge events from Ethereum to Axelar.
 
+More on the [Light Client Architecture](https://commonprefix.notion.site/Light-Client-Architecture-Draft-8fe5486c958e479ab41cdfc36a3d59ed?pvs=4)
+
 This repo is a collection of modules that work together to implement a light client.
 - **Light Client**: The core source of the verifier.
 - **Contracts** The module that packages the light client verifier in an on-chain CosmWasm contract.
@@ -19,9 +21,9 @@ More details about the packages are in their corresponding READMEs.
 ## Setting up the relayer
 The relayer module consumes events from a rabbitMQ instance that is implemented
 in Axelar and submits them to the on-chain verifier that exists in the
-`light-client` package. In order to setup the relayer the following steps are
+`light-client` package. To set up the relayer the following steps are
 required.
-- Setup an instance of the [state prover](https://github.com/commonprefix/state-prover)
+- Set up an instance of the [state prover](https://github.com/commonprefix/state-prover).
 - Obtain an Ethereum Beacon and Execution API URLs, the gateway address and the
 Wasm URL.
 - Deploy the light client verifier by following the instructions in the
@@ -29,7 +31,6 @@ Wasm URL.
 - Go to the `relayer` package and follow the instructions mentioned there for
 running both the feeder and the relayer.
 
-More on the light client architecture: [Light Client Architecture]
 
 ## Acknowledgments
 This project uses open-source code from the following projects. We are deeply
