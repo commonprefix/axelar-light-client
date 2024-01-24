@@ -36,27 +36,56 @@ impl FromStr for VerificationMethod {
 /// Main configuration structure of the relayer.
 #[derive(Debug, Clone, Default)]
 pub struct Config {
+    /// Network configuration. This will be used to generate the content id, as
+    /// well as tweak the request in the state_prover accordingly.
     pub network: String,
+    /// RPC endpoint for the consensus layer.
     pub consensus_rpc: String,
+    /// RPC endpoint for the execution layer.
     pub execution_rpc: String,
+    /// The RPC of the WASM chain. In our case it's Axelar devnet
     pub wasm_rpc: String,
+    /// The API url of the state prover
     pub state_prover_rpc: String,
+    /// The API url of the block roots archive
     pub block_roots_rpc: String,
+    /// The Axelar Gateway address in the Ethereum chain
     pub gateway_addr: String,
+    /// The verifier address in the wasm chain
     pub verifier_addr: String,
+
+    /// Should the historical roots be rejected from the queue? Enabling it
+    /// might drain the beacon API quota
     pub reject_historical_roots: bool,
     pub historical_roots_block_roots_batch_size: u64,
+
+    /// Determines whether the verification will occur using sync_committee optimistic
+    /// or finality updates. Use with caution, optimistic verification might lead to
+    /// re-orgs.
     pub verification_method: VerificationMethod,
+
+    /// Sentinel rabbitMQ details
     pub sentinel_queue_addr: String,
     pub sentinel_queue_name: String,
+
+    /// RPC options for the eth package
     pub rpc_pool_max_idle_per_host: usize,
     pub rpc_timeout_secs: u64,
     pub rpc_max_retries: u64,
+
+    /// What is the genesis timestamp of the ETH chain. Used to calculate slots out of timestmaps
     pub genesis_timestamp: u64,
+
+    /// How many contents should the relayer process in one round/batch
     pub max_batch_size: usize,
+    /// How many seconds should the relayer wait before processing the next batch
     pub process_interval: u64,
+    /// How many seconds should the feeder wait before feeding the verifier with new
+    /// update messages
     pub feed_interval: u64,
+    /// Used to run execute messages in the wasm using wasmd. Will be deprecated
     pub wasm_wallet: String,
+    /// Should the state prover implement
     pub state_prover_check: bool,
 }
 
