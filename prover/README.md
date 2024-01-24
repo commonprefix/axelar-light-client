@@ -3,7 +3,7 @@
 The prover package encapsulates the main prover of the light client project.
 This module is responsible for accepting a set of contents, batching in the 2
 layers of batching described below and generating the necessary proofs in the
-verifier compatible struct.
+verifier-compatible struct.
 
 ## Proofs
 
@@ -18,7 +18,7 @@ For a single message, the proofs that are generated are the following:
 * `TransactionProof`: The proof from the target beacon block to the specific
   transaction that includes the content. This proof is generated using the
   StateProver API.
-* `ReceiptsProof`: This proof is a struct that includes one merkle proof from
+* `ReceiptsProof`: This proof is a struct that includes one Merkle proof from
   the beacon block root to the receipts_root proof (generated from the
   StateProverA API) and one Merkle Patricia trie proof from the receipts_root of
   the target block up to the specific receipt.
@@ -40,8 +40,8 @@ the same transaction.
 Specifically, the prover module exposes 2 basic endpoints:
 
 - `batch_contents(contents: [EnrichedContent]) -> BatchContentGroups`: It
-accepts a set of contents and generates a batched version of those messages
-batched both per block and per transaction. Specifically, the
+accepts a set of contents and generates a batched version of those messages both
+per block and per transaction. Specifically, the
 returned `BatchContentGroups` struct is a map from the block number to a map from a tx_hash to messages.
 
 ```
