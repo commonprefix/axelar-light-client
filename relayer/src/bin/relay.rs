@@ -29,10 +29,11 @@ async fn main() {
     );
 
     let consumer = LapinConsumer::new(
-        &config.sentinel_queue_addr,
+        config.sentinel_queue_addr.clone(),
         config.sentinel_queue_name.clone(),
     )
-    .await;
+    .await
+    .unwrap();
 
     let mut relayer = Relayer::new(
         config.clone(),

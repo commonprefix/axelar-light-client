@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use super::Amqp;
 use async_trait::async_trait;
 use eyre::{eyre, Result};
@@ -5,25 +7,26 @@ use lapin::{
     options::{BasicAckOptions, BasicGetOptions, BasicNackOptions},
     Channel, Connection, ConnectionProperties,
 };
-use log::{debug, info};
+use log::{debug, error, info};
 use mockall::automock;
 
 pub struct LapinConsumer {
+    queue_addr: String,
     queue_name: String,
     channel: Channel,
 }
 
 impl LapinConsumer {
-    pub async fn new(queue_addr: &str, queue_name: String) -> Self {
-        let connection = Connection::connect(queue_addr, ConnectionProperties::default())
-            .await
-            .unwrap();
-        let channel = connection.create_channel().await.unwrap();
+    pub async fn new(queue_addr: String, queue_name: String) -> Result<Self> {
+        let connection =
+            Connection::connect(queue_addr.as_str(), ConnectionProperties::default()).await?;
+        let channel = connection.create_channel().await?;
 
-        Self {
+        Ok(Self {
+            queue_addr,
             queue_name,
             channel,
-        }
+        })
     }
 }
 
@@ -36,17 +39,30 @@ impl Amqp for LapinConsumer {
         while deliveries.len() < max_deliveries {
             let message = self
                 .channel
-                .basic_get(self.queue_name.as_str(), BasicGetOptions::default())
-                .await?;
+                .basic_get(&self.queue_name, BasicGetOptions::default())
+                .await;
 
             match message {
-                Some(message) => {
-                    debug!("Got message: {:?}", message.delivery);
+                Ok(Some(message)) => {
+                    println!("Got message: {:?}", message.delivery);
                     deliveries.push(message.delivery);
                 }
-                None => {
+                Ok(None) => {
                     debug!("Queue is empty");
-                    break; // Queue is empty, break the loop
+                    break;
+                }
+                Err(e) => {
+                    error!("Connection is lost due to {:?}. Will retry in 10 secs", e);
+                    tokio::time::sleep(Duration::from_secs(10)).await;
+
+                    // Clear the deliveries vector, since the delivery tags are no longer valid
+                    deliveries.clear();
+
+                    let new_instance =
+                        LapinConsumer::new(self.queue_addr.clone(), self.queue_name.clone()).await;
+                    if let Ok(new_instance) = new_instance {
+                        *self = new_instance;
+                    }
                 }
             }
         }

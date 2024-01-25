@@ -342,7 +342,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
             return Ok(false);
         }
 
-        debug!("STATE WOULD PASS");
+        info!("State is in the cache of the state_prover");
         Ok(true)
     }
 }
