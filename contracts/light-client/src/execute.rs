@@ -207,6 +207,7 @@ pub mod tests {
     use crate::execute::{process_block_proofs, process_transaction_proofs, verify_content};
     use crate::lightclient::helpers::test_helpers::{
         filter_message_variants, filter_workerset_variants, get_batched_data, get_config,
+        get_gindex_overflow_data,
     };
     use crate::lightclient::helpers::{
         extract_logs_from_receipt_proof, parse_message_id, LowerCaseFields,
@@ -608,6 +609,25 @@ pub mod tests {
                 assert!(res.is_ok());
                 assert_invalid_contents(&contents, &res.unwrap());
             }
+        }
+    }
+
+    #[test]
+    fn generalized_index_overflow() {
+        let data = get_gindex_overflow_data();
+        let recent_block = data.update.recent_block();
+
+        let gateway_address = String::from("0x557b0dc16d07cb297412a7da40a48615f7559765");
+        let results = data
+            .target_blocks
+            .iter()
+            .flat_map(|block_proofs_batch| {
+                process_block_proofs(&recent_block, block_proofs_batch, &gateway_address)
+            })
+            .collect::<Vec<(ContentVariant, Result<()>)>>();
+
+        for content_result in results {
+            assert!(content_result.1.is_ok());
         }
     }
 }

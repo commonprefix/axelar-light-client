@@ -500,6 +500,13 @@ pub mod test_helpers {
         (bootstrap, verification_data)
     }
 
+    pub fn get_gindex_overflow_data() -> BatchVerificationData {
+        let file_name = "testdata/verification/overflow_gindex.json";
+        let verification_file = File::open(file_name).unwrap();
+
+        serde_json::from_reader(verification_file).unwrap()
+    }
+
     pub fn get_finality_update() -> UpdateVariant {
         let verification_file = File::open(format!("testdata/verification/update.json")).unwrap();
         serde_json::from_reader(verification_file).unwrap()
