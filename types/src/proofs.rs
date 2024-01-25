@@ -48,7 +48,7 @@ pub enum AncestryProof {
         block_roots_index: u64,
         block_root_proof: Vec<Node>,
     },
-    /// This variant defines the necessary proofs to verify that a beacon chain block header in the `state.historical_roots` of another block.
+    /// This variant defines the necessary proofs to verify that a beacon chain block header in the `state.historical_summaries` of another block.
     HistoricalRoots {
         /// Proof for the target_block in the historical_summaries[index].block_summary_root
         block_root_proof: Vec<Node>,
@@ -56,7 +56,7 @@ pub enum AncestryProof {
         block_summary_root: Root,
         /// Proof that historical_summaries[index].block_summary_root is in recent block state
         block_summary_root_proof: Vec<Node>,
-        /// The generalized index for the historical_batch in state.historical_roots.
+        /// The generalized index for the historical_batch in state.historical_summaries.
         block_summary_root_gindex: u64,
     },
 }
