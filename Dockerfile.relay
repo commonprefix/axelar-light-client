@@ -1,0 +1,17 @@
+# Use the official Rust image as a builder stage
+FROM rust:latest as builder
+
+# Create a working directory
+WORKDIR /app
+
+COPY . .
+
+WORKDIR /app
+
+RUN cargo build --release --bin relay
+
+# Set log to debug
+ENV RUST_LOG=debug
+
+# Command to run the executable
+CMD ["./target/release/relay"]
