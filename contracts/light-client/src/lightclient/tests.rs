@@ -169,7 +169,7 @@ pub mod tests {
 
         // break the receipts_root, fail
         let mut invalid_receipt_proof = proofs.receipt_proof.clone();
-        invalid_receipt_proof.receipts_root.0[0] = 0;
+        invalid_receipt_proof.receipts_root = Node::default();
         assert!(verify_trie_proof(
             invalid_receipt_proof.receipts_root,
             transaction_proof.transaction_index,
@@ -295,14 +295,7 @@ pub mod tests {
             ),
         };
 
-        let update = match verification_data.update {
-            UpdateVariant::Finality(update) => update,
-            UpdateVariant::Optimistic(..) => {
-                panic!("Unexpected")
-            }
-        };
-
-        let recent_block = update.finalized_header.beacon;
+        let recent_block = verification_data.update.recent_block();
         let target_block = verification_data.target_blocks[0].target_block.clone();
 
         assert!(verify_historical_roots_proof(
@@ -439,34 +432,43 @@ pub mod tests {
         let logs = logs_result.unwrap().0;
         let first_log = logs.get(0).unwrap();
         let expected_address: [u8; 20] = vec![
-            160, 184, 105, 145, 198, 33, 139, 54, 193, 209, 157, 74, 46, 158, 176, 206, 54, 6, 235,
-            72,
+            171, 164, 217, 147, 24, 128, 8, 246, 101, 201, 114, 215, 159, 197, 154, 178, 56, 30,
+            206, 148,
         ]
         .try_into()
         .unwrap();
         let expected_topics: Vec<[u8; 32]> = vec![
             vec![
-                221, 242, 82, 173, 27, 226, 200, 155, 105, 194, 176, 104, 252, 55, 141, 170, 149,
-                43, 167, 241, 99, 196, 161, 22, 40, 245, 90, 77, 245, 35, 179, 239,
+                48, 174, 108, 199, 140, 39, 230, 81, 116, 91, 242, 173, 8, 161, 29, 232, 57, 16,
+                172, 30, 52, 122, 82, 247, 172, 137, 140, 15, 190, 249, 77, 174,
             ]
             .try_into()
             .unwrap(),
             vec![
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 224, 85, 74, 71, 106, 9, 39, 3, 171, 219, 62,
-                243, 92, 128, 224, 215, 109, 50, 147, 159,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 197, 90, 211, 221, 179, 134, 51, 93, 90, 243,
+                56, 35, 227, 168, 69, 192, 219, 212, 69, 92,
             ]
             .try_into()
             .unwrap(),
             vec![
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 206, 22, 246, 147, 117, 82, 10, 176, 19, 119,
-                206, 123, 136, 245, 186, 140, 72, 248, 214, 102,
+                235, 200, 76, 189, 117, 186, 85, 22, 191, 69, 231, 2, 74, 158, 18, 188, 60, 92,
+                136, 15, 115, 227, 165, 190, 202, 126, 187, 165, 43, 40, 103, 167,
             ]
             .try_into()
             .unwrap(),
         ];
         let expected_data: Vec<u8> = vec![
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            34, 62, 88,
+            0, 0, 96, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 224, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 112, 111, 108, 121, 103, 111, 110, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 19, 116, 104,
+            105, 115, 32, 105, 115, 32, 116, 104, 101, 32, 97, 100, 100, 114, 101, 115, 115, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 112, 97, 121, 108, 111, 97, 100, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
 
         assert_eq!(first_log.address, expected_address);
@@ -612,7 +614,7 @@ pub mod tests {
         let mut modified_message = message.clone();
         assert_eq!(
             modified_message.source_address.to_string().to_lowercase(),
-            "0xce16f69375520ab01377ce7b88f5ba8c48f8d666"
+            "0xc55ad3ddb386335d5af33823e3a845c0dbd4455c"
         );
         assert!(modified_message.compare_with_event(event.clone()).is_ok());
         modified_message.source_address = Address::ZERO.to_string().try_into().unwrap();
@@ -625,7 +627,7 @@ pub mod tests {
                 .destination_chain
                 .to_string()
                 .to_lowercase(),
-            "arbitrum"
+            "polygon"
         );
         assert!(modified_message.compare_with_event(event.clone()).is_ok());
         modified_message.destination_chain = String::from("none").try_into().unwrap();
@@ -635,7 +637,7 @@ pub mod tests {
         let mut modified_message = message.clone();
         assert_eq!(
             modified_message.destination_address.to_string(),
-            "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
+            "this is the address"
         );
         assert!(modified_message.compare_with_event(event.clone()).is_ok());
         modified_message.destination_address = Address::ZERO.to_string().try_into().unwrap();
@@ -645,7 +647,7 @@ pub mod tests {
         let mut modified_message = message.clone();
         assert_eq!(
             hex::encode(modified_message.payload_hash),
-            "a86071271a789ad2ad032f622e77cc6859dc9a00001c8ca8a7c8daa43f3726b9"
+            "ebc84cbd75ba5516bf45e7024a9e12bc3c5c880f73e3a5beca7ebba52b2867a7"
         );
         assert!(modified_message.compare_with_event(event.clone()).is_ok());
         modified_message.payload_hash = Default::default();

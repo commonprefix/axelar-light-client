@@ -244,7 +244,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_content_failures() {
-        let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
+        let gateway_address = String::from("0xAba4D993188008F665C972d79fc59AB2381eCe94");
         let verification_data = get_batched_data(false, "finality").1;
         let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
@@ -341,7 +341,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_message() {
-        let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
+        let gateway_address = String::from("0xAba4D993188008F665C972d79fc59AB2381eCe94");
         let verification_data = get_batched_data(false, "finality").1;
         let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
@@ -381,7 +381,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_workerset_message() {
-        let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
+        let gateway_address = String::from("0xAba4D993188008F665C972d79fc59AB2381eCe94");
         let verification_data = get_batched_data(false, "finality").1;
         let target_block_proofs = verification_data.target_blocks.get(1).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
@@ -421,7 +421,7 @@ pub mod tests {
 
     #[test]
     fn test_process_transaction_proofs() {
-        let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
+        let gateway_address = String::from("0xAba4D993188008F665C972d79fc59AB2381eCe94");
         let data = get_batched_data(false, "finality").1;
 
         let block_proofs = data
@@ -501,7 +501,7 @@ pub mod tests {
 
     #[test]
     fn test_process_block_proofs() {
-        let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
+        let gateway_address = String::from("0xAba4D993188008F665C972d79fc59AB2381eCe94");
         let mut data = get_batched_data(false, "finality").1;
         let recent_block = data.update.recent_block();
 

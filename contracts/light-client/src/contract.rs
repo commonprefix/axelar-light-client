@@ -125,7 +125,7 @@ mod tests {
     use cosmwasm_std::{from_json, testing::mock_env, Addr, Timestamp};
     use cw_multi_test::{App, ContractWrapper, Executor};
     use cw_ownable::{Action, Ownership};
-    use types::common::{Config, ContentVariant, VerificationResult};
+    use types::common::{Config, ContentVariant, PrimaryKey, VerificationResult};
     use types::connection_router::Message;
     use types::consensus::{Bootstrap, FinalityUpdate};
     use types::lightclient::LightClientState;
@@ -268,8 +268,10 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                (String::from("message:ethereum:0xc57b29866a593b73d15981c961c8e61380d4e471f08f5b58d441fc828e0f8166:6"), String::from("OK")),
-                (String::from("workersetmessage:0xcaabfb4729c106140393eaceca29a0d90e5e64297bb9adbec9c3c7d49c9fab61:0"), String::from("OK"))
+                (String::from("message:ethereum:0x302c20e77610ecff3e2dbd7ca7f422dd790efedbfec67a0330d9c705a77e9cc1:0"), String::from("OK")),
+                (String::from("workersetmessage:0x9d3cf63d98fd73dcc7d2a325e104f29af16909a88725bdd94e88c3e0441b74d5:0"), String::from("OK")),
+                (String::from("workersetmessage:0xd190fddcf5ff9246ef2d267ca0746e1300f18120d31c48be2dd587468979f130:2"), String::from("OK")),
+                (String::from("message:ethereum:0xd190fddcf5ff9246ef2d267ca0746e1300f18120d31c48be2dd587468979f130:0"), String::from("OK"))
             ]
         );
         for content in contents {
@@ -378,13 +380,14 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                (String::from("message:ethereum:0xc57b29866a593b73d15981c961c8e61380d4e471f08f5b58d441fc828e0f8166:6"), String::from("Invalid transaction proof")),
-                (String::from("workersetmessage:0xcaabfb4729c106140393eaceca29a0d90e5e64297bb9adbec9c3c7d49c9fab61:0"), String::from("OK"))
+                (String::from("message:ethereum:0x302c20e77610ecff3e2dbd7ca7f422dd790efedbfec67a0330d9c705a77e9cc1:0"), String::from("Invalid transaction proof")),
+                (String::from("workersetmessage:0x9d3cf63d98fd73dcc7d2a325e104f29af16909a88725bdd94e88c3e0441b74d5:0"), String::from("OK")),
+                (String::from("workersetmessage:0xd190fddcf5ff9246ef2d267ca0746e1300f18120d31c48be2dd587468979f130:2"), String::from("OK")),
+                (String::from("message:ethereum:0xd190fddcf5ff9246ef2d267ca0746e1300f18120d31c48be2dd587468979f130:0"), String::from("OK"))
             ]
         );
         for (_index, content) in contents.iter().enumerate() {
             match content {
-                // this is the first content, with the broken transaction proof
                 ContentVariant::Message(m) => {
                     let res: Vec<(Message, bool)> = app
                         .wrap()
@@ -395,9 +398,8 @@ mod tests {
                             },
                         )
                         .unwrap();
-                    assert_eq!(res, vec![(m.clone(), false)]);
+                    assert_eq!(res, vec![(m.clone(), m.key() != "message:ethereum:0x302c20e77610ecff3e2dbd7ca7f422dd790efedbfec67a0330d9c705a77e9cc1:0")]);
                 }
-                // the second content should be validated
                 ContentVariant::WorkerSet(m) => {
                     let res: bool = app
                         .wrap()

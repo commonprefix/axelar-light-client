@@ -534,7 +534,7 @@ pub mod test_helpers {
                 genesis_root: Node::from_bytes(genesis_root_bytes),
                 forks: FORKS.to_vec(),
             },
-            gateway_address: String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5"),
+            gateway_address: String::from("0xAba4D993188008F665C972d79fc59AB2381eCe94"),
             finalization: FinalizationVariant::Finality(),
         }
     }
