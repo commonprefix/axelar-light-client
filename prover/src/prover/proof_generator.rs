@@ -215,7 +215,10 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<
         let block_root_index = *target_block_slot as usize % SLOTS_PER_HISTORICAL_ROOT;
         let start_slot = target_block_slot - block_root_index as u64;
 
-        let mut block_roots = self.consensus_rpc.get_block_roots_tree(start_slot).await?;
+        let mut block_roots = self
+            .consensus_rpc
+            .get_block_roots_for_period(start_slot / 32 / 256)
+            .await?;
 
         let gindex = get_generalized_index(
             &Vector::<Node, SLOTS_PER_HISTORICAL_ROOT>::default(),
