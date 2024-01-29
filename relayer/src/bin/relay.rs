@@ -17,7 +17,7 @@ async fn main() {
 
     let consensus = Arc::new(ConsensusRPC::new(
         config.consensus_rpc.clone(),
-        config.block_roots_rpc,
+        config.block_roots_rpc.clone(),
         eth_config,
     ));
     let execution = Arc::new(ExecutionRPC::new(config.execution_rpc.clone()));
