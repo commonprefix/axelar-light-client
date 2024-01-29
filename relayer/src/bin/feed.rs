@@ -22,7 +22,11 @@ async fn main() {
     let eth_config = EthConfig::from(config.clone());
     let sleep_duration = Duration::from_secs(config.feed_interval);
 
-    let consensus = Arc::new(ConsensusRPC::new(config.consensus_rpc.clone(), eth_config));
+    let consensus = Arc::new(ConsensusRPC::new(
+        config.consensus_rpc.clone(),
+        config.block_roots_rpc,
+        eth_config,
+    ));
     let mut verifier = Verifier::new(config.wasm_rpc, config.verifier_addr, config.wasm_wallet);
 
     loop {
