@@ -15,7 +15,11 @@ async fn main() {
     let prover_config = ProverConfig::from(config.clone());
     let eth_config = EthConfig::from(config.clone());
 
-    let consensus = Arc::new(ConsensusRPC::new(config.consensus_rpc.clone(), eth_config));
+    let consensus = Arc::new(ConsensusRPC::new(
+        config.consensus_rpc.clone(),
+        config.block_roots_rpc,
+        eth_config,
+    ));
     let execution = Arc::new(ExecutionRPC::new(config.execution_rpc.clone()));
     let prover = Arc::new(Prover::with_config(consensus.clone(), prover_config));
     let verifier = Verifier::new(

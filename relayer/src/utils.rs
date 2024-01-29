@@ -17,6 +17,7 @@ pub fn load_config() -> Config {
         execution_rpc: env::var("EXECUTION_RPC").expect("Missing EXECUTION_RPC from .env"),
         wasm_rpc: env::var("WASM_RPC").expect("Missing WASM_RPC from .env"),
         state_prover_rpc: env::var("STATE_PROVER_RPC").expect("Missing STATE_PROVER from .env"),
+        block_roots_rpc: env::var("BLOCK_ROOTS_RPC").expect("Missing BLOCK_ROOTS from .env"),
         gateway_addr: env::var("GATEWAY_ADDR").expect("Missing GATEWAY_ADDR from .env"),
         verifier_addr: env::var("VERIFIER_ADDR").expect("Missing VERIFIER_ADDR from .env"),
         sentinel_queue_addr: env::var("SENTINEL_QUEUE_ADDR")

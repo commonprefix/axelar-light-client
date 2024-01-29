@@ -41,6 +41,7 @@ pub struct Config {
     pub execution_rpc: String,
     pub wasm_rpc: String,
     pub state_prover_rpc: String,
+    pub block_roots_rpc: String,
     pub gateway_addr: String,
     pub verifier_addr: String,
     pub reject_historical_roots: bool,
