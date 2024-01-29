@@ -38,11 +38,19 @@ pub trait EthBeaconAPI: Sync + Send + 'static {
         &self,
         start_slot: u64,
     ) -> Result<Vector<Root, SLOTS_PER_HISTORICAL_ROOT>, RPCError>;
+
+    /// Similar to get_block_roots_tree but uses the Block Roots Archive to fetch the block roots
+    /// for the given period.
+    async fn get_block_roots_for_period(
+        &self,
+        period: u64,
+    ) -> Result<Vector<Root, SLOTS_PER_HISTORICAL_ROOT>, RPCError>;
 }
 
 /// A client for interacting with the Ethereum consensus layer.
 pub struct ConsensusRPC {
     rpc: String,
+    block_roots_rpc: String,
     client: ClientWithMiddleware,
 }
 
@@ -50,7 +58,7 @@ pub struct ConsensusRPC {
 impl ConsensusRPC {
     /// Create a new consensus rpc client. The client is configured with a
     /// retry policy that will retry transient errors up to 3 times.
-    pub fn new(rpc: String, config: EthConfig) -> Self {
+    pub fn new(rpc: String, block_roots_rpc: String, config: EthConfig) -> Self {
         let retry_policy =
             ExponentialBackoff::builder().build_with_max_retries(config.rpc_max_retries as u32);
 
@@ -65,7 +73,11 @@ impl ConsensusRPC {
             .with(RetryTransientMiddleware::new_with_policy(retry_policy))
             .build();
 
-        ConsensusRPC { rpc, client }
+        ConsensusRPC {
+            rpc,
+            block_roots_rpc,
+            client,
+        }
     }
 }
 
@@ -323,6 +335,38 @@ impl EthBeaconAPI for ConsensusRPC {
 
         Ok(block_roots)
     }
+
+    async fn get_block_roots_for_period(
+        &self,
+        period: u64,
+    ) -> Result<Vector<Root, SLOTS_PER_HISTORICAL_ROOT>, RPCError> {
+        let req = format!("{}/block_summary?period={}", self.block_roots_rpc, period);
+
+        let res = self
+            .client
+            .get(&req)
+            .send()
+            .await
+            .map_err(|e| RPCError::RequestError(e.to_string()))?;
+
+        if res.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(RPCError::NotFoundError(period.to_string()));
+        }
+
+        if res.status() != reqwest::StatusCode::OK {
+            return Err(RPCError::RequestError(format!(
+                "Unexpected status code: {}",
+                res.status()
+            )));
+        }
+
+        let response = res
+            .json::<BlockRootsArchiveResponse>()
+            .await
+            .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
+
+        Ok(response.data)
+    }
 }
 
 #[cfg(test)]
@@ -333,7 +377,7 @@ mod tests {
     fn setup_server_and_rpc() -> (Server, ConsensusRPC) {
         let server = Server::run();
         let url = server.url("");
-        let rpc = ConsensusRPC::new(url.to_string(), EthConfig::default());
+        let rpc = ConsensusRPC::new(url.to_string(), url.to_string(), EthConfig::default());
         (server, rpc)
     }
     #[tokio::test]
