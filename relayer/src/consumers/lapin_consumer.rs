@@ -41,11 +41,11 @@ impl Amqp for LapinConsumer {
 
             match message {
                 Some(message) => {
-                    println!("Got message: {:?}", message.delivery);
+                    debug!("Got message: {:?}", message.delivery);
                     deliveries.push(message.delivery);
                 }
                 None => {
-                    println!("Queue is empty");
+                    debug!("Queue is empty");
                     break; // Queue is empty, break the loop
                 }
             }

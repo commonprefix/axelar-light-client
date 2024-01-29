@@ -330,7 +330,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
     }
 
     pub async fn has_state(&self, state_id: &str) -> Result<bool, StateProverError> {
-        println!("Checking state for {}", state_id);
+        debug!("Checking state for {}", state_id);
         let req = format!(
             "{}/has_state?state_id={}&network={}",
             self.config.state_prover_rpc, state_id, self.config.network
@@ -342,7 +342,7 @@ impl<C: Amqp, P: ProverAPI, CR: EthBeaconAPI, ER: EthExecutionAPI, V: VerifierAP
             return Ok(false);
         }
 
-        println!("STATE WOULD PASS");
+        debug!("STATE WOULD PASS");
         Ok(true)
     }
 }
