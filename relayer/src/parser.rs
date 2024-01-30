@@ -1,6 +1,6 @@
-use crate::types::{ContractCallWithToken, EnrichedLog, OperatorshipTransferred};
+use crate::types::{ContractCall, EnrichedLog, OperatorshipTransferred};
 use consensus_types::{
-    common::{ContentVariant, WorkerSetMessage},
+    common::{ContentVariant, PrimaryKey, WorkerSetMessage},
     proofs::{CrossChainId, Message},
 };
 use eth::types::FullBlockDetails;
@@ -14,15 +14,16 @@ use prover::prover::types::EnrichedContent;
 
 /// The driver function for parsing an enriched log into an enriched content.
 /// This is the only place where we need to know about the different enriched log variants.
-/// Currenlty we support only ContractCallWithToken events.
+/// Currenlty we support only ContractCall and OperatorshipTransferred events.
 pub fn parse_enriched_log(
     enriched_log: &EnrichedLog,
     block_details: &FullBlockDetails,
+    delivery_tag: u64,
 ) -> Result<EnrichedContent> {
     let log = &enriched_log.log;
     match enriched_log.event_name.as_str() {
-        "ContractCallWithToken" => {
-            let event: ContractCallWithToken = EthEvent::decode_log(&RawLog::from(log.clone()))
+        "ContractCall" => {
+            let event: ContractCall = EthEvent::decode_log(&RawLog::from(log.clone()))
                 .map_err(|e| eyre!("Error decoding log {:?}", e))?;
             let message = Message {
                 cc_id: CrossChainId {
@@ -57,7 +58,7 @@ pub fn parse_enriched_log(
             enriched_log.log.log_index.unwrap(),
         )),
     }
-    .and_then(|content| enrich_content(&content, log, block_details))
+    .and_then(|content| enrich_content(&content, log, block_details, delivery_tag))
 }
 
 /// Enriches the content with the block details and the transaction hash.
@@ -65,6 +66,7 @@ fn enrich_content(
     content: &ContentVariant,
     log: &Log,
     block_details: &FullBlockDetails,
+    delivery_tag: u64,
 ) -> Result<EnrichedContent> {
     let msg = EnrichedContent {
         content: content.clone(),
@@ -72,6 +74,11 @@ fn enrich_content(
         beacon_block: block_details.beacon_block.clone(),
         receipts: block_details.receipts.clone(),
         tx_hash: log.transaction_hash.unwrap(),
+        id: match content {
+            ContentVariant::Message(message) => message.key(),
+            ContentVariant::WorkerSet(message) => message.key(),
+        },
+        delivery_tag,
     };
 
     Ok(msg)
@@ -161,11 +168,11 @@ mod tests {
 
     #[test]
     fn test_parse_enriched_log() {
-        let file = File::open("testdata/contract_call_with_token.json").unwrap();
+        let file = File::open("testdata/contract_call.json").unwrap();
         let enriched_log = serde_json::from_reader(file).unwrap();
         let block_details = create_test_block_details();
 
-        let result = parse_enriched_log(&enriched_log, &block_details);
+        let result = parse_enriched_log(&enriched_log, &block_details, 1);
         assert!(result.is_ok());
         let enriched_content = result.unwrap();
 
@@ -202,7 +209,7 @@ mod tests {
         });
         let block_details = create_test_block_details();
         let log = create_test_log(0, 5);
-        let enriched_content = enrich_content(&content, &log, &block_details).unwrap();
+        let enriched_content = enrich_content(&content, &log, &block_details, 1).unwrap();
 
         assert_eq!(enriched_content.exec_block, block_details.exec_block);
         assert_eq!(enriched_content.beacon_block, block_details.beacon_block);

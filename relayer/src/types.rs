@@ -1,8 +1,13 @@
-use consensus_types::{consensus::Update, lightclient::LightClientState};
+use consensus_types::{
+    common::WorkerSetMessage,
+    consensus::Update,
+    lightclient::LightClientState,
+    proofs::{BatchVerificationData, Message},
+};
 use eth::types::EthConfig;
 use ethers::{
     contract::EthEvent,
-    types::{Address, Bytes, Log, H256, U256},
+    types::{Address, Bytes, Log, H256},
 };
 use prover::prover::types::ProverConfig;
 use serde::{Deserialize, Serialize};
@@ -36,9 +41,10 @@ pub struct Config {
     pub execution_rpc: String,
     pub wasm_rpc: String,
     pub state_prover_rpc: String,
+    pub block_roots_rpc: String,
     pub gateway_addr: String,
     pub verifier_addr: String,
-    pub historical_roots_enabled: bool,
+    pub reject_historical_roots: bool,
     pub historical_roots_block_roots_batch_size: u64,
     pub verification_method: VerificationMethod,
     pub sentinel_queue_addr: String,
@@ -50,6 +56,8 @@ pub struct Config {
     pub max_batch_size: usize,
     pub process_interval: u64,
     pub feed_interval: u64,
+    pub wasm_wallet: String,
+    pub state_prover_check: bool,
 }
 
 impl From<Config> for ProverConfig {
@@ -59,7 +67,7 @@ impl From<Config> for ProverConfig {
             consensus_rpc: config.consensus_rpc,
             execution_rpc: config.execution_rpc,
             state_prover_rpc: config.state_prover_rpc,
-            historical_roots_enabled: config.historical_roots_enabled,
+            reject_historical_roots: config.reject_historical_roots,
             historical_roots_block_roots_batch_size: config.historical_roots_block_roots_batch_size,
         }
     }
@@ -77,7 +85,7 @@ impl From<Config> for EthConfig {
 
 // Events
 #[derive(Debug, Clone, EthEvent, PartialEq)]
-pub struct ContractCallWithToken {
+pub struct ContractCall {
     #[ethevent(indexed)]
     pub sender: Address,
     pub destination_chain: String,
@@ -85,8 +93,6 @@ pub struct ContractCallWithToken {
     #[ethevent(indexed)]
     pub payload_hash: H256,
     pub payload: Bytes,
-    pub symbol: String,
-    pub amount: U256,
 }
 
 #[derive(Debug, Clone, EthEvent, PartialEq)]
@@ -113,4 +119,40 @@ pub struct LightClientStateResult {
 pub struct UpdateExecuteMsg {
     #[serde(rename = "LightClientUpdate")]
     pub light_client_update: Update,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BatchVerificationDataRequest {
+    #[serde(rename = "BatchVerificationData")]
+    pub batch_verification_data: BatchVerificationData,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct IsWorkerSetVerifiedRequest {
+    pub is_worker_set_verified: WorkerSetMessage,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct IsWorkerSetVerifiedResult {
+    pub data: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct IsVerifiedMessages {
+    pub messages: Vec<Message>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct IsVerifiedRequest {
+    pub is_verified: IsVerifiedMessages,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct IsVerifiedResponse {
+    pub data: Vec<(Message, bool)>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct VerifyDataResponse {
+    pub data: String,
 }

@@ -29,7 +29,7 @@ use eth::consensus::ConsensusRPC;
 use ethers::types::{Block, Transaction, TransactionReceipt, H256};
 use eyre::{eyre, Context, Result};
 use indexmap::IndexMap;
-use log::{debug, error};
+use log::{debug, error, info};
 use mockall::automock;
 use std::sync::Arc;
 use types::BatchContentGroups;
@@ -205,6 +205,10 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         target_block_slot: u64,
         recent_block: &BeaconBlockHeader,
     ) -> Result<AncestryProof> {
+        info!(
+            "Will create proof from {} to {}",
+            recent_block.slot, target_block_slot
+        );
         if target_block_slot >= recent_block.slot {
             return Err(eyre!(
                 "Target block slot {} is greater than recent block slot {}",
@@ -269,6 +273,7 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         let receipt_proof = ReceiptProof {
             receipt_proof,
             receipts_root_proof: receipts_root_proof.witnesses,
+            receipts_root_gindex: receipts_root_proof.gindex,
             receipts_root: Node::from_bytes(exec_block.receipts_root.as_bytes().try_into()?),
         };
 
@@ -287,7 +292,7 @@ impl<PG: ProofGeneratorAPI> Prover<PG> {
         tx_index: u64,
     ) -> Result<TransactionProof> {
         let transaction =
-            beacon_block.body.execution_payload.transactions[tx_index as usize].clone();
+            beacon_block.body.execution_payload().transactions()[tx_index as usize].clone();
 
         let proof = self
             .proof_generator
@@ -375,8 +380,8 @@ mod tests {
         assert_eq!(target_blocks[1].transactions_proofs.len(), 2);
         assert_eq!(target_blocks[2].transactions_proofs.len(), 1);
 
-        for i in 0..target_blocks.len() {
-            for j in 0..target_blocks[i].transactions_proofs.len() {
+        for (i, target_block) in target_blocks.iter().enumerate() {
+            for j in 0..target_block.transactions_proofs.len() {
                 let content_count = target_blocks[i].transactions_proofs[j]
                     .content
                     .iter()

@@ -11,8 +11,8 @@ use crate::{lightclient::LightClient, state::*};
 use eyre::Result;
 
 use crate::execute::{self, process_batch_data};
-use crate::types::VerificationResult;
-use types::common::{ContentVariant, PrimaryKey};
+use crate::lightclient::helpers::LowerCaseFields;
+use types::common::{ContentVariant, PrimaryKey, VerificationResult};
 use types::connection_router::Message;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -97,13 +97,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             &messages
                 .into_iter()
                 .map(|message| {
-                    let result = VERIFIED_MESSAGES.load(deps.storage, message.hash());
+                    let result =
+                        VERIFIED_MESSAGES.load(deps.storage, message.to_lowercase().hash());
                     (message, result.is_ok())
                 })
                 .collect::<Vec<(Message, bool)>>(),
         ),
         IsWorkerSetVerified { message } => {
-            let result = VERIFIED_WORKER_SETS.load(deps.storage, message.key());
+            let result = VERIFIED_WORKER_SETS.load(deps.storage, message.to_lowercase().key());
             to_json_binary(&result.is_ok())
         }
         Ownership {} => to_json_binary(&get_ownership(deps.storage)?),
@@ -124,7 +125,7 @@ mod tests {
     use cosmwasm_std::{from_json, testing::mock_env, Addr, Timestamp};
     use cw_multi_test::{App, ContractWrapper, Executor};
     use cw_ownable::{Action, Ownership};
-    use types::common::{Config, ContentVariant};
+    use types::common::{Config, ContentVariant, PrimaryKey, VerificationResult};
     use types::connection_router::Message;
     use types::consensus::{Bootstrap, FinalityUpdate};
     use types::lightclient::LightClientState;
@@ -133,7 +134,6 @@ mod tests {
     use types::sync_committee_rs::constants::BlsSignature;
 
     use crate::msg::{InstantiateMsg, QueryMsg};
-    use crate::types::VerificationResult;
 
     fn deploy(bootstrap: Option<Bootstrap>) -> (App, Addr) {
         let mut app = App::default();
@@ -268,8 +268,9 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                (String::from("message:ethereum:0xc57b29866a593b73d15981c961c8e61380d4e471f08f5b58d441fc828e0f8166:6"), String::from("OK")),
-                (String::from("workersetmessage:0xcaabfb4729c106140393eaceca29a0d90e5e64297bb9adbec9c3c7d49c9fab61:0"), String::from("OK"))
+                (String::from("message:ethereum:0x9b7b2617eef7734bbb6e83464e955c205838790c1806ecf2a864d0c16395fe20:0"), String::from("OK")),
+                (String::from("workersetmessage:0x9b7b2617eef7734bbb6e83464e955c205838790c1806ecf2a864d0c16395fe20:2"), String::from("OK")),
+                (String::from("message:ethereum:0xabdb1b254e1f6b779611ae699e1c48188cb1f58013f51474e58a1842fe9d782e:0"), String::from("OK")),
             ]
         );
         for content in contents {
@@ -378,13 +379,13 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                (String::from("message:ethereum:0xc57b29866a593b73d15981c961c8e61380d4e471f08f5b58d441fc828e0f8166:6"), String::from("Invalid transaction proof")),
-                (String::from("workersetmessage:0xcaabfb4729c106140393eaceca29a0d90e5e64297bb9adbec9c3c7d49c9fab61:0"), String::from("OK"))
+                (String::from("message:ethereum:0x9b7b2617eef7734bbb6e83464e955c205838790c1806ecf2a864d0c16395fe20:0"), String::from("Invalid transaction proof")),
+                (String::from("workersetmessage:0x9b7b2617eef7734bbb6e83464e955c205838790c1806ecf2a864d0c16395fe20:2"), String::from("Invalid transaction proof")),
+                (String::from("message:ethereum:0xabdb1b254e1f6b779611ae699e1c48188cb1f58013f51474e58a1842fe9d782e:0"), String::from("OK")),
             ]
         );
         for (_index, content) in contents.iter().enumerate() {
             match content {
-                // this is the first content, with the broken transaction proof
                 ContentVariant::Message(m) => {
                     let res: Vec<(Message, bool)> = app
                         .wrap()
@@ -395,9 +396,8 @@ mod tests {
                             },
                         )
                         .unwrap();
-                    assert_eq!(res, vec![(m.clone(), false)]);
+                    assert_eq!(res, vec![(m.clone(), m.key() == "message:ethereum:0xabdb1b254e1f6b779611ae699e1c48188cb1f58013f51474e58a1842fe9d782e:0")]);
                 }
-                // the second content should be validated
                 ContentVariant::WorkerSet(m) => {
                     let res: bool = app
                         .wrap()
@@ -406,7 +406,7 @@ mod tests {
                             &QueryMsg::IsWorkerSetVerified { message: m.clone() },
                         )
                         .unwrap();
-                    assert!(res);
+                    assert_eq!(res, m.key() != "workersetmessage:0x9b7b2617eef7734bbb6e83464e955c205838790c1806ecf2a864d0c16395fe20:2");
                 }
             };
         }

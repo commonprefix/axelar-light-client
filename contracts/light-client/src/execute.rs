@@ -15,7 +15,7 @@ use types::{common::ContentVariant, consensus::Update};
 
 use crate::lightclient::helpers::{
     compare_content_with_log, extract_logs_from_receipt_proof, parse_message_id,
-    verify_ancestry_proof, verify_transaction_proof,
+    verify_ancestry_proof, verify_transaction_proof, LowerCaseFields,
 };
 use crate::lightclient::LightClient;
 use crate::state::{CONFIG, LIGHT_CLIENT_STATE, VERIFIED_MESSAGES, VERIFIED_WORKER_SETS};
@@ -169,11 +169,13 @@ pub fn process_batch_data(
         if content_variant_result.1.is_ok() {
             match &content_variant_result.0 {
                 ContentVariant::Message(message) => {
-                    VERIFIED_MESSAGES.save(deps.storage, message.hash(), message)?
+                    VERIFIED_MESSAGES.save(deps.storage, message.to_lowercase().hash(), message)?
                 }
-                ContentVariant::WorkerSet(message) => {
-                    VERIFIED_WORKER_SETS.save(deps.storage, message.key(), message)?
-                }
+                ContentVariant::WorkerSet(message) => VERIFIED_WORKER_SETS.save(
+                    deps.storage,
+                    message.to_lowercase().key(),
+                    message,
+                )?,
             }
         }
     }
@@ -205,8 +207,11 @@ pub mod tests {
     use crate::execute::{process_block_proofs, process_transaction_proofs, verify_content};
     use crate::lightclient::helpers::test_helpers::{
         filter_message_variants, filter_workerset_variants, get_batched_data, get_config,
+        get_gindex_overflow_data,
     };
-    use crate::lightclient::helpers::{extract_logs_from_receipt_proof, parse_message_id};
+    use crate::lightclient::helpers::{
+        extract_logs_from_receipt_proof, parse_message_id, LowerCaseFields,
+    };
     use crate::lightclient::tests::tests::init_lightclient;
     use crate::state::{CONFIG, VERIFIED_MESSAGES, VERIFIED_WORKER_SETS};
     use cosmwasm_std::testing::mock_dependencies;
@@ -239,7 +244,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_content_failures() {
-        let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
+        let gateway_address = String::from("0xAba4D993188008F665C972d79fc59AB2381eCe94");
         let verification_data = get_batched_data(false, "finality").1;
         let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
@@ -336,7 +341,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_message() {
-        let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
+        let gateway_address = String::from("0xAba4D993188008F665C972d79fc59AB2381eCe94");
         let verification_data = get_batched_data(false, "finality").1;
         let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
@@ -376,9 +381,9 @@ pub mod tests {
 
     #[test]
     fn test_verify_workerset_message() {
-        let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
+        let gateway_address = String::from("0xAba4D993188008F665C972d79fc59AB2381eCe94");
         let verification_data = get_batched_data(false, "finality").1;
-        let target_block_proofs = verification_data.target_blocks.get(1).unwrap();
+        let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
 
         let messages = filter_workerset_variants(proofs);
@@ -416,7 +421,7 @@ pub mod tests {
 
     #[test]
     fn test_process_transaction_proofs() {
-        let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
+        let gateway_address = String::from("0xAba4D993188008F665C972d79fc59AB2381eCe94");
         let data = get_batched_data(false, "finality").1;
 
         let block_proofs = data
@@ -438,8 +443,13 @@ pub mod tests {
 
         // test error from content
         let mut corrupted_proofs = transaction_proofs.clone();
-        let (_, mut messages) = filter_variants_as_mutref(&mut corrupted_proofs);
-        messages[0].cc_id.id = "invalid".to_string().try_into().unwrap();
+        let (workerset_messages, messages) = filter_variants_as_mutref(&mut corrupted_proofs);
+        for message in messages {
+            message.cc_id.id = "invalid".to_string().try_into().unwrap();
+        }
+        for message in workerset_messages {
+            message.message_id = "invalid".to_string().try_into().unwrap();
+        }
         let res =
             process_transaction_proofs(&corrupted_proofs, &target_block_root, &gateway_address);
         assert_invalid_contents(&corrupted_proofs.content, &res);
@@ -496,7 +506,7 @@ pub mod tests {
 
     #[test]
     fn test_process_block_proofs() {
-        let gateway_address = String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5");
+        let gateway_address = String::from("0xAba4D993188008F665C972d79fc59AB2381eCe94");
         let mut data = get_batched_data(false, "finality").1;
         let recent_block = data.update.recent_block();
 
@@ -551,13 +561,15 @@ pub mod tests {
                     .flat_map(|target_block| extract_content_from_block(target_block))
                     .collect::<Vec<ContentVariant>>();
 
-                println!("{:?}", res);
+                println!("{}, {}", historical, finalization);
                 assert!(res.is_ok());
                 assert_valid_contents(&contents, &res.unwrap());
                 for content in contents {
                     match content {
                         ContentVariant::Message(m) => {
-                            assert!(VERIFIED_MESSAGES.load(&mut deps.storage, m.hash()).is_ok());
+                            assert!(VERIFIED_MESSAGES
+                                .load(&mut deps.storage, m.to_lowercase().hash())
+                                .is_ok());
                         }
                         ContentVariant::WorkerSet(m) => {
                             assert!(VERIFIED_WORKER_SETS
@@ -602,6 +614,25 @@ pub mod tests {
                 assert!(res.is_ok());
                 assert_invalid_contents(&contents, &res.unwrap());
             }
+        }
+    }
+
+    #[test]
+    fn generalized_index_overflow() {
+        let data = get_gindex_overflow_data();
+        let recent_block = data.update.recent_block();
+
+        let gateway_address = String::from("0x557b0dc16d07cb297412a7da40a48615f7559765");
+        let results = data
+            .target_blocks
+            .iter()
+            .flat_map(|block_proofs_batch| {
+                process_block_proofs(&recent_block, block_proofs_batch, &gateway_address)
+            })
+            .collect::<Vec<(ContentVariant, Result<()>)>>();
+
+        for content_result in results {
+            assert!(content_result.1.is_ok());
         }
     }
 }

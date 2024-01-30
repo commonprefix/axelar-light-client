@@ -1,37 +1,29 @@
 use super::Amqp;
 use async_trait::async_trait;
-use eyre::{eyre, Ok, Result};
-use futures::StreamExt;
+use eyre::{eyre, Result};
 use lapin::{
-    options::{BasicAckOptions, BasicConsumeOptions, BasicNackOptions},
-    types::FieldTable,
-    Channel, Connection, ConnectionProperties, Consumer,
+    options::{BasicAckOptions, BasicGetOptions, BasicNackOptions},
+    Channel, Connection, ConnectionProperties,
 };
-use log::info;
+use log::{debug, info};
 use mockall::automock;
 
 pub struct LapinConsumer {
+    queue_name: String,
     channel: Channel,
-    consumer: Consumer,
 }
 
 impl LapinConsumer {
-    pub async fn new(queue_addr: &str, queue_name: &str) -> Self {
+    pub async fn new(queue_addr: &str, queue_name: String) -> Self {
         let connection = Connection::connect(queue_addr, ConnectionProperties::default())
             .await
             .unwrap();
         let channel = connection.create_channel().await.unwrap();
-        let consumer = channel
-            .basic_consume(
-                queue_name,
-                "relayer",
-                BasicConsumeOptions::default(),
-                FieldTable::default(),
-            )
-            .await
-            .unwrap();
 
-        Self { channel, consumer }
+        Self {
+            queue_name,
+            channel,
+        }
     }
 }
 
@@ -40,17 +32,25 @@ impl LapinConsumer {
 impl Amqp for LapinConsumer {
     async fn consume(&mut self, max_deliveries: usize) -> Result<Vec<(u64, String)>> {
         let mut deliveries = Vec::with_capacity(max_deliveries);
-        let mut count = 0;
 
-        while let Some(delivery) = self.consumer.next().await {
-            let (_, delivery) = delivery.expect("Error in consumer");
-            deliveries.push(delivery);
-            count += 1;
+        while deliveries.len() < max_deliveries {
+            let message = self
+                .channel
+                .basic_get(self.queue_name.as_str(), BasicGetOptions::default())
+                .await?;
 
-            if count >= max_deliveries {
-                break;
+            match message {
+                Some(message) => {
+                    debug!("Got message: {:?}", message.delivery);
+                    deliveries.push(message.delivery);
+                }
+                None => {
+                    debug!("Queue is empty");
+                    break; // Queue is empty, break the loop
+                }
             }
         }
+
         info!("Got {} logs from sentinel", deliveries.len());
 
         let result = deliveries
@@ -67,6 +67,8 @@ impl Amqp for LapinConsumer {
     }
 
     async fn nack_delivery(&self, delivery_tag: u64) -> Result<()> {
+        debug!("Nacking delivery {}", delivery_tag);
+
         let requeue_nack = BasicNackOptions {
             requeue: true,
             ..Default::default()
@@ -81,6 +83,7 @@ impl Amqp for LapinConsumer {
     }
 
     async fn ack_delivery(&self, delivery_tag: u64) -> Result<()> {
+        debug!("Acking delivery {}", delivery_tag);
         self.channel
             .basic_ack(delivery_tag, BasicAckOptions::default())
             .await

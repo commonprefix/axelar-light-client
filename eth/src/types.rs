@@ -1,7 +1,8 @@
 use ethers::types::{Block, Transaction, TransactionReceipt};
 use types::consensus::{BeaconBlockAlias, Bootstrap, FinalityUpdate, OptimisticUpdate, Update};
-use types::ssz_rs::Node;
+use types::ssz_rs::{Node, Vector};
 use types::sync_committee_rs::consensus_types::BeaconBlockHeader;
+use types::sync_committee_rs::constants::{Root, SLOTS_PER_HISTORICAL_ROOT};
 pub type UpdateResponse = Vec<UpdateData>;
 
 /// The basic configuration of the Beacon ETH client
@@ -83,4 +84,9 @@ pub struct BlockRootResponse {
 #[derive(serde::Deserialize, serde::Serialize, Debug, Default, Clone)]
 pub struct BlockRoot {
     pub root: Node,
+}
+
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+pub struct BlockRootsArchiveResponse {
+    pub data: Vector<Root, SLOTS_PER_HISTORICAL_ROOT>,
 }

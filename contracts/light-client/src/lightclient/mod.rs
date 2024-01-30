@@ -9,10 +9,7 @@ use helpers::is_proof_valid;
 use milagro_bls::{AggregateSignature, PublicKey};
 use types::common::ChainConfig;
 use types::ssz_rs::prelude::*;
-use types::sync_committee_rs::constants::{
-    Version, ALTAIR_FORK_EPOCH, ALTAIR_FORK_VERSION, BELLATRIX_FORK_EPOCH, BELLATRIX_FORK_VERSION,
-    CAPELLA_FORK_EPOCH, CAPELLA_FORK_VERSION, GENESIS_FORK_VERSION,
-};
+use types::sync_committee_rs::constants::{Version, GENESIS_FORK_VERSION};
 use types::sync_committee_rs::{
     consensus_types::{BeaconBlockHeader, ForkData, SyncCommittee},
     constants::{BlsSignature, Bytes32, SYNC_COMMITTEE_SIZE},
@@ -273,12 +270,21 @@ impl LightClient {
     fn get_fork_version(&self, slot: u64) -> Version {
         let epoch = slot / 32;
 
-        match epoch {
-            e if e >= CAPELLA_FORK_EPOCH => CAPELLA_FORK_VERSION,
-            e if e >= BELLATRIX_FORK_EPOCH => BELLATRIX_FORK_VERSION,
-            e if e >= ALTAIR_FORK_EPOCH => ALTAIR_FORK_VERSION,
-            _ => GENESIS_FORK_VERSION,
-        }
+        let mut forks = self.chain_config.forks.clone();
+
+        // sort in descending order by epoch
+        forks.sort_by(|a, b| b.0.cmp(&a.0));
+
+        return forks
+            .iter()
+            .find_map(|&(fork_epoch, fork_version)| {
+                if fork_epoch <= epoch {
+                    Some(fork_version)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(GENESIS_FORK_VERSION);
     }
 
     fn get_participating_keys(

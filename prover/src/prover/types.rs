@@ -25,13 +25,15 @@ pub struct ProofResponse {
     pub leaf: Node,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct EnrichedContent {
+    pub id: String,
     pub content: ContentVariant,
     pub tx_hash: H256,
     pub exec_block: Block<Transaction>,
     pub beacon_block: BeaconBlockAlias,
     pub receipts: Vec<TransactionReceipt>,
+    pub delivery_tag: u64,
 }
 
 #[derive(Debug, PartialEq)]
@@ -45,7 +47,7 @@ pub struct ProverConfig {
     pub consensus_rpc: String,
     pub execution_rpc: String,
     pub state_prover_rpc: String,
-    pub historical_roots_enabled: bool,
+    pub reject_historical_roots: bool,
     pub historical_roots_block_roots_batch_size: u64,
 }
 

@@ -55,7 +55,7 @@ pub fn to_beacon_header(block: &BeaconBlockAlias) -> eyre::Result<BeaconBlockHea
         parent_root: block.parent_root,
         proposer_index: block.proposer_index,
         state_root: block.state_root,
-        body_root: (block.body.clone()).hash_tree_root()?,
+        body_root: block.body.clone().hash_tree_root()?,
     })
 }
 

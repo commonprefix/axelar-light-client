@@ -215,7 +215,10 @@ impl<CR: EthBeaconAPI, SP: StateProverAPI> ProofGeneratorAPI for ProofGenerator<
         let block_root_index = *target_block_slot as usize % SLOTS_PER_HISTORICAL_ROOT;
         let start_slot = target_block_slot - block_root_index as u64;
 
-        let mut block_roots = self.consensus_rpc.get_block_roots_tree(start_slot).await?;
+        let mut block_roots = self
+            .consensus_rpc
+            .get_block_roots_for_period(start_slot / 32 / 256)
+            .await?;
 
         let gindex = get_generalized_index(
             &Vector::<Node, SLOTS_PER_HISTORICAL_ROOT>::default(),
@@ -335,6 +338,15 @@ mod tests {
             Ok(tree)
         });
 
+        consensus
+            .expect_get_block_roots_for_period()
+            .returning(|_| {
+                let file = File::open("./src/prover/testdata/block_roots.json").unwrap();
+                let tree: Vector<_, SLOTS_PER_HISTORICAL_ROOT> =
+                    serde_json::from_reader(file).unwrap();
+                Ok(tree)
+            });
+
         let mut state_prover = MockStateProver::new();
 
         state_prover
@@ -395,7 +407,7 @@ mod tests {
         let proof_generator = ProofGenerator::new(consensus, state_prover);
         let tx_index = 15;
 
-        let transaction = &mut block.body.execution_payload.transactions[tx_index];
+        let transaction = &mut block.body.execution_payload_mut().transactions_mut()[tx_index];
         let node = transaction.hash_tree_root().unwrap();
 
         let proof = proof_generator
@@ -421,7 +433,7 @@ mod tests {
 
         let tx_index = 15;
 
-        let transaction = &mut block.body.execution_payload.transactions[tx_index];
+        let transaction = &mut block.body.execution_payload_mut().transactions_mut()[tx_index];
         transaction[0] = 0;
 
         let node = transaction.hash_tree_root().unwrap();
@@ -452,7 +464,7 @@ mod tests {
         let tx_index = 15;
 
         // Different transaction
-        let transaction = &mut block.body.execution_payload.transactions[16];
+        let transaction = &mut block.body.execution_payload_mut().transactions_mut()[16];
         let node = transaction.hash_tree_root().unwrap();
 
         let proof = proof_generator
@@ -477,7 +489,7 @@ mod tests {
         let proof_generator = ProofGenerator::new(consensus, state_prover);
 
         let tx_index = 15;
-        let transaction = &mut block.body.execution_payload.transactions[tx_index];
+        let transaction = &mut block.body.execution_payload_mut().transactions_mut()[tx_index];
         let node = transaction.hash_tree_root().unwrap();
 
         let proof = proof_generator
@@ -504,7 +516,7 @@ mod tests {
             setup_block_and_provers(7807119).await;
         let proof_generator = ProofGenerator::new(consensus, state_prover);
         let tx_index = 15;
-        let transaction = &mut block.body.execution_payload.transactions[tx_index];
+        let transaction = &mut block.body.execution_payload_mut().transactions_mut()[tx_index];
         let node = transaction.hash_tree_root().unwrap();
 
         let proof = proof_generator
@@ -539,8 +551,8 @@ mod tests {
         let is_proof_valid = verify_merkle_proof(
             &block
                 .body
-                .execution_payload
-                .receipts_root
+                .execution_payload_mut()
+                .receipts_root_mut()
                 .hash_tree_root()
                 .unwrap(),
             proof.witnesses.as_slice(),
@@ -568,8 +580,8 @@ mod tests {
         let is_proof_valid = verify_merkle_proof(
             &block
                 .body
-                .execution_payload
-                .receipts_root
+                .execution_payload_mut()
+                .receipts_root_mut()
                 .hash_tree_root()
                 .unwrap(),
             &invalid_proof,

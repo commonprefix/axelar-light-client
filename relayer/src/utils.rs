@@ -3,6 +3,10 @@ use std::{env, str::FromStr};
 
 use crate::types::{Config, VerificationMethod};
 
+pub fn is_in_slot_range(slot: u64, start_slot: u64, end_slot: u64) -> bool {
+    slot >= start_slot && slot < end_slot
+}
+
 /// Loads the full relayer configuration from the environment variables.
 pub fn load_config() -> Config {
     dotenv().ok();
@@ -13,13 +17,14 @@ pub fn load_config() -> Config {
         execution_rpc: env::var("EXECUTION_RPC").expect("Missing EXECUTION_RPC from .env"),
         wasm_rpc: env::var("WASM_RPC").expect("Missing WASM_RPC from .env"),
         state_prover_rpc: env::var("STATE_PROVER_RPC").expect("Missing STATE_PROVER from .env"),
+        block_roots_rpc: env::var("BLOCK_ROOTS_RPC").expect("Missing BLOCK_ROOTS from .env"),
         gateway_addr: env::var("GATEWAY_ADDR").expect("Missing GATEWAY_ADDR from .env"),
         verifier_addr: env::var("VERIFIER_ADDR").expect("Missing VERIFIER_ADDR from .env"),
         sentinel_queue_addr: env::var("SENTINEL_QUEUE_ADDR")
             .expect("Missing SENTINEL_QUEUE_ADDR from .env"),
         sentinel_queue_name: env::var("SENTINEL_QUEUE_NAME")
             .expect("Missing SENTINEL_QUEUE_NAME from .env"),
-        historical_roots_enabled: true,
+        reject_historical_roots: true,
         historical_roots_block_roots_batch_size: 1000,
         verification_method: VerificationMethod::from_str(
             env::var("VERIFICATION_METHOD")
@@ -69,6 +74,8 @@ pub fn load_config() -> Config {
                 .as_str(),
         )
         .unwrap(),
+        wasm_wallet: env::var("WASM_WALLET").expect("Missing WASM_WALLET from .env"),
+        state_prover_check: true,
     }
 }
 

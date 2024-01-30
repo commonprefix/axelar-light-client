@@ -12,12 +12,10 @@ use types::alloy_rlp::encode;
 use types::common::{ContentVariant, WorkerSetMessage};
 use types::connection_router::state::{Message, ID_SEPARATOR};
 use types::execution::{ContractCallBase, ReceiptLog};
-use types::execution::{
-    GatewayEvent, OperatorshipTransferredBase, ReceiptLogs, RECEIPTS_ROOT_GINDEX,
-};
-use types::proofs::{nonempty, AncestryProof, ReceiptProof, TransactionProof};
+use types::execution::{GatewayEvent, OperatorshipTransferredBase, ReceiptLogs};
+use types::proofs::{nonempty, AncestryProof, CrossChainId, ReceiptProof, TransactionProof};
 use types::ssz_rs::{
-    get_generalized_index, is_valid_merkle_branch, verify_merkle_proof, GeneralizedIndex,
+    get_generalized_index, is_valid_merkle_branch, verify_merkle_proof, GeneralizedIndex64,
     Merkleized, Node, SszVariableOrIndex, Vector,
 };
 use types::sync_committee_rs::consensus_types::BeaconBlockHeader;
@@ -26,6 +24,11 @@ use types::sync_committee_rs::constants::{Bytes32, Root, SLOTS_PER_HISTORICAL_RO
 /// Trait implemented from messages to compare with the appropriate event
 pub trait Comparison<E> {
     fn compare_with_event(&self, event: E) -> Result<()>;
+}
+
+/// Trait implemented from messages to convert string fields to lowercase
+pub trait LowerCaseFields: Sized {
+    fn to_lowercase(&self) -> Self;
 }
 
 pub fn is_proof_valid<L: Merkleized>(
@@ -105,7 +108,7 @@ pub fn verify_block_roots_proof(
     if !verify_merkle_proof(
         leaf_root,
         block_root_proof.as_slice(),
-        &GeneralizedIndex(*block_roots_index as usize),
+        &GeneralizedIndex64(*block_roots_index),
         root,
     ) {
         return Err(ContractError::InvalidBlockRootsProof.into());
@@ -125,6 +128,7 @@ pub fn verify_historical_roots_proof(
 
     let block_root_index = target_block.slot as usize % SLOTS_PER_HISTORICAL_ROOT;
     let block_root_gindex = get_generalized_index(
+        // TODO: check if it overflows, maybe use u64
         &Vector::<Node, SLOTS_PER_HISTORICAL_ROOT>::default(),
         &[SszVariableOrIndex::Index(block_root_index)],
     );
@@ -139,7 +143,7 @@ pub fn verify_historical_roots_proof(
     let valid_block_summary_root_proof = verify_merkle_proof(
         block_summary_root,
         block_summary_root_proof.as_slice(),
-        &GeneralizedIndex(*block_summary_root_gindex as usize),
+        &GeneralizedIndex64(*block_summary_root_gindex),
         recent_block_state_root,
     );
 
@@ -158,7 +162,7 @@ pub fn extract_logs_from_receipt_proof(
     if !verify_merkle_proof(
         &proof.receipts_root,
         &proof.receipts_root_proof,
-        &GeneralizedIndex(RECEIPTS_ROOT_GINDEX),
+        &GeneralizedIndex64(proof.receipts_root_gindex),
         target_block_root,
     ) {
         return Err(ContractError::InvalidReceiptsBranchProof.into());
@@ -189,7 +193,7 @@ pub fn verify_transaction_proof(proof: &TransactionProof, target_block_root: &No
     if !verify_merkle_proof(
         &proof.transaction.clone().hash_tree_root()?,
         proof.transaction_proof.as_slice(),
-        &GeneralizedIndex(proof.transaction_gindex as usize),
+        &GeneralizedIndex64(proof.transaction_gindex),
         target_block_root,
     ) {
         return Err(ContractError::InvalidTransactionProof.into());
@@ -320,6 +324,41 @@ pub fn parse_message_id(id: &nonempty::String) -> Result<(String, usize)> {
     Ok((tx_hash.to_string(), components[1].parse::<usize>()?))
 }
 
+impl LowerCaseFields for Message {
+    fn to_lowercase(&self) -> Message {
+        Message {
+            cc_id: CrossChainId {
+                id: self.cc_id.id.to_lowercase().try_into().unwrap(),
+                chain: self
+                    .cc_id
+                    .chain
+                    .to_string()
+                    .to_lowercase()
+                    .try_into()
+                    .unwrap(),
+            },
+            source_address: self.source_address.to_lowercase().try_into().unwrap(),
+            destination_address: self.destination_address.to_lowercase().try_into().unwrap(),
+            destination_chain: self
+                .destination_chain
+                .to_string()
+                .to_lowercase()
+                .try_into()
+                .unwrap(),
+            payload_hash: self.payload_hash,
+        }
+    }
+}
+
+impl LowerCaseFields for WorkerSetMessage {
+    fn to_lowercase(&self) -> WorkerSetMessage {
+        WorkerSetMessage {
+            message_id: self.message_id.to_lowercase().try_into().unwrap(),
+            new_operators_data: self.new_operators_data.to_owned(),
+        }
+    }
+}
+
 impl Comparison<ContractCallBase> for Message {
     fn compare_with_event(&self, event: ContractCallBase) -> Result<()> {
         if event.source_address.is_none()
@@ -401,6 +440,7 @@ pub fn calc_sync_period(slot: u64) -> u64 {
 pub mod test_helpers {
     use ethabi::{decode, ParamType};
     use std::fs::File;
+    use types::sync_committee_rs::constants::FORKS;
 
     use types::common::{Config, FinalizationVariant, WorkerSetMessage};
     use types::connection_router::state::Message;
@@ -460,6 +500,13 @@ pub mod test_helpers {
         (bootstrap, verification_data)
     }
 
+    pub fn get_gindex_overflow_data() -> BatchVerificationData {
+        let file_name = "testdata/verification/overflow_gindex.json";
+        let verification_file = File::open(file_name).unwrap();
+
+        serde_json::from_reader(verification_file).unwrap()
+    }
+
     pub fn get_finality_update() -> UpdateVariant {
         let verification_file = File::open(format!("testdata/verification/update.json")).unwrap();
         serde_json::from_reader(verification_file).unwrap()
@@ -485,8 +532,9 @@ pub mod test_helpers {
                 chain_id: 1,
                 genesis_time: 1606824023,
                 genesis_root: Node::from_bytes(genesis_root_bytes),
+                forks: FORKS.to_vec(),
             },
-            gateway_address: String::from("0x4F4495243837681061C4743b74B3eEdf548D56A5"),
+            gateway_address: String::from("0xAba4D993188008F665C972d79fc59AB2381eCe94"),
             finalization: FinalizationVariant::Finality(),
         }
     }
