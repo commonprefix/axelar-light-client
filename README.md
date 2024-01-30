@@ -6,15 +6,14 @@ Sync Committee protocol of Ethereum to bridge events from Ethereum to Axelar.
 More on the [Light Client Architecture](https://commonprefix.notion.site/Light-Client-Architecture-Draft-8fe5486c958e479ab41cdfc36a3d59ed?pvs=4)
 
 This repo is a collection of modules that work together to implement a light client.
-- **Light Client**: The core source of the verifier.
-- **Contracts** The module that packages the light client verifier in an on-chain CosmWasm contract.
-- **Feeder**: Off-chain component that will feed the light client with Update
-messages to keep up with the latest sync-committee.
-- **Types**: Common types used across the different modules.
-- **Relayer**: The core off-chain component, responsible for consuming the
-events from the queue, generating the the necessary proofs, and providing them
-to the verifier along with the event.
-- **Eth** An auxiliary package for querying the Ethereum beacon and execution APIs.
+- **[Relayer/Feeder](https://github.com/commonprefix/axelar-light-client/tree/main/relayer)**: The core off-chain component, responsible for consuming
+the events from the queue, generating the the necessary proofs, and providing
+them to the verifier along with the event. It also includes an off-chain
+component that will feed the light client with Update messages to keep up with
+the latest sync-committee.
+- **[Light Client](https://github.com/commonprefix/axelar-light-client/tree/main/contracts/light-client)**: The core source of the verifier.
+- **[Types](https://github.com/commonprefix/axelar-light-client/tree/main/types)**: Common types used across the different modules.
+- **[Eth](https://github.com/commonprefix/axelar-light-client/tree/main/eth)** An auxiliary package for querying the Ethereum beacon and execution APIs.
 
 More details about the packages are in their corresponding READMEs.
 
