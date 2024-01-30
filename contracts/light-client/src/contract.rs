@@ -268,10 +268,9 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                (String::from("message:ethereum:0x302c20e77610ecff3e2dbd7ca7f422dd790efedbfec67a0330d9c705a77e9cc1:0"), String::from("OK")),
-                (String::from("workersetmessage:0x9d3cf63d98fd73dcc7d2a325e104f29af16909a88725bdd94e88c3e0441b74d5:0"), String::from("OK")),
-                (String::from("workersetmessage:0xd190fddcf5ff9246ef2d267ca0746e1300f18120d31c48be2dd587468979f130:2"), String::from("OK")),
-                (String::from("message:ethereum:0xd190fddcf5ff9246ef2d267ca0746e1300f18120d31c48be2dd587468979f130:0"), String::from("OK"))
+                (String::from("message:ethereum:0x9b7b2617eef7734bbb6e83464e955c205838790c1806ecf2a864d0c16395fe20:0"), String::from("OK")),
+                (String::from("workersetmessage:0x9b7b2617eef7734bbb6e83464e955c205838790c1806ecf2a864d0c16395fe20:2"), String::from("OK")),
+                (String::from("message:ethereum:0xabdb1b254e1f6b779611ae699e1c48188cb1f58013f51474e58a1842fe9d782e:0"), String::from("OK")),
             ]
         );
         for content in contents {
@@ -380,10 +379,9 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                (String::from("message:ethereum:0x302c20e77610ecff3e2dbd7ca7f422dd790efedbfec67a0330d9c705a77e9cc1:0"), String::from("Invalid transaction proof")),
-                (String::from("workersetmessage:0x9d3cf63d98fd73dcc7d2a325e104f29af16909a88725bdd94e88c3e0441b74d5:0"), String::from("OK")),
-                (String::from("workersetmessage:0xd190fddcf5ff9246ef2d267ca0746e1300f18120d31c48be2dd587468979f130:2"), String::from("OK")),
-                (String::from("message:ethereum:0xd190fddcf5ff9246ef2d267ca0746e1300f18120d31c48be2dd587468979f130:0"), String::from("OK"))
+                (String::from("message:ethereum:0x9b7b2617eef7734bbb6e83464e955c205838790c1806ecf2a864d0c16395fe20:0"), String::from("Invalid transaction proof")),
+                (String::from("workersetmessage:0x9b7b2617eef7734bbb6e83464e955c205838790c1806ecf2a864d0c16395fe20:2"), String::from("Invalid transaction proof")),
+                (String::from("message:ethereum:0xabdb1b254e1f6b779611ae699e1c48188cb1f58013f51474e58a1842fe9d782e:0"), String::from("OK")),
             ]
         );
         for (_index, content) in contents.iter().enumerate() {
@@ -398,7 +396,7 @@ mod tests {
                             },
                         )
                         .unwrap();
-                    assert_eq!(res, vec![(m.clone(), m.key() != "message:ethereum:0x302c20e77610ecff3e2dbd7ca7f422dd790efedbfec67a0330d9c705a77e9cc1:0")]);
+                    assert_eq!(res, vec![(m.clone(), m.key() == "message:ethereum:0xabdb1b254e1f6b779611ae699e1c48188cb1f58013f51474e58a1842fe9d782e:0")]);
                 }
                 ContentVariant::WorkerSet(m) => {
                     let res: bool = app
@@ -408,7 +406,7 @@ mod tests {
                             &QueryMsg::IsWorkerSetVerified { message: m.clone() },
                         )
                         .unwrap();
-                    assert!(res);
+                    assert_eq!(res, m.key() != "workersetmessage:0x9b7b2617eef7734bbb6e83464e955c205838790c1806ecf2a864d0c16395fe20:2");
                 }
             };
         }

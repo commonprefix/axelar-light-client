@@ -383,7 +383,7 @@ pub mod tests {
     fn test_verify_workerset_message() {
         let gateway_address = String::from("0xAba4D993188008F665C972d79fc59AB2381eCe94");
         let verification_data = get_batched_data(false, "finality").1;
-        let target_block_proofs = verification_data.target_blocks.get(1).unwrap();
+        let target_block_proofs = verification_data.target_blocks.get(0).unwrap();
         let proofs = target_block_proofs.transactions_proofs.get(0).unwrap();
 
         let messages = filter_workerset_variants(proofs);
@@ -443,8 +443,13 @@ pub mod tests {
 
         // test error from content
         let mut corrupted_proofs = transaction_proofs.clone();
-        let (_, mut messages) = filter_variants_as_mutref(&mut corrupted_proofs);
-        messages[0].cc_id.id = "invalid".to_string().try_into().unwrap();
+        let (workerset_messages, messages) = filter_variants_as_mutref(&mut corrupted_proofs);
+        for message in messages {
+            message.cc_id.id = "invalid".to_string().try_into().unwrap();
+        }
+        for message in workerset_messages {
+            message.message_id = "invalid".to_string().try_into().unwrap();
+        }
         let res =
             process_transaction_proofs(&corrupted_proofs, &target_block_root, &gateway_address);
         assert_invalid_contents(&corrupted_proofs.content, &res);
@@ -556,7 +561,7 @@ pub mod tests {
                     .flat_map(|target_block| extract_content_from_block(target_block))
                     .collect::<Vec<ContentVariant>>();
 
-                println!("{:?}", res);
+                println!("{}, {}", historical, finalization);
                 assert!(res.is_ok());
                 assert_valid_contents(&contents, &res.unwrap());
                 for content in contents {
