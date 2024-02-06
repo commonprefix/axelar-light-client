@@ -13,7 +13,9 @@ The LightClient is initialized with an instantiate message, which contains a [Li
 
 It is suggested to use an optimizer to build the smart contract. The LightClient has been tested with both the [CosmWasm rust-optimizer](https://github.com/CosmWasm/rust-optimizer) and [cw-optimizoor](https://github.com/mandrean/cw-optimizoor), but cw-optimizoor was much faster with similar results. In the root of the project, run: `cargo cw-optimizoor`.
 
-**Note**: For the current Axelar Devnet, build the contract using Rust version 1.69.0
+**Note 1**: For the current Axelar Devnet, build the contract using Rust version 1.69.0
+
+**Note 2**: The default setting is to build for Ethereum Mainnet. If you want to build for Goerli or Sepolia, you need to update `types/Cargo.toml` and update the **features** of the **sync-committee-rs** package from **mainnet** to the target chain.
 
 ### Deploy
 
