@@ -30,6 +30,8 @@ Wasm URL.
 - Go to the `relayer` package and follow the instructions mentioned there for
 running both the feeder and the relayer.
 
+## Documentation
+Along with the README files, code documentation is also available using the `cargo doc --open` command.
 
 ## Acknowledgments
 This project uses open-source code from the following projects. We are deeply
