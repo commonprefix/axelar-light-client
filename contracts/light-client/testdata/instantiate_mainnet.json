@@ -3,10 +3,26 @@
     "chain_config": {
       "chain_id": 1,
       "genesis_time": 1606824023,
-      "genesis_root": "0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95"
+      "genesis_root": "0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95",
+      "forks": [
+        [
+          74240,
+          "0x01000000"
+        ],
+        [
+          144896,
+          "0x02000000"
+        ],
+        [
+          194048,
+          "0x03000000"
+        ]
+      ]
     },
-    "gateway_address": "",
-    "finalization": {"Finality": []}
+    "gateway_address": "0xAba4D993188008F665C972d79fc59AB2381eCe94",
+    "finalization": {
+      "Optimistic": []
+    }
   },
   "bootstrap": {
     "header": {
