@@ -188,33 +188,13 @@
             {
               "WorkerSet": {
                 "message_id": "0xd190fddcf5ff9246ef2d267ca0746e1300f18120d31c48be2dd587468979f130:2",
-                "new_operators_data": [
-                  111,
-                  112,
-                  101,
-                  114,
-                  97,
-                  116,
-                  111,
-                  114,
-                  115
-                ]
+                "new_operators_data": "6f70657261746f7273"
               }
             },
             {
               "WorkerSet": {
                 "message_id": "0xd190fddcf5ff9246ef2d267ca0746e1300f18120d31c48be2dd587468979f130:2",
-                "new_operators_data": [
-                  111,
-                  112,
-                  101,
-                  114,
-                  97,
-                  116,
-                  111,
-                  114,
-                  115
-                ]
+                "new_operators_data": "6f70657261746f7273"
               }
             }
           ]
