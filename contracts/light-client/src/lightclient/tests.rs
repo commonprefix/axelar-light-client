@@ -664,7 +664,7 @@ pub mod tests {
 
         assert!(message.compare_with_event(event.clone()).is_ok());
         let mut modified_message = message.clone();
-        modified_message.new_operators_data = vec![];
+        modified_message.new_operators_data = String::from("");
         assert!(modified_message.compare_with_event(event.clone()).is_err());
     }
 
@@ -690,7 +690,7 @@ pub mod tests {
         let mut modified_workerset_message = workerset_message.clone();
 
         modified_message.payload_hash = <[u8; 32]>::default();
-        modified_workerset_message.new_operators_data = vec![];
+        modified_workerset_message.new_operators_data = String::from("");
         assert!(compare_content_with_log(
             ContentVariant::Message(modified_message.clone()),
             &contractcall_log
@@ -742,10 +742,12 @@ pub mod tests {
         };
         assert_eq!(
             event.new_operators_data.unwrap(),
-            decode(&[ParamType::Bytes], log.data.as_slice()).unwrap()[0]
-                .clone()
-                .into_bytes()
-                .unwrap()
+            hex::encode(
+                decode(&[ParamType::Bytes], log.data.as_slice()).unwrap()[0]
+                    .clone()
+                    .into_bytes()
+                    .unwrap()
+            )
         );
     }
 

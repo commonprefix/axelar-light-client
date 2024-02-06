@@ -24,7 +24,7 @@ pub struct ContractCallBase {
 /// Structure of an OperatorshipTransferred event, emitted from the Gateway
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct OperatorshipTransferredBase {
-    pub new_operators_data: Option<Vec<u8>>,
+    pub new_operators_data: Option<String>,
 }
 
 #[derive(Debug, PartialEq)]

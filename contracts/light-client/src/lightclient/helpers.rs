@@ -276,7 +276,7 @@ pub fn parse_operatorship_transferred_event(
 
     Ok(GatewayEvent::OperatorshipTransferred(
         OperatorshipTransferredBase {
-            new_operators_data: Some(Vec::from(new_operators_data)),
+            new_operators_data: Some(hex::encode(new_operators_data)),
         },
     ))
 }
@@ -603,10 +603,12 @@ pub mod test_helpers {
         let file = File::open("testdata/receipt_log_operatorship.json").unwrap();
         let log: ReceiptLog = serde_json::from_reader(file).unwrap();
         let message = WorkerSetMessage {
-            new_operators_data: decode(&[ParamType::Bytes], log.data.as_slice()).unwrap()[0]
-                .clone()
-                .into_bytes()
-                .unwrap(),
+            new_operators_data: hex::encode(
+                decode(&[ParamType::Bytes], log.data.as_slice()).unwrap()[0]
+                    .clone()
+                    .into_bytes()
+                    .unwrap(),
+            ),
             message_id: String::from("foo:bar").try_into().unwrap(),
         };
         (message, log)

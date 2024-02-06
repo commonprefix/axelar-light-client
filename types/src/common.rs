@@ -48,7 +48,7 @@ pub struct Config {
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone, JsonSchema)]
 pub struct WorkerSetMessage {
     pub message_id: nonempty::String,
-    pub new_operators_data: Vec<u8>,
+    pub new_operators_data: String,
 }
 
 /// Message variants that the Light Client can verify

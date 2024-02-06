@@ -8,6 +8,7 @@ use ethers::{
     abi::RawLog,
     contract::EthEvent,
     types::{Log, TransactionReceipt},
+    utils::hex,
 };
 use eyre::{eyre, Result};
 use prover::prover::types::EnrichedContent;
@@ -46,7 +47,7 @@ pub fn parse_enriched_log(
                     .map_err(|e| eyre!("Error decoding log {:?}", e))?;
             let message = WorkerSetMessage {
                 message_id: generate_id(log, block_details.receipts.as_slice()).try_into()?,
-                new_operators_data: event.new_operators_data.to_vec(),
+                new_operators_data: hex::encode(event.new_operators_data),
             };
 
             Ok(ContentVariant::WorkerSet(message))
