@@ -1,6 +1,5 @@
 use crate::{error::RPCError, types::*};
 use async_trait::async_trait;
-use futures::future;
 use mockall::automock;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
