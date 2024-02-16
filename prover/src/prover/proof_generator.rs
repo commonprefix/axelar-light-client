@@ -332,12 +332,6 @@ mod tests {
             Ok(res)
         });
 
-        consensus.expect_get_block_roots_tree().returning(|_| {
-            let file = File::open("./src/prover/testdata/block_roots.json").unwrap();
-            let tree: Vector<_, SLOTS_PER_HISTORICAL_ROOT> = serde_json::from_reader(file).unwrap();
-            Ok(tree)
-        });
-
         consensus
             .expect_get_block_roots_for_period()
             .returning(|_| {
