@@ -168,7 +168,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_enriched_log() {
+    fn test_parse_enriched_log_contract_call() {
         let file = File::open("testdata/contract_call.json").unwrap();
         let enriched_log = serde_json::from_reader(file).unwrap();
         let block_details = create_test_block_details();
@@ -191,6 +191,35 @@ mod tests {
                     message.cc_id.id.to_string(),
                     format!("0x{:x}:{}", enriched_log.log.transaction_hash.unwrap(), 5)
                 );
+            }
+            _ => panic!("Unexpected content variant"),
+        }
+    }
+
+    #[test]
+    fn test_parse_enriched_log_operatorship_transferred() {
+        let file = File::open("testdata/operatorship_transferred.json").unwrap();
+        let enriched_log = serde_json::from_reader(file).unwrap();
+        let block_details = create_test_block_details();
+
+        let result = parse_enriched_log(&enriched_log, &block_details, 1);
+        assert!(result.is_ok());
+        let enriched_content = result.unwrap();
+
+        assert_eq!(enriched_content.exec_block, block_details.exec_block);
+        assert_eq!(enriched_content.beacon_block, block_details.beacon_block);
+        assert_eq!(enriched_content.receipts, block_details.receipts);
+        assert_eq!(
+            enriched_content.tx_hash,
+            enriched_log.log.transaction_hash.unwrap()
+        );
+        match enriched_content.content {
+            ContentVariant::WorkerSet(message) => {
+                assert_eq!(
+                    message.message_id.to_string(),
+                    format!("0x{:x}:{}", enriched_log.log.transaction_hash.unwrap(), 5)
+                );
+                assert_eq!(message.new_operators_data, "6f70657261746f7273");
             }
             _ => panic!("Unexpected content variant"),
         }
