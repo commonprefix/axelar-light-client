@@ -86,7 +86,7 @@ pub struct BlockRoot {
     pub root: Node,
 }
 
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, serde::Deserialize, serde::Serialize, Default)]
 pub struct BlockRootsArchiveResponse {
     pub data: Vector<Root, SLOTS_PER_HISTORICAL_ROOT>,
 }

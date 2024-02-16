@@ -324,7 +324,11 @@ impl EthBeaconAPI for ConsensusRPC {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use httptest::{matchers::*, responders::*, Expectation, Server};
+    use httptest::{
+        matchers::{request::query, *},
+        responders::*,
+        Expectation, Server,
+    };
 
     fn setup_server_and_rpc() -> (Server, ConsensusRPC) {
         let server = Server::run();
@@ -471,6 +475,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_get_latest_beacon_block_header() {
+        let (server, rpc) = setup_server_and_rpc();
+
+        let expected_header = BeaconBlockHeader::default();
+        let response = BeaconBlockHeaderResponse {
+            data: BeaconBlockHeaderContainer {
+                header: BeaconBlockHeaderMessage {
+                    message: expected_header.clone(),
+                },
+            },
+        };
+        let json_res = serde_json::to_string(&response).unwrap();
+
+        server.expect(
+            Expectation::matching(request::path(matches("/eth/v1/beacon/headers/head")))
+                .respond_with(status_code(200).body(json_res)),
+        );
+
+        let result = rpc.get_latest_beacon_block_header().await;
+        assert_eq!(result.unwrap(), expected_header);
+
+        server.expect(Expectation::matching(any()).respond_with(status_code(404)));
+
+        let res: Result<BeaconBlockHeader, _> = rpc.get_latest_beacon_block_header().await;
+        assert!(res.is_err());
+    }
+
+    #[tokio::test]
     async fn test_get_bootstrap() {
         let (server, rpc) = setup_server_and_rpc();
 
@@ -529,59 +561,31 @@ mod tests {
         assert!(res.is_err());
     }
 
-    #[ignore]
     #[tokio::test]
-    async fn test_get_block_roots_tree() {
+    async fn test_get_block_roots_for_period() {
         let (server, rpc) = setup_server_and_rpc();
-        let start_slot = 100;
 
-        let response = BlockRootResponse {
-            data: BlockRoot {
-                root: Default::default(),
-            },
-        };
+        let response = BlockRootsArchiveResponse::default();
         let json_res = serde_json::to_string(&response).unwrap();
 
+        let period = 1000;
         server.expect(
-            Expectation::matching(any())
-                //TODO: Fix this to be SLOTS_PER_HISTORICAL_ROOT
-                .times(1..)
-                .respond_with(status_code(200).body(json_res.clone())),
+            Expectation::matching(all_of(vec![
+                Box::new(request::path(matches("block_summary"))),
+                Box::new(request::query(url_decoded(contains((
+                    "period",
+                    period.to_string(),
+                ))))),
+            ]))
+            .respond_with(status_code(200).body(json_res)),
         );
 
-        let result = rpc.get_block_roots_tree(start_slot as u64).await;
+        let result = rpc.get_block_roots_for_period(period).await;
+        assert_eq!(result.unwrap(), response.data);
 
-        match result {
-            Ok(roots_vector) => {
-                assert_eq!(roots_vector.len(), SLOTS_PER_HISTORICAL_ROOT);
-            }
-            Err(e) => panic!("Failed to get block roots tree: {:?}", e),
-        }
-    }
+        server.expect(Expectation::matching(any()).respond_with(status_code(404)));
 
-    #[ignore]
-    #[tokio::test]
-    async fn test_get_block_roots_tree_with_fallback() {
-        let (server, rpc) = setup_server_and_rpc();
-        let start_slot = 100;
-
-        let response = BlockRootResponse {
-            data: BlockRoot {
-                root: Default::default(),
-            },
-        };
-        let response_json = serde_json::to_string(&response).unwrap();
-
-        server.expect(Expectation::matching(any()).times(..).respond_with(cycle![
-            status_code(200).body(response_json.clone()),
-            status_code(404),
-        ]));
-
-        let result = rpc.get_block_roots_tree(start_slot as u64).await;
-
-        assert!(result.is_ok());
-        let result = result.unwrap();
-        assert_eq!(result.len(), SLOTS_PER_HISTORICAL_ROOT);
-        assert_eq!([Root::default(); 8192].to_vec(), result.to_vec());
+        let res: Result<Vector<Root, 8192>, _> = rpc.get_block_roots_for_period(period).await;
+        assert!(res.is_err());
     }
 }
