@@ -1,0 +1,20 @@
+{
+  "event_name": "OperatorshipTransferred",
+  "contract_name": "gateway",
+  "chain": "ethereum",
+  "source": "axelar-sentinel",
+  "log": {
+    "address": "0xaba4d993188008f665c972d79fc59ab2381ece94",
+    "topics": [
+      "0x192e759e55f359cd9832b5c0c6e38e4b6df5c5ca33f3bd5c90738e865a521872"
+    ],
+    "data": "0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000096f70657261746f72730000000000000000000000000000000000000000000000",
+    "blockNumber": "0x12350d4",
+    "transactionHash": "0xd190fddcf5ff9246ef2d267ca0746e1300f18120d31c48be2dd587468979f130",
+    "transactionIndex": "0x00",
+    "blockHash": "0x9d949847f170d3d2a6eaf14184cba24c7fc7469de1106d029f59ebe0ebaf904d",
+    "logIndex": "0x05",
+    "removed": false
+  },
+  "tx_to": "0xaba4d993188008f665c972d79fc59ab2381ece94"
+}
