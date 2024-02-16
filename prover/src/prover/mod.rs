@@ -424,6 +424,20 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_get_ancestry_proof_failure() {
+        let proof_generator = MockProofGenerator::<MockConsensusRPC, MockStateProver>::new();
+        let prover = Prover::new(proof_generator);
+
+        let recent_block = get_mock_beacon_block(10000);
+        let recent_block_header = to_beacon_header(&recent_block).unwrap();
+
+        let res = prover
+            .get_ancestry_proof(recent_block_header.slot, &recent_block_header)
+            .await;
+        assert!(res.is_err());
+    }
+
+    #[tokio::test]
     async fn test_get_ancestry_proof_historical_roots() {
         let mut proof_generator = MockProofGenerator::<MockConsensusRPC, MockStateProver>::new();
 
