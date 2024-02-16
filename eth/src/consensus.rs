@@ -31,16 +31,9 @@ pub trait EthBeaconAPI: Sync + Send + 'static {
     async fn get_beacon_block_header(&self, slot: u64) -> Result<BeaconBlockHeader, RPCError>;
     /// Get the beacon block for a given slot.
     async fn get_beacon_block(&self, slot: u64) -> Result<BeaconBlockAlias, RPCError>;
-    /// Get the block roots tree for a given start slot. This will return a vector of length
-    /// `SLOTS_PER_HISTORICAL_ROOT` with the block roots for the given range. If any of the block
-    /// roots fail to resolve, the previous root will be used instead.
-    async fn get_block_roots_tree(
-        &self,
-        start_slot: u64,
-    ) -> Result<Vector<Root, SLOTS_PER_HISTORICAL_ROOT>, RPCError>;
-
-    /// Similar to get_block_roots_tree but uses the Block Roots Archive to fetch the block roots
-    /// for the given period.
+    /// Get the block roots tree for a given period. This will return a vector of length
+    /// `SLOTS_PER_HISTORICAL_ROOT`. If any of the block roots fail to resolve,
+    /// the previous root will be used instead. It uses the Block Roots Archive.
     async fn get_block_roots_for_period(
         &self,
         period: u64,
@@ -293,47 +286,6 @@ impl EthBeaconAPI for ConsensusRPC {
             .map_err(|e| RPCError::DeserializationError(req, e.to_string()))?;
 
         Ok(data.data.message)
-    }
-
-    async fn get_block_roots_tree(
-        &self,
-        start_slot: u64,
-    ) -> Result<Vector<Root, SLOTS_PER_HISTORICAL_ROOT>, RPCError> {
-        let mut futures = Vec::new();
-
-        for i in 0..SLOTS_PER_HISTORICAL_ROOT {
-            let future = self.get_block_root(start_slot + i as u64);
-            futures.push(future);
-        }
-
-        let resolved = future::join_all(futures).await;
-
-        // If any of the block roots failed to resolve, fill in the gaps with the last known root.
-        let mut block_roots = Vec::with_capacity(SLOTS_PER_HISTORICAL_ROOT);
-        for (i, block_root) in resolved.iter().enumerate() {
-            match block_root {
-                Ok(block_root) => block_roots.push(*block_root),
-                Err(err) => match err {
-                    RPCError::NotFoundError(_) => {
-                        println!(
-                            "There was a not found error for {} {:?}. Filling with previous",
-                            i, err
-                        );
-                        if let Some(last_root) = block_roots.last().cloned() {
-                            block_roots.push(last_root);
-                        }
-                    }
-                    _ => {
-                        println!("There was an rpc error for {} {:?}", i, err);
-                        return Err(err.clone());
-                    }
-                },
-            }
-        }
-
-        let block_roots = Vector::<Root, SLOTS_PER_HISTORICAL_ROOT>::try_from(block_roots).unwrap();
-
-        Ok(block_roots)
     }
 
     async fn get_block_roots_for_period(
