@@ -54,9 +54,9 @@ pub fn parse_enriched_log(
         }
         _ => Err(eyre!(
             "Enriched log variant is not supported block_hash: {:x} tx_hash: {:x} log_index: {}",
-            enriched_log.log.block_hash.unwrap(),
-            enriched_log.log.transaction_hash.unwrap(),
-            enriched_log.log.log_index.unwrap(),
+            enriched_log.log.block_hash.unwrap_or_default(),
+            enriched_log.log.transaction_hash.unwrap_or_default(),
+            enriched_log.log.log_index.unwrap_or_default(),
         )),
     }
     .and_then(|content| enrich_content(&content, log, block_details, delivery_tag))
@@ -223,6 +223,15 @@ mod tests {
             }
             _ => panic!("Unexpected content variant"),
         }
+    }
+
+    #[test]
+    fn test_parse_enriched_log_failure() {
+        let enriched_log = EnrichedLog::default();
+        let block_details = create_test_block_details();
+
+        let result = parse_enriched_log(&enriched_log, &block_details, 1);
+        assert!(result.is_err());
     }
 
     #[test]
