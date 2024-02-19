@@ -32,7 +32,7 @@ pub struct Verifier {
 #[automock]
 #[async_trait]
 pub trait VerifierAPI {
-    async fn get_period(&mut self) -> Result<u64>;
+    async fn get_period(&self) -> Result<u64>;
     async fn is_message_verified(&mut self, messages: Vec<Message>)
         -> Result<Vec<(Message, bool)>>;
     async fn is_worker_set_verified(&mut self, worker_set_msg: WorkerSetMessage) -> Result<bool>;
@@ -41,6 +41,7 @@ pub trait VerifierAPI {
         &self,
         verification_data: BatchVerificationData,
     ) -> Result<VerificationResult>;
+    async fn get_state(&self) -> Result<LightClientState>;
 }
 
 impl Verifier {
@@ -51,8 +52,12 @@ impl Verifier {
             wasm_wallet,
         }
     }
+}
 
-    pub async fn get_state(&mut self) -> Result<LightClientState> {
+#[automock]
+#[async_trait]
+impl VerifierAPI for Verifier {
+    async fn get_state(&self) -> Result<LightClientState> {
         let cmd = "axelard";
         let args = [
             "query",
@@ -77,11 +82,8 @@ impl Verifier {
 
         Ok(state.data)
     }
-}
 
-#[async_trait]
-impl VerifierAPI for Verifier {
-    async fn get_period(&mut self) -> Result<u64> {
+    async fn get_period(&self) -> Result<u64> {
         let state = self.get_state().await?;
         let period = calc_sync_period(state.update_slot);
         Ok(period)
