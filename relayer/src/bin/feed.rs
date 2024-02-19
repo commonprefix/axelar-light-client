@@ -27,14 +27,14 @@ impl<V: VerifierAPI, CR: EthBeaconAPI> Feeder<V, CR> {
         }
     }
 
-    pub async fn tick(&self) -> () {
+    pub async fn tick(&self) {
         let latest_header = self.consensus.get_latest_beacon_block_header().await;
         if latest_header.is_err() {
             error!(
                 "Error getting latest header from consensus: {:?}",
                 latest_header.err()
             );
-            return ();
+            return;
         }
         let latest_header = latest_header.unwrap();
         let latest_period = calc_sync_period(latest_header.slot);
@@ -42,7 +42,7 @@ impl<V: VerifierAPI, CR: EthBeaconAPI> Feeder<V, CR> {
         let state = self.verifier.get_state().await;
         if state.is_err() {
             error!("Error getting state from wasm: {:?}", state.err());
-            return ();
+            return;
         }
         let state = state.unwrap();
         let verifier_period = calc_sync_period(state.update_slot);
@@ -54,7 +54,7 @@ impl<V: VerifierAPI, CR: EthBeaconAPI> Feeder<V, CR> {
         );
         if latest_period == verifier_period {
             debug!("No updates to process");
-            return ();
+            return;
         }
 
         let start_update_period = if is_on_bootstrap {
@@ -73,7 +73,7 @@ impl<V: VerifierAPI, CR: EthBeaconAPI> Feeder<V, CR> {
             .await;
         if updates.is_err() {
             error!("Error getting updates from consensus: {:?}", updates.err());
-            return ();
+            return;
         }
         let updates = updates.unwrap();
         info!(
@@ -98,7 +98,7 @@ impl<V: VerifierAPI, CR: EthBeaconAPI> Feeder<V, CR> {
         }
     }
 
-    pub async fn start(&self, sleep_duration: Duration) -> () {
+    pub async fn start(&self, sleep_duration: Duration) {
         loop {
             self.tick().await;
 
